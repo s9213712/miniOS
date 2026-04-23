@@ -63,6 +63,10 @@
 - Phase 9：Framebuffer Request
   - 目的：在 boot 時確認 Limine framebuffer 回應
   - 預期成效：輸出 framebuf metadata（count/size/bpp）並在缺少請求時明確告警
+- Phase 10：First GUI Window
+  - 目的：使用 framebuffer 進行最小視窗渲染 demo
+  - 實作重點：新增 framebuffer graphics backend、可選的視窗邊框/標題欄/關閉按鈕方塊；保留 serial 與 VGA 文字鏡射不變
+  - 預期成效：`QEMU_GUI=1` 跑起時可看到視覺化 boot window（需 QEMU 有 GUI 顯示環境）
 
 ## 目前可驗證狀態
 
@@ -98,6 +102,11 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 
 - `SKIP_SMOKE_RUN=1 make test-smoke`：只做建置階段驗證
 - `QEMU_GUI=1 make run`：開啟 QEMU VGA 視窗並同步顯示 framebuffer 文字輸出
+- `QEMU_GUI=1 make run`：在有 GUI 環境的機器上也能看到 framebuffer 視窗 demo
+
+GUI 限制：
+- 無法在沒有可用 display 的環境啟動 GUI，QEMU 會輸出 `gtk initialization failed`
+- 這類環境可先用 `QEMU_GUI=0 make smoke-offline` 做 boot/smoke 驗證；GUI 視覺確認可改到有桌面/有 GUI 的節點執行
 - `make smoke` / `make smoke-full`：完整 smoke alias
 - `make smoke-offline`：離線模式 smoke（建議搭配 `SMOKE_OFFLINE=1`）
 - `PANIC_TEST=1 make run`：啟用 panic path

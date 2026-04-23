@@ -164,11 +164,34 @@ void kmain(void) {
             klog(" bpp=");
             klog_u64((uint64_t)fb->bpp);
             klogln("");
+            if (fb->bpp == 24u || fb->bpp == 32u) {
+                console_enable_graphics_framebuffer(
+                    hhdm_request.response->offset,
+                    (uint64_t)fb->address,
+                    fb->width,
+                    fb->height,
+                    fb->pitch,
+                    fb->bpp,
+                    fb->memory_model,
+                    fb->red_mask_size,
+                    fb->red_mask_shift,
+                    fb->green_mask_size,
+                    fb->green_mask_shift,
+                    fb->blue_mask_size,
+                    fb->blue_mask_shift);
+            } else {
+                klog("[framebuffer] skipping graphics output, unsupported bpp=");
+                klog_u64((uint64_t)fb->bpp);
+                klogln("");
+            }
         } else {
             klogln("[framebuffer] missing first framebuffer pointer");
         }
     }
     console_enable_framebuffer_text_mode(hhdm_request.response->offset);
+    if (console_graphics_enabled()) {
+        console_draw_gui_boot_window();
+    }
 
     klogln("[phase3] collecting boot memory map");
     klog("hhdm_offset=");
