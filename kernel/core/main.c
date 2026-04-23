@@ -8,8 +8,7 @@
 #include <mvos/limine.h>
 #include <mvos/interrupt.h>
 #include <mvos/console.h>
-#include <mvos/shell.h>
-#include <mvos/keyboard.h>
+#include <mvos/scheduler.h>
 #include <stdint.h>
 
 static volatile uint64_t request_start[4]
@@ -76,13 +75,32 @@ static void trigger_page_fault(void) {
     *bad = 0x12345678;
 }
 
+static void task_a(uint64_t tick) {
+    if ((tick & 0xff) != 0) {
+        return;
+    }
+    klog("[sched] task-a tick=");
+    klog_u64(tick);
+    klog(" run=");
+    klog_u64((uint64_t)scheduler_ticks());
+    klogln("");
+}
+
+static void task_b(uint64_t tick) {
+    if ((tick & 0xfff) != 0) {
+        return;
+    }
+    klog("[sched] task-b tick=");
+    klog_u64(tick);
+    klogln("");
+}
+
 void kmain(void) {
     serial_init();
     console_init();
     klogln("MiniOS Phase 3 bootstrap");
     klogln("boot banner: kernel entering C");
     klogln("hello from kernel");
-    keyboard_init();
 
 #ifdef MINIOS_PANIC_TEST
     panic("panic test path enabled");
@@ -140,6 +158,11 @@ void kmain(void) {
     klog_u64((uint64_t)heap_block);
     klogln("");
     klogln("[phase3] memory allocator ready");
+    scheduler_init();
+    if (scheduler_add_task("task-a", task_a) < 0 || scheduler_add_task("task-b", task_b) < 0) {
+        panic("scheduler init failed");
+    }
+    klogln("[phase5] scheduler ready");
 
 #ifdef MINIOS_FAULT_TEST_DIVIDE_BY_ZERO
     klogln("triggering divide-by-zero fault test");
@@ -161,5 +184,8 @@ void kmain(void) {
     trigger_page_fault();
 #endif
 
-    shell_run();
+    for (;;) {
+        __asm__ volatile("hlt");
+        scheduler_run_once();
+    }
 }

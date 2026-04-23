@@ -2,6 +2,7 @@
 #include <mvos/panic.h>
 #include <mvos/serial.h>
 #include <mvos/interrupt.h>
+#include <mvos/scheduler.h>
 #include <stdint.h>
 
 struct interrupt_frame {
@@ -56,6 +57,7 @@ uint64_t timer_ticks(void) {
 void __attribute__((interrupt)) isr_timer(struct interrupt_frame *frame) {
     (void)frame;
     timer_tick_bump();
+    scheduler_on_timer_tick();
 
     outb(PIC1_COMMAND, PIC_EOI);
 }
