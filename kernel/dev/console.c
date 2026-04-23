@@ -152,6 +152,13 @@ static void framebuffer_clear_text(void) {
     }
 }
 
+static inline uint64_t resolve_graphics_fb_address(uint64_t framebuffer_address, uint64_t hhdm_offset) {
+    if (framebuffer_address < 0x100000000ULL && hhdm_offset != 0u) {
+        return framebuffer_address + hhdm_offset;
+    }
+    return framebuffer_address;
+}
+
 static void framebuffer_write_char(char c);
 
 static void framebuffer_scroll_text(void) {
@@ -299,7 +306,7 @@ void console_enable_graphics_framebuffer(
         return;
     }
 
-    graphics_fb = (volatile uint8_t *)(framebuffer_address + hhdm_offset);
+    graphics_fb = (volatile uint8_t *)resolve_graphics_fb_address(framebuffer_address, hhdm_offset);
     if (graphics_fb == NULL) {
         return;
     }
