@@ -8,6 +8,7 @@ trap cleanup EXIT
 
 EXPECTED_BOOT="hello from kernel"
 EXPECTED_FAULT="\\[fault\\]"
+EXPECTED_PMM="\\[pmm\\] memory map"
 
 if [ -n "${PANIC_TEST:-}" ]; then
   make PANIC_TEST=1 -B
@@ -35,6 +36,12 @@ if ! grep -q "$EXPECTED_BOOT" "$RUN_LOG"; then
 fi
 
 echo "[test_smoke] Boot text found."
+
+if ! grep -q "$EXPECTED_PMM" "$RUN_LOG"; then
+  echo "[test_smoke] Expected phase 3 memory map text not found." >&2
+  exit 1
+fi
+echo "[test_smoke] Phase 3 memory map verified."
 
 if [ -n "${PANIC_TEST:-}" ]; then
   if ! grep -q "\[panic\]" "$RUN_LOG"; then

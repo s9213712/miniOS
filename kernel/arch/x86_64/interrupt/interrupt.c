@@ -11,12 +11,6 @@ struct interrupt_frame {
     uint64_t ss;
 };
 
-#if defined(__GNUC__) && !defined(__clang__)
-#define MVOS_INTERRUPT __attribute__((interrupt))
-#else
-#define MVOS_INTERRUPT
-#endif
-
 static void fault_log_and_panic(const char *name, uint64_t vector, uint64_t error_code, const struct interrupt_frame *frame) {
     serial_init();
     klogln("[fault]");
@@ -35,18 +29,18 @@ static void fault_log_and_panic(const char *name, uint64_t vector, uint64_t erro
     panic("kernel exception");
 }
 
-MVOS_INTERRUPT void isr_divide_by_zero(struct interrupt_frame *frame) {
+void isr_divide_by_zero(struct interrupt_frame *frame) __attribute__((interrupt)) {
     fault_log_and_panic("Divide Error", 0, UINT64_MAX, frame);
 }
 
-MVOS_INTERRUPT void isr_invalid_opcode(struct interrupt_frame *frame) {
+void isr_invalid_opcode(struct interrupt_frame *frame) __attribute__((interrupt)) {
     fault_log_and_panic("Invalid Opcode", 6, UINT64_MAX, frame);
 }
 
-MVOS_INTERRUPT void isr_general_protection(struct interrupt_frame *frame, uint64_t error_code) {
+void isr_general_protection(struct interrupt_frame *frame, uint64_t error_code) __attribute__((interrupt)) {
     fault_log_and_panic("General Protection Fault", 13, error_code, frame);
 }
 
-MVOS_INTERRUPT void isr_page_fault(struct interrupt_frame *frame, uint64_t error_code) {
+void isr_page_fault(struct interrupt_frame *frame, uint64_t error_code) __attribute__((interrupt)) {
     fault_log_and_panic("Page Fault", 14, error_code, frame);
 }

@@ -1,39 +1,32 @@
 # Architecture and phase notes
 
-MiniOS keeps a small monolithic x86_64 kernel for learning. The goal is to keep
-the boot path fully deterministic and debug-friendly while adding one phase at a time.
+MiniOS starts with a minimal x86_64 boot-capable skeleton and keeps all boot plumbing intentionally small.
 
 - Target: x86_64
 - Bootloader: Limine
 - Host dependencies: GNU toolchain + QEMU + xorriso + Git
-- Kernel model: monolithic kernel with C-first code and tiny x86_64 assembly entry
+- Kernel model: monolithic, C-first with tiny x86_64 assembly shim
 
 ## Stage status
 
-- **Phase 0**: repository scaffold, scripts, docs, and toolchain path.
-- **Phase 1**: Limine boot handoff, serial banner and panic path.
-- **Phase 2**: GDT/IDT initialization and CPU fault logging.
-- **Phase 4**: serial-first console abstraction, keyboard input, and first shell
-  command loop.
+- **Phase 0**: scaffolding, scripts, docs, and baseline build/run/debug pipeline.
+- **Phase 1**: Limine boot handoff, minimal serial logging, panic halt path.
+- **Phase 2**: GDT/IDT initialization and fault visibility.
+- **Phase 3**: HHDM + simple physical memory map parsing + page allocator/bump heap.
 
 ## Core layout
 
-- `kernel/arch/x86_64/boot/entry.asm` sets a minimal kernel stack and jumps to `kmain`.
-- `kernel/core/main.c` is the first C entry body and now moves into shell mode.
-- `kernel/core/log.c` uses a console abstraction for output.
-- `kernel/core/shell.c` provides a tiny interactive REPL (`mvos>`).
-- `kernel/core/{panic.c,assert.c}` implement fail-fast halt behavior.
-- `kernel/dev/serial.c` initializes UART and provides byte-level writes.
-- `kernel/dev/console.c` centralises output and supports serial vs. framebuffer target selection.
-- `kernel/dev/keyboard.c` provides polling PS/2 scancode-to-ASCII input.
-- `kernel/arch/x86_64/{gdt,idt,interrupt}` hold bootstrap CPU setup and handlers.
-- `kernel/include/mvos/{console.h,keyboard.h,shell.h}` provide public phase-4 interfaces.
-- `libc/` keeps minimal C helper functions.
+- `kernel/arch/x86_64/gdt/` stores `gdt_init()`.
+- `kernel/arch/x86_64/idt/` stores `idt_init()` and interrupt descriptor storage.
+- `kernel/arch/x86_64/interrupt/` stores exception handlers.
+- `kernel/core/main.c` is the first C entry point and the phase 2 fault test hooks.
+- `kernel/mm/pmm.c` provides a simple bump-page allocator from the highest usable memory-map region.
+- `kernel/mm/heap.c` exposes `kmalloc` as a first kernel-heap shim.
+- `kernel/core/{panic.c,assert.c,log.c}` provide serial-backed fail-fast behavior.
 
-Build output:
+Build output layout:
 - `build/mvos.elf` (linked kernel image)
-- `build/mvos.bin` (raw binary)
+- `build/mvos.bin` (flat binary)
 - `build/mvos.iso` (Limine-bootable ISO)
 
-Current architecture intentionally excludes framebuffer rendering, scheduler, SMP,
-VFS, userspace, networking, and network stack in this phase.
+Current architecture intentionally excludes framebuffer, scheduler, userspace, network, SMP, and VFS.

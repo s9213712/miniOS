@@ -1,4 +1,4 @@
-# MinimalOS bootstrap Makefile (Phase 4)
+# MiniOS bootstrap Makefile (Phase 3)
 
 PROJECT := mvos
 BUILD_DIR := build
@@ -11,14 +11,7 @@ KERNEL_BIN := $(OUTPUT_DIR)/$(PROJECT).bin
 
 CC := $(shell if command -v x86_64-none-elf-gcc >/dev/null 2>&1; then echo x86_64-none-elf-gcc; elif command -v x86_64-elf-gcc >/dev/null 2>&1; then echo x86_64-elf-gcc; else echo gcc; fi)
 LD := $(shell if command -v x86_64-none-elf-ld >/dev/null 2>&1; then echo x86_64-none-elf-ld; elif command -v x86_64-elf-ld >/dev/null 2>&1; then echo x86_64-elf-ld; else echo ld; fi)
-HAS_NASM := $(shell if command -v nasm >/dev/null 2>&1; then echo 1; else echo 0; fi)
-ifeq ($(HAS_NASM),1)
-AS := nasm
-ASM_SRCS := kernel/arch/x86_64/boot/entry.asm
-else
-AS := $(CC)
-ASM_SRCS := kernel/arch/x86_64/boot/entry.s
-endif
+AS := $(shell if command -v nasm >/dev/null 2>&1; then echo nasm; else echo nasm; fi)
 OBJCOPY := $(shell if command -v x86_64-none-elf-objcopy >/dev/null 2>&1; then echo x86_64-none-elf-objcopy; elif command -v x86_64-elf-objcopy >/dev/null 2>&1; then echo x86_64-elf-objcopy; else echo objcopy; fi)
 
 QEMU := qemu-system-x86_64
@@ -29,11 +22,6 @@ CFLAGS := -std=c11 -ffreestanding -fno-pic -fno-pie -fno-stack-protector -fno-bu
           -fno-asynchronous-unwind-tables -m64 -mno-red-zone -mcmodel=large -O2 -g \
           -Wall -Wextra -Wno-unused-parameter -Werror=implicit-function-declaration $(INCLUDES)
 LDFLAGS := -T linker/x86_64.ld -z max-page-size=0x1000 -nostdlib
-
-WITH_FAULT_HANDLERS ?= 0
-ifeq ($(WITH_FAULT_HANDLERS),1)
-  CFLAGS += -DMINIOS_FAULT_HANDLERS=1
-endif
 
 ifeq ($(PANIC_TEST),1)
   CFLAGS += -DMINIOS_PANIC_TEST=1
@@ -52,16 +40,11 @@ ifeq ($(FAULT_TEST),pf)
   CFLAGS += -DMINIOS_FAULT_TEST_PAGE_FAULT=1
 endif
 
-C_SRCS := $(wildcard kernel/core/*.c kernel/dev/*.c libc/*.c)
+C_SRCS := $(wildcard kernel/core/*.c kernel/dev/*.c kernel/mm/*.c libc/*.c)
 ARCH_SRCS := \
 	$(wildcard kernel/arch/x86_64/gdt/*.c) \
-	$(wildcard kernel/arch/x86_64/idt/*.c)
-ifneq ($(WITH_FAULT_HANDLERS),0)
-INT_SRCS := $(wildcard kernel/arch/x86_64/interrupt/*.c)
-endif
-ifneq ($(strip $(INT_SRCS)),)
-C_SRCS += $(INT_SRCS)
-endif
+	$(wildcard kernel/arch/x86_64/idt/*.c) \
+	$(wildcard kernel/arch/x86_64/interrupt/*.c)
 ifneq ($(strip $(ARCH_SRCS)),)
 C_SRCS += $(ARCH_SRCS)
 endif
@@ -91,14 +74,10 @@ $(OUTPUT_DIR)/%.o: %.c $(FLAGS_MARK)
 	@echo "[CC] $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-$(OUTPUT_DIR)/kernel/arch/x86_64/boot/entry.o: $(ASM_SRCS) $(FLAGS_MARK)
+$(OUTPUT_DIR)/kernel/arch/x86_64/boot/entry.o: kernel/arch/x86_64/boot/entry.asm $(FLAGS_MARK)
 	@mkdir -p $(dir $@)
 	@echo "[AS] $<"
-ifneq ($(HAS_NASM),1)
-	@$(AS) -c $< -o $@
-else
 	@$(AS) -f elf64 $< -o $@
-endif
 
 run: $(KERNEL_ELF)
 	bash scripts/run_qemu.sh
@@ -114,3 +93,4 @@ test-smoke: $(KERNEL_ELF)
 
 clean:
 	rm -rf $(OUTPUT_DIR)
+

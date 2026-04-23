@@ -1,32 +1,26 @@
 # Roadmap
 
 ## Current completion
-- Phase 0: Repository scaffold, build scripts, docs, and conventions
-- Phase 1: Limine boot handoff, linker layout, serial banner/hello, panic path
-- Phase 2: GDT/IDT setup and first fault-path logging
-- Phase 4: Console abstraction, keyboard input, first shell command loop
+- Phase 0: Repository scaffold, Makefile targets, scripts, docs and repository conventions
+- Phase 1: Limine boot handoff, linker script, serial banner/hello, panic path
+- Phase 2: GDT/IDT setup and first fault path logging
+- Phase 3: HHDM + page allocator + basic bump heap
 
 ## Next phases
 
-### Phase 3 (deferred)
-- Memory map helpers and allocator foundation
+### Phase 2
+- Interrupt/exception setup (GDT/IDT)
+- Fault logging to serial
+- `FAULT_TEST=div0|opcode|gpf|pf` smoke path
+
+### Phase 3
+- (completed) HHDM + basic frame allocator
 
 ### Phase 4
-- Serial/Framebuffer console abstraction (serial live now, framebuffer wiring point set)
-- Keyboard input, one-line input buffer, and backspace/enter handling
-- First shell:
-  - `help`
-  - `hello`
-  - `echo`
-  - `version`
-  - `panic`
-  - `quit`
+- Serial/Framebuffer console abstraction
+- Keyboard input
+- First shell commands
 
 ### Phase 5
 - Timer source and tick counter
-- Basic diagnostics command (for example `ticks`)
-
-### Phase 6
-- Simple memory allocator integration
-- Heap/page-usage visibility
-
+- `ticks` style diagnostics

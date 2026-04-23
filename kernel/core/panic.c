@@ -13,6 +13,6 @@ void panic(const char *message) {
     klog("\nSystem halted.\n");
 
     for (;;) {
-        __asm__ volatile("cli; hlt");
+        asm volatile("cli; hlt");
     }
 }

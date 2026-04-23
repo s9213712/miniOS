@@ -17,51 +17,11 @@ struct idt_pointer {
     uint64_t base;
 } __attribute__((packed));
 
-struct interrupt_frame {
-    uint64_t rip;
-    uint64_t cs;
-    uint64_t rflags;
-    uint64_t rsp;
-    uint64_t ss;
-};
-
-#if MINIOS_FAULT_HANDLERS
 struct interrupt_frame;
 extern void isr_divide_by_zero(struct interrupt_frame *frame);
 extern void isr_invalid_opcode(struct interrupt_frame *frame);
 extern void isr_general_protection(struct interrupt_frame *frame, uint64_t error_code);
 extern void isr_page_fault(struct interrupt_frame *frame, uint64_t error_code);
-#else
-static void isr_divide_by_zero(struct interrupt_frame *frame) {
-    (void)frame;
-    for (;;) {
-        __asm__ volatile("cli; hlt");
-    }
-}
-
-static void isr_invalid_opcode(struct interrupt_frame *frame) {
-    (void)frame;
-    for (;;) {
-        __asm__ volatile("cli; hlt");
-    }
-}
-
-static void isr_general_protection(struct interrupt_frame *frame, uint64_t error_code) {
-    (void)frame;
-    (void)error_code;
-    for (;;) {
-        __asm__ volatile("cli; hlt");
-    }
-}
-
-static void isr_page_fault(struct interrupt_frame *frame, uint64_t error_code) {
-    (void)frame;
-    (void)error_code;
-    for (;;) {
-        __asm__ volatile("cli; hlt");
-    }
-}
-#endif
 
 static struct idt_entry idt[256];
 static struct idt_pointer idt_ptr;
@@ -100,5 +60,5 @@ void idt_init(void) {
     idt_ptr.limit = (uint16_t)(sizeof(idt) - 1);
     idt_ptr.base = (uint64_t)&idt;
 
-    __asm__ volatile("lidt %0" : : "m"(idt_ptr));
+    asm volatile("lidt %0" : : "m"(idt_ptr));
 }

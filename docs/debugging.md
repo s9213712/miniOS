@@ -1,39 +1,40 @@
-# Debugging guide (Phase 4)
+# Debugging guide (Phase 3)
 
 ## Serial output (default path)
 - All kernel logs print on UART COM1.
 - QEMU is launched with `-serial stdio`, so logs appear directly in the terminal.
 
+## Phase 3 memory checks
+- `[pmm] memory map` marks the memory map dump loop.
+- `[pmm] selected region` shows which usable block is used for allocator bootstrap.
+- `free pages:` confirms allocator availability after PMM init.
+- `pmm_allocate_pages(1)` and `kmalloc(256)` logs confirm allocator path.
+
 ## Panic path
-- Call `panic("message")` to print a marker and halt in an infinite `cli; hlt` loop.
+- Call `panic("message")` to print an explicit marker and halt in an infinite `cli; hlt` loop.
 - Assertions route to `kassert_fail(...)` and use the same halt path.
 
 ## Fault path
-- Exception handlers for divide-by-zero, invalid opcode, general-protection, and page fault are installed by IDT setup.
-- On a fault, the handler logs:
+- Exception handlers for divide-by-zero, invalid opcode, general-protection, and page fault are installed by IDT setup in phase 2.
+- When a fault occurs, the handler prints:
   - `[fault]`
   - fault name
-  - vector
-  - optional error code / RIP
-  - then calls `panic()` and halts.
-
-## Interactive shell checks (Phase 4)
-- After boot, you should see:
-  - `MiniOS shell (phase 4)`
-  - `mvos>` prompt
-- Try commands:
-  - `help`
-  - `hello`
-  - `echo hi`
-  - `version`
-- `panic` should route to the panic/halt path.
+  - vector number
+  - error code (if present)
+  - RIP
+- The handler then calls `panic()` and halts.
+- Test commands:
+  - `FAULT_TEST=div0 make run`
+  - `FAULT_TEST=opcode make run`
+  - `FAULT_TEST=gpf make run`
+  - `FAULT_TEST=pf make run`
 
 ## Debug mode
 - `make debug` starts QEMU with:
   - `-S -s` (GDB waits on TCP 1234)
   - `-serial stdio`
 
-Typical workflow:
+A typical workflow:
 ```bash
 make debug
 (gdb) target remote :1234

@@ -3,12 +3,12 @@
 #include <stdint.h>
 
 static inline void outb(uint16_t port, uint8_t value) {
-    __asm__ volatile("outb %0, %1" : : "a"(value), "Nd"(port));
+    asm volatile("outb %0, %1" : : "a"(value), "Nd"(port));
 }
 
 static inline uint8_t inb(uint16_t port) {
     uint8_t value;
-    __asm__ volatile("inb %1, %0" : "=a"(value) : "Nd"(port));
+    asm volatile("inb %1, %0" : "=a"(value) : "Nd"(port));
     return value;
 }
 
@@ -30,12 +30,12 @@ void serial_init(void) {
 
 void serial_write_char(char c) {
     while (!serial_is_transmit_empty()) {
-        __asm__ volatile("pause");
+        asm volatile("pause");
     }
     if (c == '\n') {
         outb(0x3f8, '\r');
         while (!serial_is_transmit_empty()) {
-            __asm__ volatile("pause");
+            asm volatile("pause");
         }
     }
     outb(0x3f8, (uint8_t)c);

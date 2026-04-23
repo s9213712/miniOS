@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 4)
+# MinimalOS v1 (Phase 3)
 
 A small educational x86_64 OS prototype that boots with Limine and prints early boot output
 via serial.
@@ -47,17 +47,16 @@ If missing, `make iso` attempts to clone `v11.x-binary` and copy these assets au
 
 On successful boot you should see:
 - `[serial] ready`
-- `MiniOS Phase 4 bootstrap`
+- `MiniOS Phase 3 bootstrap`
 - `boot banner: kernel entering C`
 - `hello from kernel`
 - `gdt/idt initialized`
-- `MiniOS shell (phase 4)`
-- `Available commands:`
-
-Shell example:
-- `mvos>` prompt
-- `help`
-- `hello from shell`
+- `[pmm] memory map`
+- `- base=... len=... type=...` (per memory-map entry)
+- `[pmm] selected region ...`
+- `free pages: ...`
+- `[phase3] memory allocator ready`
+- `kmalloc(256) = ...`
 
 Optional panic path:
 - `PANIC_TEST=1 make run` prints:
@@ -79,23 +78,16 @@ Optional fault path:
 
 `make test-smoke` (or `./scripts/test_smoke.sh`) verifies the banner and optionally panic/fault marker.
 
-### Shell smoke check
-
-- `make run`
-- wait for `mvos>` prompt
-- type `help` + Enter
-- type `hello` + Enter
-
-Expected output is command feedback in the same serial session.
-
 ## Layout
 
 - `boot/limine.conf` and `boot/limine/`
 - `kernel/arch/x86_64/boot/entry.asm`
 - `kernel/arch/x86_64/gdt/`, `kernel/arch/x86_64/idt/`, `kernel/arch/x86_64/interrupt/`
-- `kernel/core/main.c`, `kernel/core/panic.c`, `kernel/core/log.c`, `kernel/core/assert.c`, `kernel/core/shell.c`
-- `kernel/dev/serial.c`, `kernel/dev/console.c`, `kernel/dev/keyboard.c`
+- `kernel/core/main.c`, `kernel/core/panic.c`, `kernel/core/log.c`, `kernel/core/assert.c`
+- `kernel/mm/pmm.c`, `kernel/mm/heap.c`
+- `kernel/dev/serial.c`
 - `kernel/include/mvos/` headers
+- `kernel/include/mvos/pmm.h`, `kernel/include/mvos/heap.h`
 - `libc/*.c`
 - `linker/x86_64.ld`
 - `scripts/{make_iso.sh,run_qemu.sh,debug_qemu.sh,test_smoke.sh}`
