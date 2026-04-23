@@ -70,7 +70,7 @@ cp "$BUILD_DIR/mvos.bin" "$ISO_DIR/$KERNEL_NAME"
 cp "$LIMINE_DIR/limine-bios-cd.bin" "$ISO_DIR/boot/limine-bios-cd.bin"
 cp "$LIMINE_DIR/limine-bios.sys" "$ISO_DIR/boot/limine-bios.sys"
 cp "$LIMINE_DIR/limine-uefi-cd.bin" "$ISO_DIR/boot/limine-uefi-cd.bin"
-cp "$LIMINE_DIR/BOOTX64.EFI" "$ISO_DIR/EFI/BOOT/BOOTX64.EFI"
+cp "$LIMINE_DIR/BOOTX64.EFI" "$ISO_DIR/boot/EFI/BOOT/BOOTX64.EFI"
 cp "$LIMINE_DIR/limine.conf" "$ISO_DIR/boot/limine.conf"
 
 mkdir -p "$ISO_DIR/boot"
