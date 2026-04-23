@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 9, 教學型專案)
+# MinimalOS v1 (Phase 13, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -75,6 +75,10 @@
   - 目的：在 shell 中加入可重複驗證的簡單 GUI 動作
   - 實作重點：新增 `gui` 指令，可在 `ENABLE_SHELL=1` 環境下透過 serial shell 觸發視窗重繪（只在已啟用 graphics backend 才作用）
   - 預期成效：`gui` 指令後輸出 `GUI demo window drawn.`
+- Phase 13：第一個視窗程式（可選）
+  - 目的：新增可重複執行的簡易 GUI 應用示例，模擬「第一個視窗程式」概念
+  - 實作重點：新增 `app` 指令，會在 framebuffer 端繪製第二個獨立視窗 demo
+  - 預期成效：`app` 指令後輸出 `GUI app launched.`
 
 ## 目前可驗證狀態
 

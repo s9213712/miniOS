@@ -117,3 +117,7 @@
   - 在 shell 中加入 `gui` 指令
   - 驗證已啟用 graphics backend 時可再次繪製視窗
   - 保持 `make smoke-offline` 不受互動指令干擾
+- Phase 13：第一個視窗程式（可選）
+  - 在 shell 中加入 `app` 指令
+  - 透過 framebuffer 繪製可辨識的第二個視窗層次，模擬第一個可執行視窗程式
+  - 保持預設 boot/smoke 流程不阻塞（僅 ENABLE_SHELL 路徑可觸發）

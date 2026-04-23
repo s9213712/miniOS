@@ -349,6 +349,72 @@ void console_draw_gui_boot_window(void) {
     klogln("[graphics] drew boot window demo");
 }
 
+void console_launch_demo_gui_app(void) {
+    if (!graphics_enabled) {
+        return;
+    }
+
+    uint64_t app_width = (graphics_width > 260u) ? (graphics_width * 3u) / 4u : graphics_width;
+    uint64_t app_height = (graphics_height > 160u) ? (graphics_height * 2u) / 3u : graphics_height;
+
+    if (app_width < 120u) {
+        app_width = graphics_width;
+    }
+    if (app_height < 90u) {
+        app_height = graphics_height;
+    }
+
+    if (app_width > graphics_width) {
+        app_width = graphics_width;
+    }
+    if (app_height > graphics_height) {
+        app_height = graphics_height;
+    }
+
+    uint64_t app_x = (graphics_width > app_width) ? ((graphics_width - app_width) / 2u) : 0u;
+    uint64_t app_y = (graphics_height > app_height) ? ((graphics_height - app_height) / 2u) : 0u;
+
+    graphics_fill_rect(0u, 0u, graphics_width, graphics_height, 0x04u, 0x08u, 0x18u);
+    graphics_fill_rect(app_x, app_y, app_width, app_height, 0x12u, 0x16u, 0x22u);
+    graphics_draw_rect_border(app_x, app_y, app_width, app_height, 0xd0u, 0xd0u, 0xffu);
+
+    uint64_t title_h = (app_height >= 22u) ? 18u : (app_height / 4u);
+    if (title_h >= 1u) {
+        graphics_fill_rect(app_x + 1u, app_y + 1u, app_width > 1u ? app_width - 1u : app_width, title_h, 0x44u, 0x98u, 0xd8u);
+        if (app_width > 54u) {
+            graphics_fill_rect(app_x + app_width - 18u, app_y + 2u, 12u, 10u, 0xe2u, 0x30u, 0x20u);
+        }
+    }
+
+    uint64_t content_y = app_y + ((title_h > 0u) ? (title_h + 1u) : 2u);
+    uint64_t content_x = app_x + 8u;
+    uint64_t content_h = (app_height > (content_y - app_y + 4u)) ? (app_height - (content_y - app_y + 2u)) : 0u;
+    uint64_t content_w = (app_width > 16u) ? (app_width - 16u) : 0u;
+
+    graphics_fill_rect(
+        content_x,
+        content_y,
+        content_w,
+        content_h,
+        0x08u,
+        0x20u,
+        0x50u
+    );
+
+    if (content_w >= 40u && content_h >= 24u) {
+        for (uint64_t i = 0u; i < content_w; i += 20u) {
+            uint64_t x = content_x + (i % (content_w - 8u + 1u));
+            uint64_t y = content_y + ((i / 20u) % 3u) * 12u + 4u;
+            if (y + 6u < content_y + content_h) {
+                uint64_t bar_w = (content_w - (x - content_x) >= 16u) ? 12u : (content_w - (x - content_x) - 1u);
+                graphics_fill_rect(x, y, bar_w, 6u, 0x94u, 0xbau, 0xd6u);
+            }
+        }
+    }
+
+    klogln("[graphics] launched demo GUI app");
+}
+
 void console_set_target(mvos_console_target_t target) {
     current_target = target;
     switch (target) {

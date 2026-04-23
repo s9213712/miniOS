@@ -28,6 +28,7 @@ void console_enable_graphics_framebuffer(
     uint8_t blue_mask_shift
 );
 void console_draw_gui_boot_window(void);
+void console_launch_demo_gui_app(void);
 int console_graphics_enabled(void);
 void console_set_target(mvos_console_target_t target);
 mvos_console_target_t console_target(void);

@@ -38,6 +38,7 @@ static void shell_print_help(void) {
     console_write_string("  halt   - stop execution\n");
     console_write_string("  hello  - print hello from shell\n");
     console_write_string("  gui    - draw a tiny demo window (requires graphics backend)\n");
+    console_write_string("  app    - launch a tiny GUI app demo (requires graphics backend)\n");
     console_write_string("  echo   - echo text after command\n");
     console_write_string("  panic  - trigger kernel panic path\n");
     console_write_string("  clear  - clear current command line\n");
@@ -161,6 +162,15 @@ static void shell_exec(const char *line) {
         if (console_graphics_enabled()) {
             console_draw_gui_boot_window();
             console_write_string("GUI demo window drawn.\n");
+        } else {
+            console_write_string("GUI backend unavailable (no framebuffer graphics enabled).\n");
+        }
+        return;
+    }
+    if (cmd_len == 3 && shell_streq(trimmed_line, "app")) {
+        if (console_graphics_enabled()) {
+            console_launch_demo_gui_app();
+            console_write_string("GUI app launched.\n");
         } else {
             console_write_string("GUI backend unavailable (no framebuffer graphics enabled).\n");
         }
