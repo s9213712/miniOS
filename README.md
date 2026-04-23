@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 8, 教學型專案)
+# MinimalOS v1 (Phase 9, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -24,6 +24,9 @@
   - 加入簡易 VGA 文字介面鏡射輸出（目前以 0xB8000 文字緩衝為主）
   - 保留 serial 作為主測試輸出（避免 smoke 失效）
   - 可用 `QEMU_GUI=1 make run` 開啟 QEMU 視窗
+- Phase 9：Framebuffer Request（進行中）
+  - 補齊 Limine framebuffer request 定義並輸出基本 framebuffer 資訊
+  - 將 framebuffer 可用性納入啟動早期可觀測性，維持 serial 不退化
 
 ## 每階段目的與預期成效
 
@@ -57,6 +60,9 @@
 - Phase 8：FrameBuffer GUI
   - 目的：將關鍵 boot log 同步輸出到 VGA 文字控制台
   - 預期成效：serial 測試不變，視窗內可見 `hello from kernel`
+- Phase 9：Framebuffer Request
+  - 目的：在 boot 時確認 Limine framebuffer 回應
+  - 預期成效：輸出 framebuf metadata（count/size/bpp）並在缺少請求時明確告警
 
 ## 目前可驗證狀態
 

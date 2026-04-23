@@ -15,6 +15,7 @@ MiniOS is a small x86_64 educational OS with incremental phases and readable bou
 - **Phase 3**: interrupt/timer foundations.
 - **Phase 5**: cooperative scheduler scaffold.
 - **Phase 6**: read-only minimal VFS/initramfs-style diagnostics.
+- **Phase 9**: framebuffer request diagnostics and VGA text mirror hookup.
 
 ## Core layout
 
@@ -33,7 +34,7 @@ Build output layout:
 - `build/mvos.bin` (flat binary)
 - `build/mvos.iso` (Limine-bootable ISO)
 
-Current architecture keeps framebuffer mostly out of core kernel boot validation and emphasizes serial logging.
+Current architecture keeps serial as primary boot diagnostics, with framebuffer request metadata logged in startup and VGA text mirror as non-blocking visibility.
 
 ## Host prerequisites
 

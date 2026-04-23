@@ -47,6 +47,13 @@ static volatile struct limine_memmap_request memmap_request
     .response = NULL
 };
 
+static volatile struct limine_framebuffer_request framebuffer_request
+    __attribute__((used, section(".requests"))) = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST_ID,
+    .revision = 0,
+    .response = NULL
+};
+
 static volatile uint64_t request_end[2]
     __attribute__((used, section(".requests.end"))) = LIMINE_REQUESTS_END_MARKER;
 
@@ -138,6 +145,28 @@ void kmain(void) {
     }
     if (memmap_request.response == NULL) {
         panic("missing memmap request response");
+    }
+    if (framebuffer_request.response == NULL || framebuffer_request.response->framebuffer_count == 0) {
+        klogln("[framebuffer] request unavailable, fallback to default VGA text mirror only");
+    } else {
+        klog("[framebuffer] response count=");
+        klog_u64((uint64_t)framebuffer_request.response->framebuffer_count);
+        klog("[framebuffer] first addr=");
+        if (framebuffer_request.response->framebuffers && framebuffer_request.response->framebuffers[0]) {
+            const struct limine_framebuffer *fb = framebuffer_request.response->framebuffers[0];
+            klog_u64((uint64_t)fb->address);
+            klog("[framebuffer] size=");
+            klog_u64(fb->width);
+            klog("x");
+            klog_u64(fb->height);
+            klog(" pitch=");
+            klog_u64(fb->pitch);
+            klog(" bpp=");
+            klog_u64((uint64_t)fb->bpp);
+            klogln("");
+        } else {
+            klogln("[framebuffer] missing first framebuffer pointer");
+        }
     }
     console_enable_framebuffer_text_mode(hhdm_request.response->offset);
 

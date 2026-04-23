@@ -100,9 +100,10 @@
 
 ## 下一步階段建議
 
-- Phase 7：正式發佈前整理（Current）
-  - 將各 phase 成果萃取為一頁式變更總結
-  - 補齊 `CHANGELOG` 與 regression checklist
-  - 維持 `make smoke-offline` 作為最終收斂檢查
-- Phase 8：FrameBuffer GUI（進行中）
-  - 啟用 VGA 文字緩衝鏡射輸出，保留 serial 作為 smoke 主要通道
+- Phase 8：FrameBuffer GUI（完成）
+  - 啟用 VGA 文字緩衝鏡射輸出
+  - 維持 serial 作為 smoke 主要通道
+- Phase 9：Framebuffer request 探測（Current）
+  - 補齊 `limine.h` 的 framebuffer request 協定定義
+  - 以 `limine_framebuffer_request` 檢查 framebuffer 回應並記錄輸出
+  - 保留既有 VGA 文字鏡射作為可視 fallback

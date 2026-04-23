@@ -1,5 +1,19 @@
 # Changelog
 
+## Phase 9 – Framebuffer Request Diagnostics
+
+### Added
+- 補齊 `kernel/include/mvos/limine.h` 的 framebuffer request/response 結構與常數，提供與 Limine framebuffer 協定對齊的啟動路徑資料。
+- 在 `kernel/core/main.c` 增加 framebuffer 回應可用性與 metadata 記錄（count/size/bpp/addr/pitch）。
+- 讓核心日誌走 `console_*` 抽象輸出，便於未來切換輸出後端。
+
+### Fixed
+- 統一序列輸出與 console 背景路徑，避免某些日誌僅綁死於 serial 寫法。
+
+### Validation
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+- `make test-smoke`
+
 ## Phase 7 – Release Preparation
 
 ### Added
