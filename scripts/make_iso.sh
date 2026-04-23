@@ -64,6 +64,7 @@ copy_limine_from() {
     cp "$src/limine" "$LIMINE_DIR/" || true
   fi
   cp "$ROOT_DIR/boot/limine.conf" "$LIMINE_DIR/"
+  cp "$ROOT_DIR/boot/limine.conf" "$LIMINE_DIR/limine.cfg"
 }
 
 cache_limine_from() {

@@ -118,6 +118,17 @@ void kmain(void) {
     klog("kmalloc(256) = ");
     klog_u64((uint64_t)heap_block);
     klogln("");
+    klog("[phase2] allocator stats free=");
+    klog_u64(pmm_free_pages());
+    klog(" total=");
+    klog_u64(pmm_total_pages());
+    klog(" allocated=");
+    klog_u64(pmm_allocated_pages());
+    klogln("");
+    kfree(heap_block);
+    klog("kfree called on ");
+    klog_u64((uint64_t)heap_block);
+    klogln("");
     klogln("[phase3] memory allocator ready");
 
 #ifdef MINIOS_FAULT_TEST_DIVIDE_BY_ZERO

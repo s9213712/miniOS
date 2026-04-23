@@ -6,18 +6,40 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <limits.h>
+#include <stdbool.h>
 
 #define MVOS_PAGE_SIZE 4096ULL
 
 static uint64_t g_hhdm_offset;
 static uint64_t g_cursor;
 static uint64_t g_limit;
+static uint64_t g_region_base;
+static bool g_initialized;
+static uint64_t g_total_pages;
+static uint64_t g_allocated_pages;
 
 static uint64_t align_up(uint64_t value, uint64_t align) {
+    if (align == 0) {
+        return value;
+    }
+    align -= 1;
+    return (value + align) & ~align;
+}
+
+static uint64_t align_up_checked(uint64_t value, uint64_t align) {
+    if (align == 0) {
+        return value;
+    }
+    if (value > UINT64_MAX - (align - 1)) {
+        return UINT64_MAX;
+    }
     return (value + (align - 1ULL)) & ~(align - 1ULL);
 }
 
 static uint64_t align_down(uint64_t value, uint64_t align) {
+    if (align == 0) {
+        return value;
+    }
     return value & ~(align - 1ULL);
 }
 
@@ -78,7 +100,11 @@ void pmm_init(const struct limine_memmap_response *response, uint64_t hhdm_offse
     }
 
     g_cursor = align_up(best_base, MVOS_PAGE_SIZE);
+    g_region_base = g_cursor;
     g_limit = best_limit;
+    g_total_pages = (best_limit - g_cursor) / MVOS_PAGE_SIZE;
+    g_allocated_pages = 0;
+    g_initialized = true;
 
     klog("[pmm] selected region base=");
     klog_u64(g_cursor);
@@ -88,13 +114,27 @@ void pmm_init(const struct limine_memmap_response *response, uint64_t hhdm_offse
 }
 
 uint64_t pmm_free_pages(void) {
+    if (!g_initialized || g_cursor < g_region_base) {
+        return 0;
+    }
     if (g_limit <= g_cursor) {
         return 0;
     }
     return (g_limit - g_cursor) / MVOS_PAGE_SIZE;
 }
 
+uint64_t pmm_total_pages(void) {
+    return g_total_pages;
+}
+
+uint64_t pmm_allocated_pages(void) {
+    return g_allocated_pages;
+}
+
 void *pmm_allocate_pages(uint64_t page_count) {
+    if (!g_initialized) {
+        return NULL;
+    }
     if (page_count == 0) {
         return NULL;
     }
@@ -104,16 +144,23 @@ void *pmm_allocate_pages(uint64_t page_count) {
     }
 
     const uint64_t needed = page_count * MVOS_PAGE_SIZE;
-    const uint64_t start = align_up(g_cursor, MVOS_PAGE_SIZE);
-    if (start + needed > g_limit || g_limit < start) {
+    const uint64_t start = align_up_checked(g_cursor, MVOS_PAGE_SIZE);
+    if (start == UINT64_MAX || start < g_cursor) {
+        return NULL;
+    }
+    if (needed > (g_limit - start)) {
         return NULL;
     }
 
     g_cursor = start + needed;
+    g_allocated_pages += page_count;
     return to_virt(start);
 }
 
 void *pmm_alloc(size_t bytes) {
+    if (!g_initialized) {
+        return NULL;
+    }
     if (bytes == 0) {
         return NULL;
     }
@@ -127,11 +174,15 @@ void *pmm_alloc(size_t bytes) {
         needed = MVOS_PAGE_SIZE;
     }
 
-    uint64_t start = align_up(g_cursor, 16);
-    if (start + needed > g_limit || g_limit < start) {
+    uint64_t start = align_up_checked(g_cursor, MVOS_PAGE_SIZE);
+    if (start == UINT64_MAX || start < g_cursor) {
+        return NULL;
+    }
+    if (needed > (g_limit - start)) {
         return NULL;
     }
 
     g_cursor = start + needed;
+    g_allocated_pages += align_up(needed, MVOS_PAGE_SIZE) / MVOS_PAGE_SIZE;
     return to_virt(start);
 }
