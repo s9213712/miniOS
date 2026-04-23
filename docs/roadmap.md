@@ -132,3 +132,7 @@
 - Phase 16：GUI app 指令路徑（可選）
   - 為 `app` 新增明確的 `launch` 子指令，支援 `app launch app`、`app launch alt`
   - 保持 `app` 預設行為向前相容，保持非阻塞性質
+- Phase 17：GUI app 資訊查詢（可選）
+  - 新增 `app info <name>`，回報目標 app 的簡要描述與呼叫路徑
+  - 對不存在 app 回報 `unknown app: <name>`
+  - 保持既有 `list/status/launch` 行為與輸出格式穩定

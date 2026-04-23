@@ -29,6 +29,29 @@ static int shell_streq(const char *lhs, const char *rhs) {
     return lhs[i] == '\0' && rhs[i] == '\0';
 }
 
+static const char *shell_skip_spaces(const char *s) {
+    while (*s == ' ') {
+        ++s;
+    }
+    return s;
+}
+
+static void shell_print_app_info(const char *app_name) {
+    if (shell_streq(app_name, "app")) {
+        console_write_string("app: framebuffer demo window (default boot style)\n");
+        console_write_string("command: app, app launch app\n");
+        return;
+    }
+    if (shell_streq(app_name, "alt")) {
+        console_write_string("app: alternate framebuffer demo layout\n");
+        console_write_string("command: app alt, app launch alt\n");
+        return;
+    }
+    console_write_string("unknown app: ");
+    console_write_string(app_name);
+    console_write_string("\n");
+}
+
 static void shell_print_help(void) {
     console_write_string("Available commands:\n");
     console_write_string("  help   - show this help\n");
@@ -39,7 +62,7 @@ static void shell_print_help(void) {
     console_write_string("  hello  - print hello from shell\n");
     console_write_string("  gui    - draw a tiny demo window (requires graphics backend)\n");
     console_write_string("  app    - launch a tiny GUI app demo (requires graphics backend)\n");
-    console_write_string("         usage: app [alt|status|list|launch <name>]\n");
+    console_write_string("         usage: app [alt|status|list|launch <name>|info <name>]\n");
     console_write_string("  echo   - echo text after command\n");
     console_write_string("  panic  - trigger kernel panic path\n");
     console_write_string("  clear  - clear current command line\n");
@@ -196,13 +219,7 @@ static void shell_exec(const char *line) {
             return;
         }
         if (shell_streq(arg, "launch")) {
-            const char *launch_target = arg;
-            while (*launch_target != '\0' && *launch_target != ' ') {
-                ++launch_target;
-            }
-            while (*launch_target == ' ') {
-                ++launch_target;
-            }
+            const char *launch_target = shell_skip_spaces(arg + 6u);
             if (*launch_target == '\0') {
                 console_write_string("GUI app launch usage: app launch <name>\n");
                 return;
@@ -222,7 +239,16 @@ static void shell_exec(const char *line) {
             console_write_string("\n");
             return;
         }
-        console_write_string("GUI app usage: app [alt|list|status|launch <name>]\n");
+        if (shell_streq(arg, "info")) {
+            const char *target = shell_skip_spaces(arg + 4u);
+            if (*target == '\0') {
+                console_write_string("GUI app info usage: app info <name>\n");
+                return;
+            }
+            shell_print_app_info(target);
+            return;
+        }
+        console_write_string("GUI app usage: app [alt|list|status|launch <name>|info <name>]\n");
         return;
     }
     if (cmd_len == 5 && shell_streq(trimmed_line, "panic")) {
