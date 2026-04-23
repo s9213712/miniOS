@@ -60,7 +60,6 @@ void scheduler_run_once(void) {
     if (g_ticks_until_switch == 0 && g_task_count > 1) {
         g_ticks_until_switch = TASK_SWITCH_INTERVAL;
         uint32_t next = (g_current_task + 1) % g_task_count;
-        g_tasks[next].runs += 0;
         if (!g_tasks[next].active) {
             for (uint32_t i = 0; i < g_task_count; ++i) {
                 uint32_t cand = (g_current_task + 1 + i) % g_task_count;
