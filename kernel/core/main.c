@@ -9,6 +9,7 @@
 #include <mvos/interrupt.h>
 #include <mvos/console.h>
 #include <mvos/scheduler.h>
+#include <mvos/vfs.h>
 #include <stdint.h>
 
 static volatile uint64_t request_start[4]
@@ -158,6 +159,9 @@ void kmain(void) {
     klog_u64((uint64_t)heap_block);
     klogln("");
     klogln("[phase3] memory allocator ready");
+    vfs_diagnostic_list();
+    vfs_diagnostic_read_file();
+    vfs_diagnostic_missing();
     scheduler_init();
     if (scheduler_add_task("task-a", task_a) < 0 || scheduler_add_task("task-b", task_b) < 0) {
         panic("scheduler init failed");
