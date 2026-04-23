@@ -28,6 +28,10 @@ for f in limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin BOOTX64.EFI limin
   fi
 done
 
+if [ "$need_download" -eq 0 ] && [ -n "$LOCAL_LIMINE_DIR" ] && [ -x "$LOCAL_LIMINE_DIR/limine" ] && [ ! -x "$LIMINE_DIR/limine" ]; then
+  need_download=1
+fi
+
 if [ "$need_download" -eq 1 ]; then
   if [ -n "$LOCAL_LIMINE_DIR" ]; then
     if [ ! -d "$LOCAL_LIMINE_DIR" ]; then
@@ -49,6 +53,10 @@ if [ "$need_download" -eq 1 ]; then
        "$LOCAL_LIMINE_DIR/limine-uefi-cd.bin" \
        "$LOCAL_LIMINE_DIR/BOOTX64.EFI" \
        "$LIMINE_DIR/"
+
+    if [ -x "$LOCAL_LIMINE_DIR/limine" ]; then
+      cp "$LOCAL_LIMINE_DIR/limine" "$LIMINE_DIR/"
+    fi
     cp "$ROOT_DIR/boot/limine.conf" "$LIMINE_DIR/"
     need_download=0
   else

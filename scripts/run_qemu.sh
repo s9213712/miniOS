@@ -16,4 +16,4 @@ if ! command -v "$QEMU_BIN" >/dev/null 2>&1; then
 fi
 
 set -x
-"$QEMU_BIN" -machine q35 -cpu qemu64 -m 1G -serial stdio -nographic -vga none -cdrom "$ISO_PATH" -no-reboot
+"$QEMU_BIN" -machine q35 -cpu qemu64 -m 1G -serial stdio -monitor none -nographic -vga none -cdrom "$ISO_PATH" -no-reboot
