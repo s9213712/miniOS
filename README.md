@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 17, 教學型專案)
+# MinimalOS v1 (Phase 18, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -24,9 +24,11 @@
   - 加入簡易 VGA 文字介面鏡射輸出（目前以 0xB8000 文字緩衝為主）
   - 保留 serial 作為主測試輸出（避免 smoke 失效）
   - 可用 `QEMU_GUI=1 make run` 開啟 QEMU 視窗
-- Phase 9：Framebuffer Request（進行中）
+- Phase 9：Framebuffer Request（完成）
   - 補齊 Limine framebuffer request 定義並輸出基本 framebuffer 資訊
   - 將 framebuffer 可用性納入啟動早期可觀測性，維持 serial 不退化
+- Phase 18：可見性增強（完成）
+  - 加入 scheduler 任務可觀測指令，提供 `tasks` 查詢任務清單與執行次數
 
 ## 每階段目的與預期成效
 
@@ -95,6 +97,10 @@
   - 目的：讓 CLI 可查到 app metadata，模擬最小應用管理介面
   - 實作重點：新增 `app info <name>`
   - 預期成效：可透過 `app info app`、`app info alt` 查看說明，未知 app 回傳 `unknown app: <name>`
+- Phase 18：可見性增強（可選）
+  - 目的：讓 scheduler 狀態可在 shell 直接觀測，用於任務切換概念驗證
+  - 實作重點：新增 `tasks` 指令，輸出每個 task 名稱、狀態與運行次數
+  - 預期成效：`tasks` 指令可看到 `task-a`、`task-b` 的輪詢資料
 
 ## 目前可驗證狀態
 

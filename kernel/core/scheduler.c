@@ -102,3 +102,24 @@ uint64_t scheduler_ticks(void) {
     /* Exported for teaching tasks to print timebase correlations. */
     return g_ticks;
 }
+
+uint32_t scheduler_task_count(void) {
+    return g_task_count;
+}
+
+const char *scheduler_task_name(uint32_t index) {
+    if (index >= g_task_count || g_tasks[index].active == 0) {
+        return "(inactive)";
+    }
+    if (g_tasks[index].name == NULL) {
+        return "(unnamed)";
+    }
+    return g_tasks[index].name;
+}
+
+uint64_t scheduler_task_runs(uint32_t index) {
+    if (index >= g_task_count || g_tasks[index].active == 0) {
+        return 0;
+    }
+    return g_tasks[index].runs;
+}

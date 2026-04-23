@@ -2,6 +2,7 @@
 #include <mvos/console.h>
 #include <mvos/keyboard.h>
 #include <mvos/pmm.h>
+#include <mvos/scheduler.h>
 #include <mvos/interrupt.h>
 #include <mvos/panic.h>
 #include <stdint.h>
@@ -57,6 +58,7 @@ static void shell_print_help(void) {
     console_write_string("  help   - show this help\n");
     console_write_string("  mem    - print memory allocator stats\n");
     console_write_string("  ticks  - print current timer ticks\n");
+    console_write_string("  tasks  - print scheduler task list\n");
     console_write_string("  reboot - reset the machine\n");
     console_write_string("  halt   - stop execution\n");
     console_write_string("  hello  - print hello from shell\n");
@@ -66,7 +68,7 @@ static void shell_print_help(void) {
     console_write_string("  echo   - echo text after command\n");
     console_write_string("  panic  - trigger kernel panic path\n");
     console_write_string("  clear  - clear current command line\n");
-    console_write_string("  version- show kernel phase banner\n");
+    console_write_string("  version - show kernel phase banner\n");
     console_write_string("  quit   - halt execution\n");
 }
 
@@ -168,6 +170,24 @@ static void shell_exec(const char *line) {
         console_write_string("ticks=");
         console_write_u64(timer_ticks());
         console_write_string("\n");
+        return;
+    }
+    if (cmd_len == 5 && shell_streq(trimmed_line, "tasks")) {
+        uint32_t task_count = scheduler_task_count();
+        console_write_string("scheduler tasks=");
+        console_write_u64((uint64_t)task_count);
+        console_write_string("\n");
+        for (uint32_t i = 0; i < task_count; ++i) {
+            const char *name = scheduler_task_name(i);
+            uint64_t runs = scheduler_task_runs(i);
+            console_write_string("  #");
+            console_write_u64((uint64_t)i);
+            console_write_string(" ");
+            console_write_string(name == NULL ? "(nil)" : name);
+            console_write_string(" runs=");
+            console_write_u64(runs);
+            console_write_string("\n");
+        }
         return;
     }
     if (cmd_len == 6 && shell_streq(trimmed_line, "reboot")) {

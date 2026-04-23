@@ -62,6 +62,7 @@ static volatile uint64_t request_end[2]
 /* Fault injection is compile-time only so normal boot remains deterministic.
  * When enabled, each helper intentionally executes only the requested architecture trap.
  */
+#ifdef MINIOS_FAULT_TEST_DIVIDE_BY_ZERO
 static void trigger_divide_by_zero_fault(void) {
     __asm__ volatile(
         "mov $1, %%rax\n\t"
@@ -72,11 +73,15 @@ static void trigger_divide_by_zero_fault(void) {
         :
         : "rax", "rbx", "rdx", "cc");
 }
+#endif
 
+#ifdef MINIOS_FAULT_TEST_INVALID_OPCODE
 static void trigger_invalid_opcode_fault(void) {
     __asm__ volatile(".byte 0x0f, 0xff");
 }
+#endif
 
+#ifdef MINIOS_FAULT_TEST_GP_FAULT
 static void trigger_general_protection_fault(void) {
     __asm__ volatile(
         "mov $0x28, %ax\n\t"
@@ -85,11 +90,14 @@ static void trigger_general_protection_fault(void) {
         :
         : "ax");
 }
+#endif
 
+#ifdef MINIOS_FAULT_TEST_PAGE_FAULT
 static void trigger_page_fault(void) {
     volatile uint64_t *bad = (volatile uint64_t *)0;
     *bad = 0x12345678;
 }
+#endif
 
 /* Phase-5 cooperative example tasks.
  * Output cadence is intentionally sparse to reduce QEMU serial noise.

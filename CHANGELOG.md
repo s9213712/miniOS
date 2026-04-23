@@ -1,5 +1,16 @@
 # Changelog
 
+## Phase 18 – Scheduler Observability
+
+### Added
+- Added `tasks` shell command for scheduler visibility.
+- Exposed scheduler query helpers (`scheduler_task_count`, `scheduler_task_name`, `scheduler_task_runs`) for non-invasive runtime inspection.
+- Kept fault-injection helpers wrapped by build flags to remove unused-function noise during normal builds.
+
+### Validation
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+- `make test-smoke`
+
 ## Phase 9 – Framebuffer Request Diagnostics
 
 ### Added

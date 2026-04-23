@@ -136,3 +136,7 @@
   - 新增 `app info <name>`，回報目標 app 的簡要描述與呼叫路徑
   - 對不存在 app 回報 `unknown app: <name>`
   - 保持既有 `list/status/launch` 行為與輸出格式穩定
+- Phase 18：任務可見性（可選）
+  - 為 `scheduler` 建立任務快照 API
+  - 在 `shell` 新增 `tasks` 指令，輸出 `task-a`、`task-b` 等任務名稱與執行次數
+  - 維持 `smoke` 時序，維持 serial 為主輸出
