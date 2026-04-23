@@ -125,3 +125,7 @@
   - 在 `app` 指令新增 `alt` 子模式，繪製不同視窗外觀與佈局
   - 使用同樣不可阻塞流程與 serial 訊息回報：`GUI alt app launched.`
   - 驗證目標：`app` 與 `app alt` 均可在 shell 互動下各自啟動
+- Phase 15：GUI app 管理介面（可選）
+  - 在 `app` 指令加入 `list` 與 `status`
+  - `app status` 需輸出 frame buffer 狀態（如 width/height/pitch/bpp）
+  - 保持既有 `app` 與 `app alt` 行為不變，僅新增查詢能力，不新增阻塞邏輯

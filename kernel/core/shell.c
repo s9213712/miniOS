@@ -39,7 +39,7 @@ static void shell_print_help(void) {
     console_write_string("  hello  - print hello from shell\n");
     console_write_string("  gui    - draw a tiny demo window (requires graphics backend)\n");
     console_write_string("  app    - launch a tiny GUI app demo (requires graphics backend)\n");
-    console_write_string("         usage: app [alt]   # alt renders secondary demo style\n");
+    console_write_string("         usage: app [alt|status|list]\n");
     console_write_string("  echo   - echo text after command\n");
     console_write_string("  panic  - trigger kernel panic path\n");
     console_write_string("  clear  - clear current command line\n");
@@ -176,9 +176,14 @@ static void shell_exec(const char *line) {
             if (*arg == '\0') {
                 console_launch_demo_gui_app();
                 console_write_string("GUI app launched.\n");
+            } else if (shell_streq(arg, "list")) {
+                console_write_string("available gui apps: app, app alt\n");
             } else if (shell_streq(arg, "alt")) {
                 console_launch_demo_gui_alt_app();
                 console_write_string("GUI alt app launched.\n");
+            } else if (shell_streq(arg, "status")) {
+                console_write_graphics_status();
+                console_write_string("GUI app status requested.\n");
             } else {
                 console_write_string("GUI app usage: app [alt]\n");
             }

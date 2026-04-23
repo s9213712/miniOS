@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 14, 教學型專案)
+# MinimalOS v1 (Phase 15, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -83,6 +83,10 @@
   - 目的：在同一 GUI app 管道下新增變體指令，作為「視窗程式」可擴充樣版
   - 實作重點：新增 `app alt`，會繪製第二個風格視窗 demo
   - 預期成效：`app` 後輸出 `GUI app launched.`, `app alt` 後輸出 `GUI alt app launched.`
+- Phase 15：GUI app 管理子命令（可選）
+  - 目的：增加 `app` 的維運能力，讓 shell 能列出與查詢視窗程式可用資訊
+  - 實作重點：新增 `app list`、`app status`
+  - 預期成效：`app list` 回報可用 app，`app status` 回報 framebuffer metadata
 
 ## 目前可驗證狀態
 

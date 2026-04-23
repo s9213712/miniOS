@@ -482,6 +482,38 @@ void console_launch_demo_gui_alt_app(void) {
     klogln("[graphics] launched alt demo GUI app");
 }
 
+void console_write_graphics_status(void) {
+    if (!graphics_enabled) {
+        console_write_string("[graphics] backend disabled\n");
+        return;
+    }
+
+    console_write_string("[graphics] framebuffer status\n");
+    console_write_string("width=");
+    console_write_u64(graphics_width);
+    console_write_string(" height=");
+    console_write_u64(graphics_height);
+    console_write_string(" pitch=");
+    console_write_u64(graphics_pitch);
+    console_write_string(" bpp=");
+    console_write_u64((uint64_t)graphics_bpp);
+    console_write_string("\n[graphics] memory model=");
+    console_write_u64((uint64_t)graphics_memory_model);
+    console_write_string(" masks R/G/B=");
+    console_write_u64((uint64_t)graphics_red_mask_size);
+    console_write_string("/");
+    console_write_u64((uint64_t)graphics_green_mask_size);
+    console_write_string("/");
+    console_write_u64((uint64_t)graphics_blue_mask_size);
+    console_write_string(" shifts ");
+    console_write_u64((uint64_t)graphics_red_mask_shift);
+    console_write_string("/");
+    console_write_u64((uint64_t)graphics_green_mask_shift);
+    console_write_string("/");
+    console_write_u64((uint64_t)graphics_blue_mask_shift);
+    console_write_string("\n");
+}
+
 void console_set_target(mvos_console_target_t target) {
     current_target = target;
     switch (target) {
