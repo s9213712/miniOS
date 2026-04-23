@@ -3,6 +3,7 @@
 #include <mvos/keyboard.h>
 #include <mvos/pmm.h>
 #include <mvos/scheduler.h>
+#include <mvos/userapp.h>
 #include <mvos/interrupt.h>
 #include <mvos/panic.h>
 #include <stdint.h>
@@ -65,6 +66,8 @@ static void shell_print_help(void) {
     console_write_string("  gui    - draw a tiny demo window (requires graphics backend)\n");
     console_write_string("  app    - launch a tiny GUI app demo (requires graphics backend)\n");
     console_write_string("         usage: app [alt|status|list|launch <name>|info <name>]\n");
+    console_write_string("  run    - run a built-in user C app\n");
+    console_write_string("         usage: run <name>\n");
     console_write_string("  echo   - echo text after command\n");
     console_write_string("  panic  - trigger kernel panic path\n");
     console_write_string("  clear  - clear current command line\n");
@@ -208,6 +211,37 @@ static void shell_exec(const char *line) {
             console_write_string("GUI demo window drawn.\n");
         } else {
             console_write_string("GUI backend unavailable (no framebuffer graphics enabled).\n");
+        }
+        return;
+    }
+    if (cmd_len == 3 && shell_streq(trimmed_line, "run")) {
+        while (*arg == ' ') {
+            ++arg;
+        }
+        if (*arg == '\0') {
+            console_write_string("run usage: run <name>\n");
+            console_write_string("available: ");
+            for (uint32_t i = 0; i < userapp_count(); ++i) {
+                const char *name = userapp_name(i);
+                console_write_string(name == NULL ? "(unnamed)" : name);
+                console_write_string(i + 1u < userapp_count() ? ", " : "\n");
+            }
+            if (userapp_count() == 0) {
+                console_write_string("none\n");
+            }
+            return;
+        }
+        int status = userapp_run(arg);
+        if (status == 0) {
+            console_write_string("user app executed: ");
+            console_write_string(arg);
+            console_write_string("\n");
+        } else if (status == -1) {
+            console_write_string("run usage: run <name>\n");
+        } else {
+            console_write_string("unknown user app: ");
+            console_write_string(arg);
+            console_write_string("\n");
         }
         return;
     }

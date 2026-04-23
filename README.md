@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 18, 教學型專案)
+# MinimalOS v1 (Phase 20, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -101,6 +101,11 @@
   - 目的：讓 scheduler 狀態可在 shell 直接觀測，用於任務切換概念驗證
   - 實作重點：新增 `tasks` 指令，輸出每個 task 名稱、狀態與運行次數
   - 預期成效：`tasks` 指令可看到 `task-a`、`task-b` 的輪詢資料
+- Phase 20：使用者模式最小路徑
+  - 目的：建立 `run hello` 路徑雛形，並預留 ring3 + `int 0x80` 設計。
+  - 實作重點：建立 `userproc_enter_asm`、`isr_user_syscall`、IDT 0x80、最小 `user app` 載入/回傳機制。
+  - 當前狀態：預設採用 kernel-mode fallback（避免目前測試環境因頁權限導致 `Page Fault`），同時保留 `MINIOS_PHASE20_USER_MODE=1` 切換點供後續逐步啟用 ring3。
+  - 預期成效：`PHASE20_DEMO=1` 下仍維持核心開機保證輸出 `hello from kernel`，並在 shell 可呼叫 `run hello` 看到對應 fallback 行為訊息。
 
 ## 目前可驗證狀態
 

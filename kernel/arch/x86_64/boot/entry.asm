@@ -1,5 +1,6 @@
 SECTION .text
 global _start
+global kernel_stack_top
 extern kmain
 
 %define COM1_PORT 0x3f8
@@ -19,6 +20,7 @@ section .bss
 align 16
 kernel_stack:
     resb 16384
+global kernel_stack_top
 kernel_stack_top:
 
 section .text

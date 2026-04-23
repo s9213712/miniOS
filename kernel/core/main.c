@@ -12,6 +12,7 @@
 #include <mvos/vfs.h>
 #include <mvos/shell.h>
 #include <mvos/keyboard.h>
+#include <mvos/userapp.h>
 #include <stdint.h>
 
 /* Limine request section markers are grouped as required for bootloader discovery.
@@ -128,6 +129,7 @@ void kmain(void) {
      */
     serial_init();
     console_init();
+    userapp_init();
     klogln("MiniOS Phase 3 bootstrap");
     klogln("boot banner: kernel entering C");
     klogln("hello from kernel");
@@ -256,6 +258,15 @@ void kmain(void) {
         panic("scheduler init failed");
     }
     klogln("[phase5] scheduler ready");
+
+#ifdef MINIOS_PHASE20_DEMO
+    klogln("[phase20] demo: running user app hello");
+    if (userapp_run("hello") != 0) {
+        klogln("[phase20] demo user app hello failed");
+    } else {
+        klogln("[phase20] demo user app hello done");
+    }
+#endif
 
 #ifdef MINIOS_ENABLE_SHELL
     /* Optional interactive phase for manual verification.

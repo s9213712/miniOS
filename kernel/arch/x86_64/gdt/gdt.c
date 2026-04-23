@@ -2,63 +2,94 @@
 #include <stdint.h>
 #include <mvos/gdt.h>
 
-struct gdt_entry {
-    uint16_t limit_low;
-    uint16_t base_low;
-    uint8_t base_middle;
-    uint8_t access;
-    uint8_t granularity;
-    uint8_t base_high;
-} __attribute__((packed));
-
 struct gdt_descriptor {
     uint16_t limit;
     uint64_t base;
 } __attribute__((packed));
 
-static struct gdt_entry gdt_entries[3];
-static struct gdt_descriptor gdt_ptr;
+struct tss {
+    uint32_t reserved0;
+    uint64_t rsp0;
+    uint64_t rsp1;
+    uint64_t rsp2;
+    uint64_t reserved1;
+    uint64_t ist1;
+    uint64_t ist2;
+    uint64_t ist3;
+    uint64_t ist4;
+    uint64_t ist5;
+    uint64_t ist6;
+    uint64_t ist7;
+    uint64_t reserved2;
+    uint16_t reserved3;
+    uint16_t io_map_base;
+} __attribute__((packed));
 
-static void gdt_set_gate(uint8_t index, uint32_t base, uint32_t limit, uint8_t access, uint8_t granularity) {
-    gdt_entries[index].base_low = (uint16_t)(base & 0xFFFF);
-    gdt_entries[index].base_middle = (uint8_t)((base >> 16) & 0xFF);
-    gdt_entries[index].base_high = (uint8_t)((base >> 24) & 0xFF);
+extern uint64_t kernel_stack_top;
 
-    gdt_entries[index].limit_low = (uint16_t)(limit & 0xFFFF);
-    gdt_entries[index].granularity = (uint8_t)((limit >> 16) & 0x0F);
-    gdt_entries[index].granularity |= granularity & 0xF0;
-    gdt_entries[index].access = access;
+static struct gdt_descriptor gdtr;
+static uint64_t gdt[7];
+static struct tss gdt_tss;
+
+static void gdt_set_entry(size_t index, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags) {
+    uint64_t descriptor = 0;
+    descriptor |= (uint64_t)(limit & 0xFFFFu);
+    descriptor |= (uint64_t)(base & 0xFFFFu) << 16;
+    descriptor |= (uint64_t)((base >> 16) & 0xFFu) << 32;
+    descriptor |= (uint64_t)access << 40;
+    descriptor |= (uint64_t)((limit >> 16) & 0x0Fu) << 48;
+    descriptor |= (uint64_t)(flags & 0x0Fu) << 52;
+    descriptor |= (uint64_t)((base >> 24) & 0xFFu) << 56;
+
+    gdt[index] = descriptor;
+}
+
+static void gdt_clear(void) {
+    for (size_t i = 0; i < sizeof(gdt) / sizeof(gdt[0]); ++i) {
+        gdt[i] = 0;
+    }
 }
 
 void gdt_init(void) {
-    for (size_t i = 0; i < sizeof(gdt_entries) / sizeof(gdt_entries[0]); ++i) {
-        gdt_entries[i].limit_low = 0;
-        gdt_entries[i].base_low = 0;
-        gdt_entries[i].base_middle = 0;
-        gdt_entries[i].base_high = 0;
-        gdt_entries[i].access = 0;
-        gdt_entries[i].granularity = 0;
-    }
+    gdt_clear();
+    gdt_set_entry(0, 0, 0, 0, 0);
+    gdt_set_entry(1, 0, 0xFFFFF, 0x9A, 0xA); /* kernel code */
+    gdt_set_entry(2, 0, 0xFFFFF, 0x92, 0xA); /* kernel data */
+    gdt_set_entry(3, 0, 0xFFFFF, 0xFA, 0xA); /* user code */
+    gdt_set_entry(4, 0, 0xFFFFF, 0xF2, 0xA); /* user data */
 
-    gdt_set_gate(1, 0, 0xFFFFF, 0x9A, 0xA0); // code segment: present, exec/read, 64-bit
-    gdt_set_gate(2, 0, 0xFFFFF, 0x92, 0xA0); // data segment: present, read/write, 64-bit
+    gdt_tss = (struct tss){0};
+    gdt_tss.rsp0 = (uint64_t)&kernel_stack_top;
+    gdt_tss.io_map_base = (uint16_t)sizeof(struct tss);
 
-    gdt_ptr.limit = (uint16_t)(sizeof(gdt_entries) - 1);
-    gdt_ptr.base = (uint64_t)&gdt_entries;
+    uint64_t tss_base = (uint64_t)&gdt_tss;
+    const uint32_t tss_limit = (uint32_t)sizeof(struct tss) - 1;
+    gdt_set_entry(5, (uint32_t)(tss_base & 0xFFFFFFFFu), tss_limit, 0x89, 0x0);
+    gdt[6] = tss_base >> 32;
 
-    __asm__ volatile("lgdt %0\n"
-                 "pushq $0x08\n"
-                 "lea 1f(%%rip), %%rax\n"
-                 "pushq %%rax\n"
-                 "lretq\n"
-                 "1:\n"
-                 "movw $0x10, %%ax\n"
-                 "movw %%ax, %%ds\n"
-                 "movw %%ax, %%es\n"
-                 "movw %%ax, %%ss\n"
-                 "movw %%ax, %%fs\n"
-                 "movw %%ax, %%gs\n"
-                 :
-                 : "m"(gdt_ptr)
-                 : "rax", "memory");
+    gdtr.limit = (uint16_t)(sizeof(gdt) - 1);
+    gdtr.base = (uint64_t)gdt;
+
+    __asm__ volatile(
+        "lgdt %0\n"
+        "pushq $0x08\n"
+        "lea 1f(%%rip), %%rax\n"
+        "pushq %%rax\n"
+        "lretq\n"
+        "1:\n"
+        "movw $0x10, %%ax\n"
+        "movw %%ax, %%ds\n"
+        "movw %%ax, %%es\n"
+        "movw %%ax, %%fs\n"
+        "movw %%ax, %%gs\n"
+        "movw %%ax, %%ss\n"
+        :
+        : "m"(gdtr)
+        : "rax", "memory");
+
+    __asm__ volatile(
+        "movw $0x28, %%ax\n"
+        "ltr %%ax\n"
+        :
+        : : "ax");
 }

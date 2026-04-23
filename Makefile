@@ -42,6 +42,9 @@ endif
 ifeq ($(ENABLE_SHELL),1)
   CFLAGS += -DMINIOS_ENABLE_SHELL=1
 endif
+ifeq ($(PHASE20_DEMO),1)
+  CFLAGS += -DMINIOS_PHASE20_DEMO=1
+endif
 
 C_SRCS := $(wildcard kernel/core/*.c kernel/dev/*.c kernel/mm/*.c libc/*.c)
 ARCH_SRCS := \
@@ -52,6 +55,7 @@ ifneq ($(strip $(ARCH_SRCS)),)
 C_SRCS += $(ARCH_SRCS)
 endif
 ASM_SRCS := kernel/arch/x86_64/boot/entry.asm
+ASM_SRCS += kernel/arch/x86_64/userproc.asm
 
 C_OBJS := $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(C_SRCS))
 ASM_OBJS := $(patsubst %.asm,$(OUTPUT_DIR)/%.o,$(ASM_SRCS))
@@ -77,7 +81,7 @@ $(OUTPUT_DIR)/%.o: %.c $(FLAGS_MARK)
 	@echo "[CC] $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-$(OUTPUT_DIR)/kernel/arch/x86_64/boot/entry.o: kernel/arch/x86_64/boot/entry.asm $(FLAGS_MARK)
+$(OUTPUT_DIR)/%.o: %.asm $(FLAGS_MARK)
 	@mkdir -p $(dir $@)
 	@echo "[AS] $<"
 	@$(AS) -f elf64 $< -o $@

@@ -23,16 +23,17 @@ extern void isr_invalid_opcode(struct interrupt_frame *frame);
 extern void isr_general_protection(struct interrupt_frame *frame, uint64_t error_code);
 extern void isr_page_fault(struct interrupt_frame *frame, uint64_t error_code);
 extern void isr_timer(struct interrupt_frame *frame);
+extern void isr_user_syscall(void);
 
 static struct idt_entry idt[256];
 static struct idt_pointer idt_ptr;
 
-static void idt_set_gate(uint8_t index, void *handler) {
+static void idt_set_gate(uint8_t index, void *handler, uint8_t type_attributes) {
     uint64_t address = (uint64_t)handler;
     idt[index].offset_low = (uint16_t)(address & 0xFFFF);
     idt[index].selector = 0x08;
     idt[index].ist = 0;
-    idt[index].type_attributes = 0x8E;
+    idt[index].type_attributes = type_attributes;
     idt[index].offset_middle = (uint16_t)((address >> 16) & 0xFFFF);
     idt[index].offset_high = (uint32_t)((address >> 32) & 0xFFFFFFFF);
     idt[index].zero = 0;
@@ -53,11 +54,12 @@ static void idt_clear(void) {
 void idt_init(void) {
     idt_clear();
 
-    idt_set_gate(0, isr_divide_by_zero);
-    idt_set_gate(6, isr_invalid_opcode);
-    idt_set_gate(13, isr_general_protection);
-    idt_set_gate(14, isr_page_fault);
-    idt_set_gate(32, isr_timer);
+    idt_set_gate(0, isr_divide_by_zero, 0x8E);
+    idt_set_gate(6, isr_invalid_opcode, 0x8E);
+    idt_set_gate(13, isr_general_protection, 0x8E);
+    idt_set_gate(14, isr_page_fault, 0x8E);
+    idt_set_gate(32, isr_timer, 0x8E);
+    idt_set_gate(0x80, isr_user_syscall, 0xEE);
 
     idt_ptr.limit = (uint16_t)(sizeof(idt) - 1);
     idt_ptr.base = (uint64_t)&idt;
