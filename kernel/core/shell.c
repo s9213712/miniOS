@@ -4,6 +4,7 @@
 #include <mvos/pmm.h>
 #include <mvos/scheduler.h>
 #include <mvos/userapp.h>
+#include <mvos/vfs.h>
 #include <mvos/interrupt.h>
 #include <mvos/panic.h>
 #include <stdint.h>
@@ -54,6 +55,69 @@ static void shell_print_app_info(const char *app_name) {
     console_write_string("\n");
 }
 
+static void shell_vfs_list_visitor(const char *path, uint64_t size, uint32_t checksum, void *user_data) {
+    (void)user_data;
+    console_write_string(path);
+    console_write_string(" ");
+    console_write_u64(size);
+    console_write_string(" bytes checksum=0x");
+    for (int i = 0; i < 8; ++i) {
+        uint8_t nibble = (checksum >> (28 - i * 4)) & 0xf;
+        const char hex[] = "0123456789abcdef";
+        console_write_char(hex[nibble]);
+    }
+    console_write_string("\n");
+}
+
+static void shell_cmd_ls(const char *arg) {
+    while (*arg == ' ') {
+        ++arg;
+    }
+    const char *prefix = (*arg == '\0') ? "/boot/init" : arg;
+    uint64_t listed = vfs_list(shell_vfs_list_visitor, prefix, NULL);
+    console_write_string("[vfs] listed=");
+    console_write_u64(listed);
+    console_write_string(" entries for prefix \"");
+    console_write_string(prefix);
+    console_write_string("\"\n");
+}
+
+static void shell_cmd_cat(const char *arg) {
+    while (*arg == ' ') {
+        ++arg;
+    }
+    if (*arg == '\0') {
+        console_write_string("cat usage: cat <path>\n");
+        console_write_string("examples: cat /boot/init/readme.txt\n");
+        return;
+    }
+
+    mvos_vfs_file_t file;
+    if (vfs_open(arg, &file) != 0) {
+        console_write_string("cat: not found: ");
+        console_write_string(arg);
+        console_write_string("\n");
+        return;
+    }
+
+    uint8_t buffer[64];
+    console_write_string("[cat] ");
+    console_write_string(arg);
+    console_write_string(":\n");
+    for (;;) {
+        uint64_t read_bytes = 0;
+        int status = vfs_read(&file, buffer, sizeof(buffer), &read_bytes);
+        if (status != 0 || read_bytes == 0) {
+            break;
+        }
+        for (uint64_t i = 0; i < read_bytes; ++i) {
+            console_write_char((char)buffer[i]);
+        }
+    }
+    console_write_string("\n");
+    vfs_close(&file);
+}
+
 static void shell_print_help(void) {
     console_write_string("Available commands:\n");
     console_write_string("  help   - show this help\n");
@@ -68,6 +132,10 @@ static void shell_print_help(void) {
     console_write_string("         usage: app [alt|status|list|launch <name>|info <name>]\n");
     console_write_string("  run    - run a built-in user C app\n");
     console_write_string("         usage: run <name>\n");
+    console_write_string("  ls     - list virtual filesystem entries\n");
+    console_write_string("         usage: ls [prefix]\n");
+    console_write_string("  cat    - print a virtual file content\n");
+    console_write_string("         usage: cat <path>\n");
     console_write_string("  echo   - echo text after command\n");
     console_write_string("  panic  - trigger kernel panic path\n");
     console_write_string("  clear  - clear current command line\n");
@@ -305,6 +373,14 @@ static void shell_exec(const char *line) {
         console_write_string("GUI app usage: app [alt|list|status|launch <name>|info <name>]\n");
         return;
     }
+    if (cmd_len == 2 && shell_streq(trimmed_line, "ls")) {
+        shell_cmd_ls(arg);
+        return;
+    }
+    if (cmd_len == 3 && shell_streq(trimmed_line, "cat")) {
+        shell_cmd_cat(arg);
+        return;
+    }
     if (cmd_len == 5 && shell_streq(trimmed_line, "panic")) {
         panic("panic command issued");
     }
@@ -313,7 +389,7 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 7 && shell_streq(trimmed_line, "version")) {
-        console_write_string("MiniOS Phase 4 (serial+keyboard)\n");
+        console_write_string("MiniOS Phase 21 (phase-based tutorial kernel)\n");
         return;
     }
     if (cmd_len == 4 && shell_streq(trimmed_line, "echo")) {
@@ -342,7 +418,7 @@ static void shell_exec(const char *line) {
 
 void shell_run(void) {
     static char line[SHELL_BUFFER_LEN];
-    console_write_string("MiniOS shell (phase 4)\n");
+    console_write_string("MiniOS shell (phase 21)\n");
     shell_print_help();
     for (;;) {
         shell_print_prompt();

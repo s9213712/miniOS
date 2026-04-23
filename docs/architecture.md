@@ -25,6 +25,7 @@ MiniOS is a small x86_64 educational OS with incremental phases and readable bou
 - **Phase 16**: explicit `app launch <name>` syntax to formalize app command routing.
 - **Phase 17**: add `app info <name>` to expose app metadata and verify discoverability by command path.
 - **Phase 18**: add `tasks` shell command to expose scheduler task names and run counters without changing core boot or smoke behavior.
+- **Phase 21**: add shell command visibility for initfs content (`ls` + `cat`) to support user-level file-system introspection.
 
 ## Core layout
 

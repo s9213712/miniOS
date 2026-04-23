@@ -103,7 +103,7 @@
 - Phase 8：FrameBuffer GUI（完成）
   - 啟用 VGA 文字緩衝鏡射輸出
   - 維持 serial 作為 smoke 主要通道
-- Phase 9：Framebuffer request 探測（Current）
+- Phase 9：Framebuffer request 探測（完成）
   - 補齊 `limine.h` 的 framebuffer request 協定定義
   - 以 `limine_framebuffer_request` 檢查 framebuffer 回應並記錄輸出
   - 保留既有 VGA 文字鏡射作為可視 fallback
@@ -140,3 +140,9 @@
   - 為 `scheduler` 建立任務快照 API
   - 在 `shell` 新增 `tasks` 指令，輸出 `task-a`、`task-b` 等任務名稱與執行次數
   - 維持 `smoke` 時序，維持 serial 為主輸出
+- Phase 20：使用者模式最小路徑（完成）
+  - 以可切換旗標保留 `run` 指令入口，預設路徑落在 kernel-mode fallback
+  - 為後續真正 ring3 移轉預留最小介面
+- Phase 21：檔案可見性（可選）
+  - shell 新增 `ls`、`cat`，讓訓練系統可查詢 `/boot/init` 內建節點
+  - `cat` 仍走唯讀流程，保留 boot 時序穩定

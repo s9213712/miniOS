@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 20, 教學型專案)
+# MinimalOS v1 (Phase 21, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -29,6 +29,10 @@
   - 將 framebuffer 可用性納入啟動早期可觀測性，維持 serial 不退化
 - Phase 18：可見性增強（完成）
   - 加入 scheduler 任務可觀測指令，提供 `tasks` 查詢任務清單與執行次數
+- Phase 21：最小檔案可見性介面（完成）
+  - shell 增加 `ls`/`cat`，可列舉並讀出 initfs 的虛擬檔內容（`/boot/init/...`）。
+  - 保留讀寫分離（目前階段仍為唯讀，適合 smoke 路徑不破壞）。
+  - 預期成效：在互動 shell 中執行 `ls`、`ls /boot/init`、`cat /boot/init/readme.txt` 均有穩定輸出。
 
 ## 每階段目的與預期成效
 

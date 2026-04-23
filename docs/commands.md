@@ -116,6 +116,8 @@
   - `mem`
   - `ticks`
   - `tasks`
+  - `ls`
+  - `cat`
   - `app`
   - `app launch <name>`
   - `app info <name>`
@@ -130,6 +132,7 @@
 
 - 目前沒有提供 Python 直譯器（不能直接執行 `.py`）。
 - C 應用是直接編譯進 miniOS 核心，透過 `run <name>` 在 shell 內叫用（例如 `run hello`）。
+- `ls` 與 `cat` 目前只支援內建 initfs（唯讀）路徑，無法進行實際檔案建立/修改。
 
 ---
 
