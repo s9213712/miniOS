@@ -18,6 +18,11 @@ sudo apt-get update
 sudo apt-get install -y build-essential binutils gcc make nasm qemu-system-x86 qemu-system-gui xorriso git curl wget
 ```
 
+Some Ubuntu/WSL repositories do not provide `gcc-x86-64-elf` or `binutils-x86-64-elf` package names. This project falls back to native `gcc/ld/objcopy` automatically if x86_64 elf-prefixed cross tools are not installed:
+```bash
+./scripts/setup-dev.sh --install
+```
+
 Required host commands:
 - `git`
 - `bash` + `make`
@@ -70,6 +75,7 @@ make
 - `make smoke` / `make smoke-full` runs full boot smoke test (alias)
 - `make smoke-build` builds artifacts and validates without QEMU run
 - `make smoke-offline` runs smoke using `LIMINE_LOCAL_DIR`/`LIMINE_CACHE_DIR`
+- `make prefetch-limine` warms local Limine cache (offline bootstrap helper)
 - `PANIC_TEST=1 make run` exercises panic path
 - `FAULT_TEST=div0|opcode|gpf|pf make run` exercises fault path
 
@@ -137,6 +143,9 @@ LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
 make smoke-offline
 LIMINE_LOCAL_DIR=/path/to/limine-bin make smoke-offline
 LIMINE_CACHE_DIR=./boot/limine make smoke-offline
+
+# cache-only smoke bootstrap
+make prefetch-limine
 ```
 
 ## Layout

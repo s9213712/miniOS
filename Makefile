@@ -56,7 +56,7 @@ OBJS := $(C_OBJS) $(ASM_OBJS)
 
 FLAGS_MARK := $(OUTPUT_DIR)/.build-flags
 
-.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline
+.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline prefetch-limine
 
 all: $(KERNEL_ELF)
 
@@ -107,6 +107,15 @@ smoke-offline: $(KERNEL_ELF)
 	  exit 1; \
 	fi
 	@SMOKE_OFFLINE=1 bash scripts/test_smoke.sh
+
+prefetch-limine: $(KERNEL_ELF)
+	@echo "[make] prefetching Limine artifacts into cache"
+	@LIMINE_CACHE_DIR="${LIMINE_CACHE_DIR:-$(CURDIR)/.cache/miniOS-limine}" \
+	SMOKE_KEEP_LOGS=1 \
+	SMOKE_OFFLINE=0 \
+	TEST_SMOKE_LOG_DIR="${CURDIR}/.cache/miniOS-smoke-logs" \
+	TEST_SMOKE_BASENAME="prefetch" \
+	bash scripts/make_iso.sh >/dev/null
 
 clean:
 	rm -rf $(OUTPUT_DIR)

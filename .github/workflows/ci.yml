@@ -40,6 +40,27 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/miniOS-limine"
           echo "LIMINE_CACHE_DIR=${RUNNER_TEMP}/miniOS-limine" >> "$GITHUB_ENV"
 
+      - name: Restore Limine cache
+        uses: actions/cache/restore@v4
+        id: limine-cache
+        with:
+          path: ${{ runner.temp }}/miniOS-limine
+          key: miniOS-limine-v11.x-binary-${{ runner.os }}
+          restore-keys: |
+            miniOS-limine-v11.x-binary-
+
+      - name: Prefetch Limine artifacts
+        if: steps.limine-cache.outputs.cache-hit != 'true'
+        run: |
+          LIMINE_CACHE_DIR="${RUNNER_TEMP}/miniOS-limine" make prefetch-limine
+
+      - name: Save Limine cache
+        if: steps.limine-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/miniOS-limine
+          key: miniOS-limine-v11.x-binary-${{ runner.os }}
+
       - name: Build check (no boot)
         run: SKIP_SMOKE_RUN=1 make test-smoke
 

@@ -38,7 +38,9 @@ Current architecture intentionally excludes framebuffer, scheduler, userspace, n
 - Emulator (`qemu-system-x86` or `qemu-system-x86_64`).
 - `git`, and `curl`/`wget` for Limine bootstrap download.
 - `./scripts/setup-dev.sh` to validate and optionally install requirements.
+- Ubuntu/WSL may not expose `gcc-x86-64-elf` packages; native `gcc/ld/objcopy` fallback is supported if elf-prefixed cross tools are absent.
 - Optional cache path: `LIMINE_CACHE_DIR` (default `.cache/miniOS-limine`).
+- `make prefetch-limine` for explicit local cache warm-up.
 
 Quick check:
 ```bash

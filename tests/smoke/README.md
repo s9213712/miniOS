@@ -24,6 +24,9 @@ make smoke-full
 # offline smoke (local Limine)
 LIMINE_LOCAL_DIR=/path/to/limine-bin make smoke-offline
 
+# prefetch cache only
+make prefetch-limine
+
 # keep logs
 TEST_SMOKE_LOG_DIR=./artifacts TEST_SMOKE_BASENAME=smoke-run SMOKE_KEEP_LOGS=1 make smoke
 ```
