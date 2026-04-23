@@ -1,8 +1,14 @@
-# Debugging guide (Phase 2)
+# Debugging guide (Phase 3)
 
 ## Serial output (default path)
 - All kernel logs print on UART COM1.
 - QEMU is launched with `-serial stdio`, so logs appear directly in the terminal.
+
+## Phase 3 memory checks
+- `[pmm] memory map` marks the memory map dump loop.
+- `[pmm] selected region` shows which usable block is used for allocator bootstrap.
+- `free pages:` confirms allocator availability after PMM init.
+- `pmm_allocate_pages(1)` and `kmalloc(256)` logs confirm allocator path.
 
 ## Panic path
 - Call `panic("message")` to print an explicit marker and halt in an infinite `cli; hlt` loop.
@@ -12,13 +18,12 @@
 - Exception handlers for divide-by-zero, invalid opcode, general-protection, and page fault are installed by IDT setup in phase 2.
 - When a fault occurs, the handler prints:
   - `[fault]`
-- fault name
-- vector number
-- error code (if present)
-- RIP
+  - fault name
+  - vector number
+  - error code (if present)
+  - RIP
 - The handler then calls `panic()` and halts.
-
-- 觸發測試建議：
+- Test commands:
   - `FAULT_TEST=div0 make run`
   - `FAULT_TEST=opcode make run`
   - `FAULT_TEST=gpf make run`

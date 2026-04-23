@@ -29,6 +29,8 @@ extern "C" {
 
 #define LIMINE_BOOTLOADER_INFO_REQUEST_ID { LIMINE_COMMON_MAGIC, 0xf55038d8e2a1202f, 0x279426fcf5f59740 }
 #define LIMINE_STACK_SIZE_REQUEST_ID { LIMINE_COMMON_MAGIC, 0x224ef0460a8e8926, 0xe1cb0fc25f46ea3d }
+#define LIMINE_HHDM_REQUEST_ID { LIMINE_COMMON_MAGIC, 0x48dcf1cb8ad2b852, 0x63984e959a98244b }
+#define LIMINE_MEMMAP_REQUEST_ID { LIMINE_COMMON_MAGIC, 0x67cf3d9d378a806f, 0xe304acdfc50c3c62 }
 
 struct limine_bootloader_info_response {
     uint64_t revision;
@@ -47,6 +49,45 @@ struct limine_stack_size_request {
     uint64_t revision;
     LIMINE_PTR(void *) response;
     uint64_t stack_size;
+};
+
+struct limine_hhdm_response {
+    uint64_t revision;
+    uint64_t offset;
+};
+
+struct limine_hhdm_request {
+    uint64_t id[4];
+    uint64_t revision;
+    LIMINE_PTR(struct limine_hhdm_response *) response;
+};
+
+#define LIMINE_MEMMAP_USABLE 0
+#define LIMINE_MEMMAP_RESERVED 1
+#define LIMINE_MEMMAP_ACPI_RECLAIMABLE 2
+#define LIMINE_MEMMAP_ACPI_NVS 3
+#define LIMINE_MEMMAP_BAD_MEMORY 4
+#define LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE 5
+#define LIMINE_MEMMAP_EXECUTABLE_AND_MODULES 6
+#define LIMINE_MEMMAP_FRAMEBUFFER 7
+#define LIMINE_MEMMAP_RESERVED_MAPPED 8
+
+struct limine_memmap_entry {
+    uint64_t base;
+    uint64_t length;
+    uint64_t type;
+};
+
+struct limine_memmap_response {
+    uint64_t revision;
+    uint64_t entry_count;
+    LIMINE_PTR(struct limine_memmap_entry **) entries;
+};
+
+struct limine_memmap_request {
+    uint64_t id[4];
+    uint64_t revision;
+    LIMINE_PTR(struct limine_memmap_response *) response;
 };
 
 #ifdef __cplusplus

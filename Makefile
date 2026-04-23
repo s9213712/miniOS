@@ -1,4 +1,4 @@
-# MiniOS bootstrap Makefile (Phase 0-2)
+# MiniOS bootstrap Makefile (Phase 3)
 
 PROJECT := mvos
 BUILD_DIR := build
@@ -40,7 +40,7 @@ ifeq ($(FAULT_TEST),pf)
   CFLAGS += -DMINIOS_FAULT_TEST_PAGE_FAULT=1
 endif
 
-C_SRCS := $(wildcard kernel/core/*.c kernel/dev/*.c libc/*.c)
+C_SRCS := $(wildcard kernel/core/*.c kernel/dev/*.c kernel/mm/*.c libc/*.c)
 ARCH_SRCS := \
 	$(wildcard kernel/arch/x86_64/gdt/*.c) \
 	$(wildcard kernel/arch/x86_64/idt/*.c) \

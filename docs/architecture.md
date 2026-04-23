@@ -12,6 +12,7 @@ MiniOS starts with a minimal x86_64 boot-capable skeleton and keeps all boot plu
 - **Phase 0**: scaffolding, scripts, docs, and baseline build/run/debug pipeline.
 - **Phase 1**: Limine boot handoff, minimal serial logging, panic halt path.
 - **Phase 2**: GDT/IDT initialization and fault visibility.
+- **Phase 3**: HHDM + simple physical memory map parsing + page allocator/bump heap.
 
 ## Core layout
 
@@ -19,6 +20,8 @@ MiniOS starts with a minimal x86_64 boot-capable skeleton and keeps all boot plu
 - `kernel/arch/x86_64/idt/` stores `idt_init()` and interrupt descriptor storage.
 - `kernel/arch/x86_64/interrupt/` stores exception handlers.
 - `kernel/core/main.c` is the first C entry point and the phase 2 fault test hooks.
+- `kernel/mm/pmm.c` provides a simple bump-page allocator from the highest usable memory-map region.
+- `kernel/mm/heap.c` exposes `kmalloc` as a first kernel-heap shim.
 - `kernel/core/{panic.c,assert.c,log.c}` provide serial-backed fail-fast behavior.
 
 Build output layout:

@@ -4,6 +4,7 @@
 - Phase 0: Repository scaffold, Makefile targets, scripts, docs and repository conventions
 - Phase 1: Limine boot handoff, linker script, serial banner/hello, panic path
 - Phase 2: GDT/IDT setup and first fault path logging
+- Phase 3: HHDM + page allocator + basic bump heap
 
 ## Next phases
 
@@ -13,7 +14,7 @@
 - `FAULT_TEST=div0|opcode|gpf|pf` smoke path
 
 ### Phase 3
-- HHDM + basic frame allocator
+- (completed) HHDM + basic frame allocator
 
 ### Phase 4
 - Serial/Framebuffer console abstraction

@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 2)
+# MinimalOS v1 (Phase 3)
 
 A small educational x86_64 OS prototype that boots with Limine and prints early boot output
 via serial.
@@ -47,10 +47,16 @@ If missing, `make iso` attempts to clone `v11.x-binary` and copy these assets au
 
 On successful boot you should see:
 - `[serial] ready`
-- `MiniOS Phase 2 bootstrap`
+- `MiniOS Phase 3 bootstrap`
 - `boot banner: kernel entering C`
 - `hello from kernel`
 - `gdt/idt initialized`
+- `[pmm] memory map`
+- `- base=... len=... type=...` (per memory-map entry)
+- `[pmm] selected region ...`
+- `free pages: ...`
+- `[phase3] memory allocator ready`
+- `kmalloc(256) = ...`
 
 Optional panic path:
 - `PANIC_TEST=1 make run` prints:
@@ -78,8 +84,10 @@ Optional fault path:
 - `kernel/arch/x86_64/boot/entry.asm`
 - `kernel/arch/x86_64/gdt/`, `kernel/arch/x86_64/idt/`, `kernel/arch/x86_64/interrupt/`
 - `kernel/core/main.c`, `kernel/core/panic.c`, `kernel/core/log.c`, `kernel/core/assert.c`
+- `kernel/mm/pmm.c`, `kernel/mm/heap.c`
 - `kernel/dev/serial.c`
 - `kernel/include/mvos/` headers
+- `kernel/include/mvos/pmm.h`, `kernel/include/mvos/heap.h`
 - `libc/*.c`
 - `linker/x86_64.ld`
 - `scripts/{make_iso.sh,run_qemu.sh,debug_qemu.sh,test_smoke.sh}`

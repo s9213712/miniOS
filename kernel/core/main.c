@@ -3,6 +3,8 @@
 #include <mvos/panic.h>
 #include <mvos/gdt.h>
 #include <mvos/idt.h>
+#include <mvos/pmm.h>
+#include <mvos/heap.h>
 #include <mvos/limine.h>
 #include <stdint.h>
 
@@ -22,6 +24,20 @@ static volatile struct limine_stack_size_request stack_size_request
     .revision = 0,
     .response = NULL,
     .stack_size = 1024 * 16
+};
+
+static volatile struct limine_hhdm_request hhdm_request
+    __attribute__((used, section(".requests"))) = {
+    .id = LIMINE_HHDM_REQUEST_ID,
+    .revision = 0,
+    .response = NULL
+};
+
+static volatile struct limine_memmap_request memmap_request
+    __attribute__((used, section(".requests"))) = {
+    .id = LIMINE_MEMMAP_REQUEST_ID,
+    .revision = 0,
+    .response = NULL
 };
 
 static volatile uint64_t request_end[2]
@@ -58,7 +74,7 @@ static void trigger_page_fault(void) {
 
 void kmain(void) {
     serial_init();
-    klogln("MiniOS Phase 2 bootstrap");
+    klogln("MiniOS Phase 3 bootstrap");
     klogln("boot banner: kernel entering C");
     klogln("hello from kernel");
 
@@ -69,6 +85,40 @@ void kmain(void) {
     gdt_init();
     idt_init();
     klogln("gdt/idt initialized");
+
+    if (hhdm_request.response == NULL) {
+        panic("missing HHDM request response");
+    }
+    if (memmap_request.response == NULL) {
+        panic("missing memmap request response");
+    }
+
+    klogln("[phase3] collecting boot memory map");
+    klog("hhdm_offset=");
+    klog_u64(hhdm_request.response->offset);
+    klogln("");
+    pmm_init(memmap_request.response, hhdm_request.response->offset);
+    klog("free pages: ");
+    klog_u64((uint64_t)pmm_free_pages());
+    klogln("");
+    heap_init();
+
+    void *page = pmm_allocate_pages(1);
+    if (!page) {
+        panic("pmm_allocate_pages(1) failed in phase 3");
+    }
+    klog("pmm_allocate_pages(1) = ");
+    klog_u64((uint64_t)page);
+    klogln("");
+
+    void *heap_block = kmalloc(256);
+    if (!heap_block) {
+        panic("kmalloc(256) failed in phase 3");
+    }
+    klog("kmalloc(256) = ");
+    klog_u64((uint64_t)heap_block);
+    klogln("");
+    klogln("[phase3] memory allocator ready");
 
 #ifdef MINIOS_FAULT_TEST_DIVIDE_BY_ZERO
     klogln("triggering divide-by-zero fault test");
