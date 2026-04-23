@@ -33,12 +33,16 @@ Current architecture intentionally excludes framebuffer, scheduler, userspace, n
 
 ## Host prerequisites
 
-- POSIX shell (`bash`) with support for pipes and arrays.
-- GNU build tools (`make`, `gcc`, `binutils`, `nasm`).
-- ISO tools (`xorriso`).
-- Emulator (`qemu-system-x86`).
-- `git` for bootstrap behavior.
-- `curl`/`wget` if online Limine download is used.
+- `bash` and GNU build tools (`make`, `gcc`, `binutils`, `nasm`).
+- `xorriso`.
+- Emulator (`qemu-system-x86` or `qemu-system-x86_64`).
+- `git`, and `curl`/`wget` for Limine bootstrap download.
+- `./scripts/setup-dev.sh` to validate and optionally install requirements.
+
+Quick check:
+```bash
+./scripts/setup-dev.sh
+```
 
 Expected host command sequence:
 ```bash

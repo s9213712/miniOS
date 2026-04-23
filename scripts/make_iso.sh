@@ -10,6 +10,21 @@ ISO_PATH="$BUILD_DIR/mvos.iso"
 ISO_ENTRY_BIOS="boot/limine-bios-cd.bin"
 ISO_ENTRY_UEFI="boot/limine-uefi-cd.bin"
 KERNEL_NAME="boot/mvos.bin"
+LIMINE_FILES="limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin BOOTX64.EFI limine.conf"
+
+log_file_info() {
+  local file="$1"
+  local name
+  name="$(basename "$file")"
+  if [ -f "$file" ]; then
+    echo "[make_iso] artifact: $name size=$(stat -c '%s' "$file") bytes"
+    if command -v sha256sum >/dev/null 2>&1; then
+      echo "[make_iso]   sha256=$("sha256sum" "$file" | awk '{print $1}')"
+    fi
+  else
+    echo "[make_iso] artifact missing: $file"
+  fi
+}
 
 mkdir -p "$BUILD_DIR"
 mkdir -p "$ISO_DIR"
@@ -21,7 +36,7 @@ if [ ! -f "$BUILD_DIR/mvos.bin" ]; then
 fi
 
 need_download=0
-for f in limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin BOOTX64.EFI limine.conf; do
+for f in $LIMINE_FILES; do
   if [ ! -f "$LIMINE_DIR/$f" ]; then
     need_download=1
     break
@@ -39,7 +54,10 @@ if [ "$need_download" -eq 1 ]; then
       exit 1
     fi
 
-    for f in limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin BOOTX64.EFI; do
+    for f in $LIMINE_FILES; do
+      if [ "$f" = "limine.conf" ]; then
+        continue
+      fi
       if [ ! -f "$LOCAL_LIMINE_DIR/$f" ]; then
         echo "[make_iso] Missing $f in LIMINE_LOCAL_DIR=$LOCAL_LIMINE_DIR" >&2
         echo "Set LIMINE_LOCAL_DIR to a directory containing all required Limine files." >&2
@@ -70,6 +88,22 @@ if [ "$need_download" -eq 1 ]; then
     echo "[make_iso] Limine artifacts copied into $LIMINE_DIR"
   fi
 fi
+
+if [ "$need_download" -ne 0 ]; then
+  echo "[make_iso] Limine bootstrap failed; required artifacts are missing after copy attempt."
+  exit 1
+fi
+
+for artifact in $LIMINE_FILES; do
+  log_file_info "$LIMINE_DIR/$artifact"
+done
+
+for required in limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin BOOTX64.EFI; do
+  if [ ! -f "$LIMINE_DIR/$required" ]; then
+    echo "[make_iso] Missing required Limine artifact after staging: $required" >&2
+    exit 1
+  fi
+done
 
 rm -rf "$ISO_DIR"
 mkdir -p "$ISO_DIR/boot/EFI/BOOT"
@@ -106,3 +140,23 @@ else
 fi
 
 echo "[make_iso] Created $ISO_PATH"
+echo "[make_iso] ISO layout:"
+if command -v xorriso >/dev/null 2>&1; then
+  if ! xorriso -indev "$ISO_PATH" -report_el_torito plain >/tmp/make_iso_eltorito_report.txt 2>&1; then
+    echo "[make_iso] xorriso report_el_torito failed; captured below:"
+    sed -n '1,80p' /tmp/make_iso_eltorito_report.txt
+  else
+    echo "[make_iso] El Torito entries:"
+    sed -n '1,80p' /tmp/make_iso_eltorito_report.txt
+  fi
+
+  if ! xorriso -indev "$ISO_PATH" -ls /boot >/tmp/make_iso_boot_ls.txt 2>&1; then
+    echo "[make_iso] xorriso boot listing failed; captured below:"
+    sed -n '1,80p' /tmp/make_iso_boot_ls.txt
+  else
+    echo "[make_iso] /boot files:"
+    sed -n '1,80p' /tmp/make_iso_boot_ls.txt
+  fi
+else
+  echo "[make_iso] Skipping ISO layout checks (xorriso unavailable)."
+fi

@@ -5,25 +5,27 @@ via serial.
 
 ## Prerequisites
 
-Install:
-- `git`
-- `make`
-- `nasm`
-- `binutils` (`ld`/`objcopy`)
-- `gcc` (or `x86_64-none-elf-gcc`/`x86_64-elf-gcc`)
-- `xorriso`
-- `qemu-system-x86`
-- `qemu-system-gui` or `qemu-utils` (if your distro splits runtime packages)
-- `curl` or `wget` (for fetching Limine when needed)
+Use the setup helper first:
+```bash
+./scripts/setup-dev.sh
+```
 
-WSL/Ubuntu example:
+If dependencies are missing, `scripts/setup-dev.sh --install` (Debian/Ubuntu only) will install them.
+
+### Common install command (WSL/Ubuntu)
 ```bash
 sudo apt-get update
-sudo apt-get install -y build-essential binutils gcc make nasm qemu-system-x86 qemu-utils xorriso git curl
+sudo apt-get install -y build-essential binutils gcc make nasm qemu-system-x86 qemu-system-gui xorriso git curl wget
 ```
-Debian/Ubuntu package note:
-- `qemu-system-x86_64` is the legacy name used in some scripts and docs; if unavailable, use `qemu-system-x86`.
-- If `gcc` cross packages are unavailable, the current toolchain falls back to native `gcc` via the Makefile probes.
+
+Required host commands:
+- `git`
+- `bash` + `make`
+- `nasm`
+- `gcc`/`ld`/`objcopy` (or cross toolchain `x86_64-*-elf-*`)
+- `xorriso`
+- `qemu-system-x86`/`qemu-system-x86_64`
+- `curl` or `wget`
 
 ## Bootstrap/Runtime Requirements
 
@@ -33,9 +35,8 @@ For an offline environment (no GitHub access), add:
 
 ## Full test status
 
-Current status:
 - Build verification: pass (`SKIP_SMOKE_RUN=1 make test-smoke`)
-- Full boot test: environment-dependent; if `make test-smoke` fails to start boot output, check Limine bootstrap state and QEMU compatibility.
+- Full boot test: run `make test-smoke` and check serial markers below; if this fails, inspect `make iso`/QEMU logs and `bootstrap` paths in `make_iso.sh`.
 
 ```bash
 # Online flow (downloads Limine automatically if missing)
@@ -80,6 +81,7 @@ Phase 1 expects Limine assets in `boot/limine/`:
 
 If missing, `make iso` attempts to clone `v11.x-binary` and copy these assets automatically.
 If network access is blocked, set `LIMINE_LOCAL_DIR` to a local directory containing the files above.
+The `.github/workflows/ci.yml` job also calls `make test-smoke` after dependency checks.
 
 ## Expected serial output
 
@@ -114,7 +116,18 @@ Optional fault path:
 
 ## Smoke test
 
-`make test-smoke` (or `./scripts/test_smoke.sh`) verifies the banner and optionally panic/fault marker.
+`make test-smoke` (or `./scripts/test_smoke.sh`) verifies boot output and optional fault/panic markers.
+
+```bash
+# build-only check (fast)
+SKIP_SMOKE_RUN=1 make test-smoke
+
+# full boot smoke
+make test-smoke
+
+# offline build + boot
+LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
+```
 
 ## Layout
 

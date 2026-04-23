@@ -3,6 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_LOG="$(mktemp)"
+MAKE_ISO_LOG="/tmp/make_iso.log"
+QEMU_TIMEOUT="${QEMU_TIMEOUT:-8}"
 cleanup() { rm -f "$RUN_LOG"; }
 trap cleanup EXIT
 
@@ -24,9 +26,9 @@ if [ "${SKIP_SMOKE_RUN:-0}" = "1" ]; then
   exit 0
 fi
 
-make iso >/tmp/make_iso.log 2>&1 || {
-  cat /tmp/make_iso.log
-  if grep -q "Could not resolve host" /tmp/make_iso.log; then
+make iso >"$MAKE_ISO_LOG" 2>&1 || {
+  cat "$MAKE_ISO_LOG"
+  if grep -q "Could not resolve host" "$MAKE_ISO_LOG"; then
     echo "[test_smoke] Limine download is blocked (no DNS/network in this environment)." >&2
     echo "[test_smoke] Supply files via LIMINE_LOCAL_DIR, then run:" >&2
     echo "  LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke" >&2
@@ -36,16 +38,31 @@ make iso >/tmp/make_iso.log 2>&1 || {
 
 set +e
 if command -v timeout >/dev/null 2>&1; then
-  timeout 8s bash scripts/run_qemu.sh | tee "$RUN_LOG"
-  STATUS=${PIPESTATUS[0]}
+  timeout "${QEMU_TIMEOUT}s" bash scripts/run_qemu.sh >"$RUN_LOG" 2>&1
+  STATUS=$?
 else
-  bash scripts/run_qemu.sh > "$RUN_LOG"
+  bash scripts/run_qemu.sh > "$RUN_LOG" 2>&1
   STATUS=$?
 fi
 set -e
 
+if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
+  echo "[test_smoke] QEMU exited with status $STATUS."
+fi
+
 if ! grep -q "$EXPECTED_BOOT" "$RUN_LOG"; then
   echo "[test_smoke] Expected boot text not found: $EXPECTED_BOOT" >&2
+  echo "[test_smoke] ---- make_iso summary ----"
+  tail -n 80 "$MAKE_ISO_LOG"
+  echo "[test_smoke] ---- qemu log ----"
+  if [ -s "$RUN_LOG" ]; then
+    sed -n '1,140p' "$RUN_LOG"
+  else
+    echo "[test-smoke] qemu output was empty."
+  fi
+  if [ "$STATUS" -eq 124 ]; then
+    echo "[test_smoke] QEMU timed out after ${QEMU_TIMEOUT}s. This can indicate early boot did not reach the serial log path."
+  fi
   exit 1
 fi
 

@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      QEMU_TIMEOUT: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            binutils \
+            make \
+            nasm \
+            xorriso \
+            qemu-system-x86 \
+            git \
+            curl \
+            wget
+
+      - name: Validate setup
+        run: ./scripts/setup-dev.sh
+
+      - name: Build check (no boot)
+        run: SKIP_SMOKE_RUN=1 make test-smoke
+
+      - name: Boot smoke check
+        run: make test-smoke

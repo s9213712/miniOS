@@ -6,3 +6,15 @@ The current smoke tests are script-driven and rely on serial output.
 - `[pmm] memory map` and `[phase3] memory allocator ready` should be present in normal boot.
 - With `PANIC_TEST=1`, kernel should hit panic path and emit `[panic]`.
 - With `FAULT_TEST=div0|opcode|gpf|pf`, kernel should hit fault path and emit `[fault]`.
+
+Commands:
+```bash
+# dependency check
+./scripts/setup-dev.sh
+
+# build check only
+SKIP_SMOKE_RUN=1 make test-smoke
+
+# full smoke
+make test-smoke
+```

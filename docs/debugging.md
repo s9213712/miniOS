@@ -45,7 +45,9 @@ make debug
 
 To verify full boot path:
 ```bash
+./scripts/setup-dev.sh
 make clean
+SKIP_SMOKE_RUN=1 make test-smoke
 LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
 ```
 
@@ -58,4 +60,14 @@ Check the last lines in `/tmp/make_iso.log` for Limine patch/install status:
 ```bash
 make iso 2>&1 | tee /tmp/make_iso.log
 tail -n 40 /tmp/make_iso.log
+```
+
+Optional environment flags:
+- `LIMINE_LOCAL_DIR` points to a local Limine directory when network fetch is blocked.
+- `QEMU_MACHINE`, `QEMU_CPU`, `QEMU_MEM` can be passed for emulator tuning.
+- `QEMU_TIMEOUT` can be set in seconds for smoke tests.
+
+Example:
+```bash
+QEMU_MACHINE=q35 QEMU_CPU=qemu64 QEMU_MEM=1G QEMU_TIMEOUT=10 make test-smoke
 ```
