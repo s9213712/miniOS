@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SMOKE_LOG_DIR="${TEST_SMOKE_LOG_DIR:-/tmp}"
 SMOKE_BASENAME="${SMOKE_BASENAME:-miniOS-smoke}"
 RUN_LOG="$SMOKE_LOG_DIR/${SMOKE_BASENAME}_qemu.log"
+SERIAL_LOG="${SMOKE_LOG_DIR}/${SMOKE_BASENAME}_serial.log"
 MAKE_ISO_LOG="$SMOKE_LOG_DIR/${SMOKE_BASENAME}_make_iso.log"
 QEMU_TIMEOUT="${QEMU_TIMEOUT:-8}"
 SMOKE_OFFLINE="${SMOKE_OFFLINE:-0}"
@@ -15,7 +16,7 @@ KERNEL_BIN="$ROOT_DIR/build/mvos.bin"
 mkdir -p "$SMOKE_LOG_DIR"
 cleanup() {
   if [ "${SMOKE_KEEP_LOGS:-0}" != "1" ]; then
-    rm -f "$RUN_LOG" "$MAKE_ISO_LOG"
+    rm -f "$RUN_LOG" "$MAKE_ISO_LOG" "$SERIAL_LOG"
   fi
 }
 trap cleanup EXIT
@@ -114,10 +115,10 @@ fi
 
 set +e
 if command -v timeout >/dev/null 2>&1; then
-  timeout "${QEMU_TIMEOUT}s" bash scripts/run_qemu.sh >"$RUN_LOG" 2>&1
+  timeout "${QEMU_TIMEOUT}s" env QEMU_SERIAL_MODE=file QEMU_SERIAL_FILE="$SERIAL_LOG" bash scripts/run_qemu.sh >"$RUN_LOG" 2>&1
   STATUS=$?
 else
-  bash scripts/run_qemu.sh > "$RUN_LOG" 2>&1
+  env QEMU_SERIAL_MODE=file QEMU_SERIAL_FILE="$SERIAL_LOG" bash scripts/run_qemu.sh > "$RUN_LOG" 2>&1
   STATUS=$?
 fi
 set -e
@@ -126,7 +127,11 @@ if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
   echo "[test_smoke] QEMU exited with status $STATUS."
 fi
 
-if ! grep -Fq "$EXPECTED_BOOT" "$RUN_LOG"; then
+if [ ! -f "$SERIAL_LOG" ]; then
+  echo "[test_smoke] Serial capture log not created: $SERIAL_LOG" >&2
+  exit 1
+fi
+if ! grep -Fq "$EXPECTED_BOOT" "$SERIAL_LOG"; then
   echo "[test_smoke] Expected boot text not found: $EXPECTED_BOOT" >&2
   echo "[test_smoke] ---- make_iso summary ----"
   tail -n 80 "$MAKE_ISO_LOG"
@@ -138,6 +143,12 @@ if ! grep -Fq "$EXPECTED_BOOT" "$RUN_LOG"; then
     if ! command -v qemu-system-x86_64 >/dev/null 2>&1 && ! command -v qemu-system-x86 >/dev/null 2>&1 && ! command -v qemu-system-x86_64-static >/dev/null 2>&1; then
       echo "[test_smoke] qemu binary could not be resolved." >&2
     fi
+  fi
+  echo "[test_smoke] ---- serial log ----"
+  if [ -s "$SERIAL_LOG" ]; then
+    sed -n '1,140p' "$SERIAL_LOG"
+  else
+    echo "[test_smoke] serial output was empty."
   fi
   if [ "$STATUS" -eq 124 ]; then
     echo "[test_smoke] QEMU timed out after ${QEMU_TIMEOUT}s."
@@ -166,14 +177,14 @@ fi
 
 echo "[test_smoke] Boot text found."
 
-if ! grep -q "$EXPECTED_PMM" "$RUN_LOG"; then
+if ! grep -q "$EXPECTED_PMM" "$SERIAL_LOG"; then
   echo "[test_smoke] Expected phase 3 memory map text not found." >&2
   exit 1
 fi
 echo "[test_smoke] Phase 3 memory map verified."
 
 if [ -n "${PANIC_TEST:-}" ]; then
-  if ! grep -q "\[panic\]" "$RUN_LOG"; then
+  if ! grep -q "\[panic\]" "$SERIAL_LOG"; then
     echo "[test_smoke] Expected panic marker not found." >&2
     exit 1
   fi
@@ -181,7 +192,7 @@ if [ -n "${PANIC_TEST:-}" ]; then
 fi
 
 if [ -n "${FAULT_TEST:-}" ]; then
-  if ! grep -q "$EXPECTED_FAULT" "$RUN_LOG"; then
+  if ! grep -q "$EXPECTED_FAULT" "$SERIAL_LOG"; then
     echo "[test_smoke] Expected fault marker not found for FAULT_TEST=$FAULT_TEST" >&2
     exit 1
   fi

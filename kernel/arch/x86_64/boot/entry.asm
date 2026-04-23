@@ -14,6 +14,7 @@ extern kmain
 
 section .rodata
 entry_boot_msg: db "miniOS: kernel entry", 10, 0
+early_hello_msg: db "hello from kernel", 10, 0
 
 ; Reserve a small bootstrap stack (16 KiB)
 section .bss
@@ -29,6 +30,8 @@ _start:
     mov rsp, kernel_stack_top
     call serial_init_early
     lea rdi, [rel entry_boot_msg]
+    call serial_write_string_early
+    lea rdi, [rel early_hello_msg]
     call serial_write_string_early
     call kmain
 
