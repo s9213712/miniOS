@@ -12,6 +12,7 @@ KERNEL_BIN := $(OUTPUT_DIR)/$(PROJECT).bin
 CC := $(shell if command -v x86_64-none-elf-gcc >/dev/null 2>&1; then echo x86_64-none-elf-gcc; elif command -v x86_64-elf-gcc >/dev/null 2>&1; then echo x86_64-elf-gcc; else echo gcc; fi)
 LD := $(shell if command -v x86_64-none-elf-ld >/dev/null 2>&1; then echo x86_64-none-elf-ld; elif command -v x86_64-elf-ld >/dev/null 2>&1; then echo x86_64-elf-ld; else echo ld; fi)
 AS := $(shell if command -v nasm >/dev/null 2>&1; then echo nasm; else echo nasm; fi)
+CXX := $(shell if command -v x86_64-none-elf-g++ >/dev/null 2>&1; then echo x86_64-none-elf-g++; elif command -v x86_64-elf-g++ >/dev/null 2>&1; then echo x86_64-elf-g++; else echo g++; fi)
 OBJCOPY := $(shell if command -v x86_64-none-elf-objcopy >/dev/null 2>&1; then echo x86_64-none-elf-objcopy; elif command -v x86_64-elf-objcopy >/dev/null 2>&1; then echo x86_64-elf-objcopy; else echo objcopy; fi)
 
 QEMU := qemu-system-x86_64
@@ -21,6 +22,9 @@ INCLUDES := -I$(CURDIR)/kernel/include/mvos -I$(CURDIR)/kernel/include -I$(CURDI
 CFLAGS := -std=c11 -ffreestanding -fno-pic -fno-pie -fno-stack-protector -fno-builtin \
           -fno-asynchronous-unwind-tables -m64 -mno-red-zone -mcmodel=large -O2 -g -mgeneral-regs-only \
           -Wall -Wextra -Wno-unused-parameter -Werror=implicit-function-declaration $(INCLUDES)
+CXXFLAGS := -std=c++17 -ffreestanding -fno-pic -fno-pie -fno-exceptions -fno-rtti -fno-stack-protector \
+            -fno-builtin -fno-asynchronous-unwind-tables -m64 -mno-red-zone -mcmodel=large -O2 -g \
+            -mgeneral-regs-only -Wall -Wextra -Wno-unused-parameter $(INCLUDES)
 LDFLAGS := -T linker/x86_64.ld -z max-page-size=0x1000 -nostdlib
 
 ifeq ($(PANIC_TEST),1)
@@ -51,6 +55,7 @@ ARCH_SRCS := \
 	$(wildcard kernel/arch/x86_64/gdt/*.c) \
 	$(wildcard kernel/arch/x86_64/idt/*.c) \
 	$(wildcard kernel/arch/x86_64/interrupt/*.c)
+CXX_SRCS := $(wildcard kernel/core/*.cpp)
 ifneq ($(strip $(ARCH_SRCS)),)
 C_SRCS += $(ARCH_SRCS)
 endif
@@ -58,8 +63,9 @@ ASM_SRCS := kernel/arch/x86_64/boot/entry.asm
 ASM_SRCS += kernel/arch/x86_64/userproc.asm
 
 C_OBJS := $(patsubst %.c,$(OUTPUT_DIR)/%.o,$(C_SRCS))
+CXX_OBJS := $(patsubst %.cpp,$(OUTPUT_DIR)/%.o,$(CXX_SRCS))
 ASM_OBJS := $(patsubst %.asm,$(OUTPUT_DIR)/%.o,$(ASM_SRCS))
-OBJS := $(C_OBJS) $(ASM_OBJS)
+OBJS := $(C_OBJS) $(CXX_OBJS) $(ASM_OBJS)
 
 FLAGS_MARK := $(OUTPUT_DIR)/.build-flags
 
@@ -73,7 +79,7 @@ $(FLAGS_MARK):
 
 $(KERNEL_ELF): $(FLAGS_MARK) $(OBJS)
 	@echo "[LD] $@"
-	@$(LD) $(LDFLAGS) -o $@ $(ASM_OBJS) $(C_OBJS)
+	@$(LD) $(LDFLAGS) -o $@ $(ASM_OBJS) $(C_OBJS) $(CXX_OBJS)
 	@cp $@ $(KERNEL_BIN)
 
 $(OUTPUT_DIR)/%.o: %.c $(FLAGS_MARK)
@@ -85,6 +91,11 @@ $(OUTPUT_DIR)/%.o: %.asm $(FLAGS_MARK)
 	@mkdir -p $(dir $@)
 	@echo "[AS] $<"
 	@$(AS) -f elf64 $< -o $@
+
+$(OUTPUT_DIR)/%.o: %.cpp $(FLAGS_MARK)
+	@mkdir -p $(dir $@)
+	@echo "[CXX] $<"
+	@$(CXX) $(CXXFLAGS) -c $< -o $@
 
 run: $(KERNEL_ELF)
 	bash scripts/run_qemu.sh

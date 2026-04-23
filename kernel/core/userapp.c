@@ -11,6 +11,7 @@
 extern void minios_userapp_hello(void);
 extern void minios_userapp_ticks(void);
 extern void minios_userapp_scheduler(void);
+extern uint64_t minios_userapp_cpp_magic(void);
 
 #define MINIOS_USERAPP_STACK_SIZE 4096
 
@@ -57,9 +58,23 @@ static void userapp_fallback_ticks(void) {
     console_write_string("\n");
 }
 
+static void userapp_fallback_cpp(void) {
+    console_write_string("user app fallback: C++ demo from kernel mode\n");
+    console_write_string("magic=");
+    console_write_u64(minios_userapp_cpp_magic());
+    console_write_string(" (0x");
+    for (int i = 0; i < 16; ++i) {
+        uint8_t nibble = (uint8_t)((minios_userapp_cpp_magic() >> (60u - i * 4u)) & 0xFu);
+        const char hex[] = "0123456789abcdef";
+        console_write_char(hex[nibble]);
+    }
+    console_write_string(")\n");
+}
+
 static const mvos_userapp_t g_userapps[] = {
     {"hello", "print hello from user app (user mode)", userapp_fallback_hello, (uint64_t)minios_userapp_hello, true},
     {"ticks", "print current timer ticks via user syscall", userapp_fallback_ticks, (uint64_t)minios_userapp_ticks, true},
+    {"cpp", "print C++ demo result (kernel mode demo)", userapp_fallback_cpp, 0, false},
     {"scheduler", "print scheduler snapshot (kernel mode)", userapp_scheduler, 0, false},
 };
 

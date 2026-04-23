@@ -33,6 +33,9 @@
   - shell 增加 `ls`/`cat`，可列舉並讀出 initfs 的虛擬檔內容（`/boot/init/...`）。
   - 保留讀寫分離（目前階段仍為唯讀，適合 smoke 路徑不破壞）。
   - 預期成效：在互動 shell 中執行 `ls`、`ls /boot/init`、`cat /boot/init/readme.txt` 均有穩定輸出。
+- Phase 22：基礎 C++ 範例程式（進行中）
+  - 新增 `run cpp` 示範 app（C++ 函式已編入核心映像並可呼叫）。
+  - `Python` 仍不支援直接於 miniOS 內部執行；先以 C/C++ kernel-mode fallback 為主。
 
 ## 每階段目的與預期成效
 

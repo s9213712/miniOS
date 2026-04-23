@@ -146,3 +146,6 @@
 - Phase 21：檔案可見性（可選）
   - shell 新增 `ls`、`cat`，讓訓練系統可查詢 `/boot/init` 內建節點
   - `cat` 仍走唯讀流程，保留 boot 時序穩定
+- Phase 22：基本 C++ 示範（進行中）
+  - 在 `userapp` 管線加入 C++ 對應編譯路徑，提供 `run cpp` 範例 app
+  - `Python` 仍停留在「未提供 runtime」狀態
