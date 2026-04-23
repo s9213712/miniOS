@@ -1,7 +1,10 @@
 #include <mvos/shell.h>
 #include <mvos/console.h>
 #include <mvos/keyboard.h>
+#include <mvos/pmm.h>
+#include <mvos/interrupt.h>
 #include <mvos/panic.h>
+#include <stdint.h>
 #include <stddef.h>
 
 #define SHELL_BUFFER_LEN 128
@@ -29,12 +32,37 @@ static int shell_streq(const char *lhs, const char *rhs) {
 static void shell_print_help(void) {
     console_write_string("Available commands:\n");
     console_write_string("  help   - show this help\n");
+    console_write_string("  mem    - print memory allocator stats\n");
+    console_write_string("  ticks  - print current timer ticks\n");
+    console_write_string("  reboot - reset the machine\n");
+    console_write_string("  halt   - stop execution\n");
     console_write_string("  hello  - print hello from shell\n");
     console_write_string("  echo   - echo text after command\n");
     console_write_string("  panic  - trigger kernel panic path\n");
     console_write_string("  clear  - clear current command line\n");
     console_write_string("  version- show kernel phase banner\n");
     console_write_string("  quit   - halt execution\n");
+}
+
+static inline void outb(uint16_t port, uint8_t value) {
+    __asm__ volatile("outb %0, %1" : : "a"(value), "Nd"(port));
+}
+
+static void shell_reboot(void) {
+    console_write_string("rebooting...\n");
+
+    outb(0x64, 0xfe);
+
+    for (;;) {
+        __asm__ volatile("hlt");
+    }
+}
+
+static void shell_halt(void) {
+    console_write_string("halting...\n");
+    for (;;) {
+        __asm__ volatile("hlt");
+    }
 }
 
 static int shell_read_line(char *buffer, size_t capacity) {
@@ -98,6 +126,30 @@ static void shell_exec(const char *line) {
 
     if (cmd_len == 4 && shell_streq(trimmed_line, "help")) {
         shell_print_help();
+        return;
+    }
+    if (cmd_len == 3 && shell_streq(trimmed_line, "mem")) {
+        console_write_string("pmm free=");
+        console_write_u64(pmm_free_pages());
+        console_write_string(" total=");
+        console_write_u64(pmm_total_pages());
+        console_write_string(" allocated=");
+        console_write_u64(pmm_allocated_pages());
+        console_write_string("\n");
+        return;
+    }
+    if (cmd_len == 5 && shell_streq(trimmed_line, "ticks")) {
+        console_write_string("ticks=");
+        console_write_u64(timer_ticks());
+        console_write_string("\n");
+        return;
+    }
+    if (cmd_len == 6 && shell_streq(trimmed_line, "reboot")) {
+        shell_reboot();
+        return;
+    }
+    if (cmd_len == 4 && shell_streq(trimmed_line, "halt")) {
+        shell_halt();
         return;
     }
     if (cmd_len == 5 && shell_streq(trimmed_line, "hello")) {

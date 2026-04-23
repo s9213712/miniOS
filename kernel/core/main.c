@@ -7,6 +7,9 @@
 #include <mvos/heap.h>
 #include <mvos/limine.h>
 #include <mvos/interrupt.h>
+#include <mvos/console.h>
+#include <mvos/shell.h>
+#include <mvos/keyboard.h>
 #include <stdint.h>
 
 static volatile uint64_t request_start[4]
@@ -75,9 +78,11 @@ static void trigger_page_fault(void) {
 
 void kmain(void) {
     serial_init();
+    console_init();
     klogln("MiniOS Phase 3 bootstrap");
     klogln("boot banner: kernel entering C");
     klogln("hello from kernel");
+    keyboard_init();
 
 #ifdef MINIOS_PANIC_TEST
     panic("panic test path enabled");
@@ -156,7 +161,5 @@ void kmain(void) {
     trigger_page_fault();
 #endif
 
-    for (;;) {
-        __asm__ volatile("hlt");
-    }
+    shell_run();
 }
