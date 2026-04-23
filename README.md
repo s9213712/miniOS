@@ -6,19 +6,56 @@ via serial.
 ## Prerequisites
 
 Install:
-- `gcc` (or `x86_64-none-elf-gcc`/`x86_64-elf-gcc`)
-- `nasm`
-- `ld`/`objcopy`
-- `make`
-- `qemu-system-x86_64`
-- `xorriso`
 - `git`
-- Optionally: `wget`/`curl`
+- `make`
+- `nasm`
+- `binutils` (`ld`/`objcopy`)
+- `gcc` (or `x86_64-none-elf-gcc`/`x86_64-elf-gcc`)
+- `xorriso`
+- `qemu-system-x86`
+- `qemu-system-gui` or `qemu-utils` (if your distro splits runtime packages)
+- `curl` or `wget` (for fetching Limine when needed)
 
-On Ubuntu/Debian:
+WSL/Ubuntu example:
 ```bash
 sudo apt-get update
 sudo apt-get install -y build-essential binutils gcc make nasm qemu-system-x86 qemu-utils xorriso git curl
+```
+Debian/Ubuntu package note:
+- `qemu-system-x86_64` is the legacy name used in some scripts and docs; if unavailable, use `qemu-system-x86`.
+- If `gcc` cross packages are unavailable, the current toolchain falls back to native `gcc` via the Makefile probes.
+
+## Bootstrap/Runtime Requirements
+
+For an offline environment (no GitHub access), add:
+- `LIMINE_LOCAL_DIR=/path/to/Limine-bootloader/Limine` when invoking `make test-smoke`.
+- The optional `make` step in a local Limine source tree is only needed if you want to build the native `limine` BIOS installer.
+
+## Full test status
+
+Current status:
+- Build verification: pass (`SKIP_SMOKE_RUN=1 make test-smoke`)
+- Full boot test: environment-dependent; if `make test-smoke` fails to start boot output, check Limine bootstrap state and QEMU compatibility.
+
+```bash
+# Online flow (downloads Limine automatically if missing)
+make test-smoke
+
+# Offline flow (no network, Limine already downloaded)
+LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
+```
+
+Required Limine assets (either in `boot/limine/` or `LIMINE_LOCAL_DIR`):
+- `limine-bios.sys`
+- `limine-bios-cd.bin`
+- `limine-uefi-cd.bin`
+- `BOOTX64.EFI`
+
+Optional:
+- Build native `limine` utility in local clone so BIOS patching can run on Linux:
+```bash
+cd /tmp/limine-bin
+make
 ```
 
 ## Build targets
@@ -42,6 +79,7 @@ Phase 1 expects Limine assets in `boot/limine/`:
 - `limine.conf` (already present as project default)
 
 If missing, `make iso` attempts to clone `v11.x-binary` and copy these assets automatically.
+If network access is blocked, set `LIMINE_LOCAL_DIR` to a local directory containing the files above.
 
 ## Expected serial output
 

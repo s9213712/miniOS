@@ -30,3 +30,19 @@ Build output layout:
 - `build/mvos.iso` (Limine-bootable ISO)
 
 Current architecture intentionally excludes framebuffer, scheduler, userspace, network, SMP, and VFS.
+
+## Host prerequisites
+
+- POSIX shell (`bash`) with support for pipes and arrays.
+- GNU build tools (`make`, `gcc`, `binutils`, `nasm`).
+- ISO tools (`xorriso`).
+- Emulator (`qemu-system-x86`).
+- `git` for bootstrap behavior.
+- `curl`/`wget` if online Limine download is used.
+
+Expected host command sequence:
+```bash
+make
+make iso
+make test-smoke
+```

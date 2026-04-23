@@ -2,7 +2,7 @@
 
 ## Serial output (default path)
 - All kernel logs print on UART COM1.
-- QEMU is launched with `-serial stdio`, so logs appear directly in the terminal.
+- QEMU is launched with `-serial stdio -monitor none`, so logs appear directly in the terminal.
 
 ## Phase 3 memory checks
 - `[pmm] memory map` marks the memory map dump loop.
@@ -32,11 +32,30 @@
 ## Debug mode
 - `make debug` starts QEMU with:
   - `-S -s` (GDB waits on TCP 1234)
-  - `-serial stdio`
+  - `-serial stdio -monitor none`
 
 A typical workflow:
 ```bash
 make debug
 (gdb) target remote :1234
 (gdb) break kmain
+```
+
+## Boot verification workflow
+
+To verify full boot path:
+```bash
+make clean
+LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
+```
+
+If boot output still does not appear, common causes are:
+- Limine bootstrap files not copied into `boot/limine/` correctly
+- BIOS/UEFI image mismatch on older QEMU builds
+- `boot` entry in ISO not found due boot image layout changes
+
+Check the last lines in `/tmp/make_iso.log` for Limine patch/install status:
+```bash
+make iso 2>&1 | tee /tmp/make_iso.log
+tail -n 40 /tmp/make_iso.log
 ```

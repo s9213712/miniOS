@@ -19,4 +19,4 @@ echo "[debug_qemu] Starting QEMU with GDB server on tcp::1234"
 echo "[debug_qemu] In another terminal: gdb build/mvos.elf -ex 'target remote :1234' -ex 'break kmain'"
 
 set -x
-"$QEMU_BIN" -machine q35 -cpu qemu64 -m 1G -serial stdio -nographic -vga none -cdrom "$ISO_PATH" -no-reboot -S -s
+"$QEMU_BIN" -machine q35 -cpu qemu64 -m 1G -serial stdio -monitor none -nographic -vga none -cdrom "$ISO_PATH" -no-reboot -S -s
