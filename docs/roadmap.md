@@ -121,3 +121,7 @@
   - 在 shell 中加入 `app` 指令
   - 透過 framebuffer 繪製可辨識的第二個視窗層次，模擬第一個可執行視窗程式
   - 保持預設 boot/smoke 流程不阻塞（僅 ENABLE_SHELL 路徑可觸發）
+- Phase 14：GUI 應用樣式擴展（可選）
+  - 在 `app` 指令新增 `alt` 子模式，繪製不同視窗外觀與佈局
+  - 使用同樣不可阻塞流程與 serial 訊息回報：`GUI alt app launched.`
+  - 驗證目標：`app` 與 `app alt` 均可在 shell 互動下各自啟動

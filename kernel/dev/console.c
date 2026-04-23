@@ -415,6 +415,73 @@ void console_launch_demo_gui_app(void) {
     klogln("[graphics] launched demo GUI app");
 }
 
+void console_launch_demo_gui_alt_app(void) {
+    if (!graphics_enabled) {
+        return;
+    }
+
+    uint64_t app_width = (graphics_width > 360u) ? 360u : graphics_width;
+    uint64_t app_height = (graphics_height > 220u) ? 220u : graphics_height;
+    if (app_width < 180u) {
+        app_width = graphics_width;
+    }
+    if (app_height < 140u) {
+        app_height = graphics_height;
+    }
+
+    if (graphics_width > app_width) {
+        app_width = (graphics_width + app_width) / 2u;
+    }
+    if (app_width > graphics_width) {
+        app_width = graphics_width;
+    }
+    if (graphics_height > app_height) {
+        app_height = (graphics_height + app_height) / 2u;
+    }
+    if (app_height > graphics_height) {
+        app_height = graphics_height;
+    }
+
+    uint64_t app_x = (graphics_width > app_width) ? ((graphics_width - app_width) / 4u) : 0u;
+    uint64_t app_y = (graphics_height > app_height) ? ((graphics_height - app_height) / 4u) : 0u;
+
+    graphics_fill_rect(0u, 0u, graphics_width, graphics_height, 0x06u, 0x18u, 0x2au);
+    graphics_draw_rect_border(0u, 0u, graphics_width, graphics_height, 0xaau, 0xaau, 0xaau);
+
+    graphics_fill_rect(app_x, app_y, app_width, app_height, 0x18u, 0x18u, 0x10u);
+    graphics_draw_rect_border(app_x, app_y, app_width, app_height, 0xfau, 0xe8u, 0x90u);
+
+    uint64_t title_h = (app_height >= 24u) ? 18u : (app_height > 8u ? app_height / 3u : app_height);
+    if (title_h > 0u) {
+        graphics_fill_rect(app_x + 2u, app_y + 2u, app_width > 4u ? app_width - 4u : app_width, title_h, 0x1au, 0x1au, 0x35u);
+        uint64_t icon = (app_width > 32u) ? 22u : (app_width > 12u ? app_width - 4u : 0u);
+        if (icon > 8u && title_h > 10u) {
+            graphics_fill_rect(app_x + app_width - icon, app_y + 4u, icon - 4u, title_h - 4u, 0x0eu, 0xb6u, 0x26u);
+        }
+    }
+
+    uint64_t list_x = app_x + 10u;
+    uint64_t list_y = app_y + (title_h + 2u);
+    uint64_t list_w = app_width > 20u ? app_width - 20u : app_width;
+    uint64_t list_h = app_height > (title_h + 30u) ? app_height - (title_h + 30u) : 0u;
+    graphics_fill_rect(list_x, list_y, list_w, list_h, 0x0eu, 0x12u, 0x20u);
+
+    for (uint64_t row = 0u; row < 3u; ++row) {
+        uint64_t bar_y = list_y + 14u + (row * 16u);
+        if (bar_y + 8u >= list_y + list_h || list_h < 2u || list_w < 1u) {
+            break;
+        }
+        uint64_t bar_w = (list_w > 34u) ? (list_w * 2u / 3u) : (list_w > 2u ? list_w - 2u : list_w);
+        uint64_t bar_h = 6u;
+        graphics_fill_rect(list_x + 6u, bar_y, bar_w, bar_h, 0x72u, 0x94u, 0xbau);
+        if (bar_w >= 12u) {
+            graphics_fill_rect(list_x + 6u, bar_y, bar_w / 2u, bar_h, 0x0eu, 0x2eu, 0x6au);
+        }
+    }
+
+    klogln("[graphics] launched alt demo GUI app");
+}
+
 void console_set_target(mvos_console_target_t target) {
     current_target = target;
     switch (target) {
