@@ -67,6 +67,9 @@ make
 - `make iso` creates `build/mvos.iso`
 - `make clean` removes `build/`
 - `make test-smoke` builds and runs a basic smoke test
+- `make smoke` / `make smoke-full` runs full boot smoke test (alias)
+- `make smoke-build` builds artifacts and validates without QEMU run
+- `make smoke-offline` runs smoke using `LIMINE_LOCAL_DIR`/`LIMINE_CACHE_DIR`
 - `PANIC_TEST=1 make run` exercises panic path
 - `FAULT_TEST=div0|opcode|gpf|pf make run` exercises fault path
 
@@ -80,8 +83,8 @@ Phase 1 expects Limine assets in `boot/limine/`:
 - `limine.conf` (already present as project default)
 
 If missing, `make iso` attempts to clone `v11.x-binary` and copy these assets automatically.
-If network access is blocked, set `LIMINE_LOCAL_DIR` to a local directory containing the files above.
-The `.github/workflows/ci.yml` job also calls `make test-smoke` after dependency checks.
+If network access is blocked, set `LIMINE_LOCAL_DIR` or `LIMINE_CACHE_DIR` to a local directory containing the files above.
+The `.github/workflows/ci.yml` job uses `LIMINE_CACHE_DIR` and retries `make test-smoke` once on failure.
 
 ## Expected serial output
 
@@ -121,12 +124,18 @@ Optional fault path:
 ```bash
 # build-only check (fast)
 SKIP_SMOKE_RUN=1 make test-smoke
+make smoke-build
 
 # full boot smoke
 make test-smoke
+make smoke
+make smoke-full
 
 # offline build + boot
 LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
+make smoke-offline
+LIMINE_LOCAL_DIR=/path/to/limine-bin make smoke-offline
+LIMINE_CACHE_DIR=./boot/limine make smoke-offline
 ```
 
 ## Layout

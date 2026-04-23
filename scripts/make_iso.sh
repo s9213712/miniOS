@@ -6,11 +6,14 @@ BUILD_DIR="$ROOT_DIR/build"
 ISO_DIR="$ROOT_DIR/boot/iso_root"
 LIMINE_DIR="$ROOT_DIR/boot/limine"
 LOCAL_LIMINE_DIR="${LIMINE_LOCAL_DIR:-}"
+LIMINE_CACHE_DIR="${LIMINE_CACHE_DIR:-$ROOT_DIR/.cache/miniOS-limine}"
 ISO_PATH="$BUILD_DIR/mvos.iso"
 ISO_ENTRY_BIOS="boot/limine-bios-cd.bin"
 ISO_ENTRY_UEFI="boot/limine-uefi-cd.bin"
 KERNEL_NAME="boot/mvos.bin"
 LIMINE_FILES="limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin BOOTX64.EFI limine.conf"
+SMOKE_OFFLINE="${SMOKE_OFFLINE:-0}"
+TEMP_DIR=""
 
 log_file_info() {
   local file="$1"
@@ -26,8 +29,68 @@ log_file_info() {
   fi
 }
 
+has_limine_artifacts() {
+  local dir="$1"
+
+  if [ ! -d "$dir" ]; then
+    return 1
+  fi
+
+  for f in $LIMINE_FILES; do
+    if [ "$f" = "limine.conf" ]; then
+      continue
+    fi
+    if [ ! -f "$dir/$f" ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+copy_limine_from() {
+  local src="$1"
+
+  echo "[make_iso] Copying Limine artifacts from $src."
+  cp "$src/limine-bios.sys" \
+    "$src/limine-bios-cd.bin" \
+    "$src/limine-uefi-cd.bin" \
+    "$src/BOOTX64.EFI" \
+    "$LIMINE_DIR/"
+  if [ -f "$src/limine" ]; then
+    cp "$src/limine" "$LIMINE_DIR/" || true
+  fi
+  cp "$ROOT_DIR/boot/limine.conf" "$LIMINE_DIR/"
+}
+
+cache_limine_from() {
+  local src="$1"
+  local cache_dest="$LIMINE_CACHE_DIR"
+
+  if [ -z "$cache_dest" ]; then
+    return 0
+  fi
+
+  mkdir -p "$cache_dest"
+  cp "$src/limine-bios.sys" \
+    "$src/limine-bios-cd.bin" \
+    "$src/limine-uefi-cd.bin" \
+    "$src/BOOTX64.EFI" \
+    "$cache_dest/" || true
+  if [ -f "$src/limine" ]; then
+    cp "$src/limine" "$cache_dest/" || true
+  fi
+}
+
+cleanup() {
+  if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
+    rm -rf "$TEMP_DIR"
+  fi
+}
+trap cleanup EXIT
+
 mkdir -p "$BUILD_DIR"
 mkdir -p "$ISO_DIR"
+mkdir -p "$LIMINE_DIR"
 
 if [ ! -f "$BUILD_DIR/mvos.bin" ]; then
   echo "[make_iso] kernel binary missing: $BUILD_DIR/mvos.bin" >&2
@@ -43,54 +106,52 @@ for f in $LIMINE_FILES; do
   fi
 done
 
-if [ "$need_download" -eq 0 ] && [ -n "$LOCAL_LIMINE_DIR" ] && [ -x "$LOCAL_LIMINE_DIR/limine" ] && [ ! -x "$LIMINE_DIR/limine" ]; then
-  need_download=1
-fi
-
 if [ "$need_download" -eq 1 ]; then
+  SOURCE_DIR=""
   if [ -n "$LOCAL_LIMINE_DIR" ]; then
-    if [ ! -d "$LOCAL_LIMINE_DIR" ]; then
-      echo "[make_iso] LIMINE_LOCAL_DIR is set but not a directory: $LOCAL_LIMINE_DIR" >&2
+    if has_limine_artifacts "$LOCAL_LIMINE_DIR"; then
+      SOURCE_DIR="$LOCAL_LIMINE_DIR"
+    else
+      if [ -d "$LOCAL_LIMINE_DIR" ]; then
+        echo "[make_iso] LIMINE_LOCAL_DIR is set but required files are missing."
+      else
+        echo "[make_iso] LIMINE_LOCAL_DIR is set but is not a directory: $LOCAL_LIMINE_DIR"
+      fi
+      echo "Expected files: $LIMINE_FILES"
       exit 1
     fi
-
-    for f in $LIMINE_FILES; do
-      if [ "$f" = "limine.conf" ]; then
-        continue
-      fi
-      if [ ! -f "$LOCAL_LIMINE_DIR/$f" ]; then
-        echo "[make_iso] Missing $f in LIMINE_LOCAL_DIR=$LOCAL_LIMINE_DIR" >&2
-        echo "Set LIMINE_LOCAL_DIR to a directory containing all required Limine files." >&2
-        exit 1
-      fi
-    done
-
-    echo "[make_iso] Copying Limine artifacts from LIMINE_LOCAL_DIR=$LOCAL_LIMINE_DIR."
-    cp "$LOCAL_LIMINE_DIR/limine-bios.sys" \
-       "$LOCAL_LIMINE_DIR/limine-bios-cd.bin" \
-       "$LOCAL_LIMINE_DIR/limine-uefi-cd.bin" \
-       "$LOCAL_LIMINE_DIR/BOOTX64.EFI" \
-       "$LIMINE_DIR/"
-
-    if [ -x "$LOCAL_LIMINE_DIR/limine" ]; then
-      cp "$LOCAL_LIMINE_DIR/limine" "$LIMINE_DIR/"
-    fi
-    cp "$ROOT_DIR/boot/limine.conf" "$LIMINE_DIR/"
-    need_download=0
+  elif has_limine_artifacts "$LIMINE_CACHE_DIR"; then
+    SOURCE_DIR="$LIMINE_CACHE_DIR"
+  elif [ "$SMOKE_OFFLINE" = "1" ]; then
+    echo "[make_iso] Offline mode enabled (SMOKE_OFFLINE=1), but Limine artifacts are not cached."
+    echo "Provide one of:"
+    echo "  LIMINE_LOCAL_DIR=<path>/Limine"
+    echo "  LIMINE_CACHE_DIR=<path>/limine"
+    exit 1
   else
     echo "[make_iso] Limine artifacts missing in $LIMINE_DIR."
     echo "[make_iso] Attempting to download official v11.x-binary release tree into a temporary directory."
     TEMP_DIR="$(mktemp -d)"
-    trap 'rm -rf "$TEMP_DIR"' EXIT
     git clone --depth 1 --branch v11.x-binary https://github.com/Limine-bootloader/Limine.git "$TEMP_DIR/limine"
-    cp "$TEMP_DIR/limine/limine-bios.sys" "$TEMP_DIR/limine/limine-bios-cd.bin" "$TEMP_DIR/limine/limine-uefi-cd.bin" "$TEMP_DIR/limine/BOOTX64.EFI" "$LIMINE_DIR/"
-    cp "$ROOT_DIR/boot/limine.conf" "$LIMINE_DIR/"
-    echo "[make_iso] Limine artifacts copied into $LIMINE_DIR"
+    if ! has_limine_artifacts "$TEMP_DIR/limine"; then
+      echo "[make_iso] Downloaded Limine tree is incomplete."
+      exit 1
+    fi
+    cache_limine_from "$TEMP_DIR/limine"
+    SOURCE_DIR="$TEMP_DIR/limine"
   fi
+
+  copy_limine_from "$SOURCE_DIR"
+  if [ "$SOURCE_DIR" != "$LIMINE_CACHE_DIR" ] && [ "$SMOKE_OFFLINE" != "1" ]; then
+    cache_limine_from "$SOURCE_DIR"
+  fi
+  need_download=0
+  echo "[make_iso] Limine source used: $SOURCE_DIR"
 fi
 
 if [ "$need_download" -ne 0 ]; then
   echo "[make_iso] Limine bootstrap failed; required artifacts are missing after copy attempt."
+  echo "Hint: LIMINE_LOCAL_DIR=<path>/Limine or LIMINE_CACHE_DIR=<path>/limine"
   exit 1
 fi
 
@@ -123,7 +184,7 @@ if ! command -v xorriso >/dev/null 2>&1; then
   exit 1
 fi
 
-xorriso -as mkisofs -R -r -J -b $ISO_ENTRY_BIOS -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 --efi-boot $ISO_ENTRY_UEFI -efi-boot-part --efi-boot-image --protective-msdos-label "$ISO_DIR" -o "$ISO_PATH"
+xorriso -as mkisofs -R -r -J -b "$ISO_ENTRY_BIOS" -no-emul-boot -boot-load-size 4 -boot-info-table -hfsplus -apm-block-size 2048 --efi-boot "$ISO_ENTRY_UEFI" -efi-boot-part --efi-boot-image --protective-msdos-label "$ISO_DIR" -o "$ISO_PATH"
 
 LIMINE_EXE="$LIMINE_DIR/limine"
 if [ -x "$LIMINE_EXE" ]; then

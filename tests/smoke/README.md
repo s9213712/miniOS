@@ -13,8 +13,14 @@ Commands:
 ./scripts/setup-dev.sh
 
 # build check only
+SKIP_SMOKE_RUN=1 make smoke-build
 SKIP_SMOKE_RUN=1 make test-smoke
 
 # full smoke
 make test-smoke
+make smoke
+make smoke-full
+
+# offline smoke (local Limine)
+LIMINE_LOCAL_DIR=/path/to/limine-bin make smoke-offline
 ```

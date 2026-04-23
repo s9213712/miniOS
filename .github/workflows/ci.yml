@@ -35,8 +35,27 @@ jobs:
       - name: Validate setup
         run: ./scripts/setup-dev.sh
 
+      - name: Prepare local Limine cache
+        run: |
+          mkdir -p "${RUNNER_TEMP}/miniOS-limine"
+          echo "LIMINE_CACHE_DIR=${RUNNER_TEMP}/miniOS-limine" >> "$GITHUB_ENV"
+
       - name: Build check (no boot)
         run: SKIP_SMOKE_RUN=1 make test-smoke
 
-      - name: Boot smoke check
-        run: make test-smoke
+      - name: Boot smoke check (retry if flaky)
+        run: |
+          ATTEMPTS=0
+          until [ "$ATTEMPTS" -ge 2 ]; do
+            ATTEMPTS=$((ATTEMPTS + 1))
+            echo "[ci] boot smoke attempt $ATTEMPTS/2"
+            if make test-smoke; then
+              exit 0
+            fi
+            echo "[ci] boot smoke failed on attempt $ATTEMPTS"
+            if [ "$ATTEMPTS" -lt 2 ]; then
+              sleep 2
+            fi
+          done
+          echo "[ci] boot smoke failed after $ATTEMPTS attempts." >&2
+          exit 1

@@ -56,7 +56,7 @@ OBJS := $(C_OBJS) $(ASM_OBJS)
 
 FLAGS_MARK := $(OUTPUT_DIR)/.build-flags
 
-.PHONY: all run debug iso clean test-smoke
+.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline
 
 all: $(KERNEL_ELF)
 
@@ -90,6 +90,23 @@ iso: $(KERNEL_ELF)
 
 test-smoke: $(KERNEL_ELF)
 	bash scripts/test_smoke.sh
+
+smoke: $(KERNEL_ELF)
+	@echo "[make] running full smoke test"
+	@bash scripts/test_smoke.sh
+
+smoke-full: test-smoke
+
+smoke-build: $(KERNEL_ELF)
+	SKIP_SMOKE_RUN=1 bash scripts/test_smoke.sh
+
+smoke-offline: $(KERNEL_ELF)
+	@if [ -z "${LIMINE_LOCAL_DIR:-}" ] && [ -z "${LIMINE_CACHE_DIR:-}" ]; then \
+	  echo "[make] smoke-offline requires LIMINE_LOCAL_DIR or LIMINE_CACHE_DIR"; \
+	  echo "Example: LIMINE_LOCAL_DIR=/path/to/Limine make smoke-offline"; \
+	  exit 1; \
+	fi
+	@SMOKE_OFFLINE=1 bash scripts/test_smoke.sh
 
 clean:
 	rm -rf $(OUTPUT_DIR)

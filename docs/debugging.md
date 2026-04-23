@@ -49,6 +49,7 @@ To verify full boot path:
 make clean
 SKIP_SMOKE_RUN=1 make test-smoke
 LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
+make smoke-offline
 ```
 
 If boot output still does not appear, common causes are:
@@ -64,6 +65,7 @@ tail -n 40 /tmp/make_iso.log
 
 Optional environment flags:
 - `LIMINE_LOCAL_DIR` points to a local Limine directory when network fetch is blocked.
+- `LIMINE_CACHE_DIR` can hold a reusable local Limine binary cache.
 - `QEMU_MACHINE`, `QEMU_CPU`, `QEMU_MEM` can be passed for emulator tuning.
 - `QEMU_TIMEOUT` can be set in seconds for smoke tests.
 

@@ -38,6 +38,7 @@ Current architecture intentionally excludes framebuffer, scheduler, userspace, n
 - Emulator (`qemu-system-x86` or `qemu-system-x86_64`).
 - `git`, and `curl`/`wget` for Limine bootstrap download.
 - `./scripts/setup-dev.sh` to validate and optionally install requirements.
+- Optional cache path: `LIMINE_CACHE_DIR` (default `.cache/miniOS-limine`).
 
 Quick check:
 ```bash
@@ -48,5 +49,6 @@ Expected host command sequence:
 ```bash
 make
 make iso
+make smoke-offline
 make test-smoke
 ```

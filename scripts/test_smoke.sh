@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RUN_LOG="$(mktemp)"
 MAKE_ISO_LOG="/tmp/make_iso.log"
 QEMU_TIMEOUT="${QEMU_TIMEOUT:-8}"
+SMOKE_OFFLINE="${SMOKE_OFFLINE:-0}"
 cleanup() { rm -f "$RUN_LOG"; }
 trap cleanup EXIT
 
@@ -28,10 +29,13 @@ fi
 
 make iso >"$MAKE_ISO_LOG" 2>&1 || {
   cat "$MAKE_ISO_LOG"
-  if grep -q "Could not resolve host" "$MAKE_ISO_LOG"; then
+  if grep -q "Could not resolve host" "$MAKE_ISO_LOG" || [ "$SMOKE_OFFLINE" = "1" ]; then
     echo "[test_smoke] Limine download is blocked (no DNS/network in this environment)." >&2
     echo "[test_smoke] Supply files via LIMINE_LOCAL_DIR, then run:" >&2
     echo "  LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke" >&2
+    if [ "$SMOKE_OFFLINE" = "1" ]; then
+      echo "[test_smoke] Offline mode is enabled. Ensure cache exists in LIMINE_CACHE_DIR or set LIMINE_LOCAL_DIR."
+    fi
   fi
   exit 1
 }
