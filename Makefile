@@ -101,7 +101,7 @@ smoke-build: $(KERNEL_ELF)
 	SKIP_SMOKE_RUN=1 bash scripts/test_smoke.sh
 
 smoke-offline: $(KERNEL_ELF)
-	@if [ -z "${LIMINE_LOCAL_DIR:-}" ] && [ -z "${LIMINE_CACHE_DIR:-}" ]; then \
+	@if [ -z "$(strip $(LIMINE_LOCAL_DIR)$(LIMINE_CACHE_DIR))" ]; then \
 	  echo "[make] smoke-offline requires LIMINE_LOCAL_DIR or LIMINE_CACHE_DIR"; \
 	  echo "Example: LIMINE_LOCAL_DIR=/path/to/Limine make smoke-offline"; \
 	  exit 1; \

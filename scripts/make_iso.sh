@@ -51,11 +51,15 @@ copy_limine_from() {
   local src="$1"
 
   echo "[make_iso] Copying Limine artifacts from $src."
-  cp "$src/limine-bios.sys" \
-    "$src/limine-bios-cd.bin" \
-    "$src/limine-uefi-cd.bin" \
-    "$src/BOOTX64.EFI" \
-    "$LIMINE_DIR/"
+  if [ "$src" != "$LIMINE_DIR" ]; then
+    cp "$src/limine-bios.sys" \
+      "$src/limine-bios-cd.bin" \
+      "$src/limine-uefi-cd.bin" \
+      "$src/BOOTX64.EFI" \
+      "$LIMINE_DIR/"
+  else
+    echo "[make_iso] Limine artifacts already in target directory; skipping copy."
+  fi
   if [ -f "$src/limine" ]; then
     cp "$src/limine" "$LIMINE_DIR/" || true
   fi
@@ -71,11 +75,13 @@ cache_limine_from() {
   fi
 
   mkdir -p "$cache_dest"
-  cp "$src/limine-bios.sys" \
-    "$src/limine-bios-cd.bin" \
-    "$src/limine-uefi-cd.bin" \
-    "$src/BOOTX64.EFI" \
-    "$cache_dest/" || true
+  if [ "$src" != "$cache_dest" ]; then
+    cp "$src/limine-bios.sys" \
+      "$src/limine-bios-cd.bin" \
+      "$src/limine-uefi-cd.bin" \
+      "$src/BOOTX64.EFI" \
+      "$cache_dest/" || true
+  fi
   if [ -f "$src/limine" ]; then
     cp "$src/limine" "$cache_dest/" || true
   fi
