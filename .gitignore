@@ -1,0 +1,20 @@
+# Build artifacts
+build/
+*.o
+*.obj
+*.a
+*.so
+*.elf
+*.bin
+*.iso
+*.img
+
+# Tooling and temporary files
+*.swp
+*~
+
+# Large archive downloaded by bootstrap scripts
+linux-7.0.tar.xz
+
+# Editor/system files
+.DS_Store
