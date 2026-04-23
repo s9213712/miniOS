@@ -18,7 +18,7 @@
 /* Limine request section markers are grouped as required for bootloader discovery.
  * Smoke tests also verify that request_start is ordered before request_end.
  */
-static volatile uint64_t request_start[4]
+volatile uint64_t request_start[4]
     __attribute__((used, section(".requests.start"))) = LIMINE_REQUESTS_START_MARKER;
 
 static volatile struct limine_bootloader_info_request bootloader_info_request
@@ -57,7 +57,7 @@ static volatile struct limine_framebuffer_request framebuffer_request
     .response = NULL
 };
 
-static volatile uint64_t request_end[2]
+volatile uint64_t request_end[2]
     __attribute__((used, section(".requests.end"))) = LIMINE_REQUESTS_END_MARKER;
 
 /* Fault injection is compile-time only so normal boot remains deterministic.
