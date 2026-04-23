@@ -44,7 +44,7 @@ static volatile uint64_t request_end[2]
     __attribute__((used, section(".requests"))) = LIMINE_REQUESTS_END_MARKER;
 
 static void trigger_divide_by_zero_fault(void) {
-    asm volatile(
+    __asm__ volatile(
         "mov $1, %%rax\n\t"
         "xor %%rdx, %%rdx\n\t"
         "mov $0, %%rbx\n\t"
@@ -55,11 +55,11 @@ static void trigger_divide_by_zero_fault(void) {
 }
 
 static void trigger_invalid_opcode_fault(void) {
-    asm volatile(".byte 0x0f, 0xff");
+    __asm__ volatile(".byte 0x0f, 0xff");
 }
 
 static void trigger_general_protection_fault(void) {
-    asm volatile(
+    __asm__ volatile(
         "mov $0x28, %ax\n\t"
         "mov %ax, %gs\n\t"
         :
@@ -141,6 +141,6 @@ void kmain(void) {
 #endif
 
     for (;;) {
-        asm volatile("hlt");
+        __asm__ volatile("hlt");
     }
 }

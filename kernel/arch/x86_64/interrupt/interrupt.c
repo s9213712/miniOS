@@ -29,18 +29,18 @@ static void fault_log_and_panic(const char *name, uint64_t vector, uint64_t erro
     panic("kernel exception");
 }
 
-void isr_divide_by_zero(struct interrupt_frame *frame) __attribute__((interrupt)) {
+void __attribute__((interrupt)) isr_divide_by_zero(struct interrupt_frame *frame) {
     fault_log_and_panic("Divide Error", 0, UINT64_MAX, frame);
 }
 
-void isr_invalid_opcode(struct interrupt_frame *frame) __attribute__((interrupt)) {
+void __attribute__((interrupt)) isr_invalid_opcode(struct interrupt_frame *frame) {
     fault_log_and_panic("Invalid Opcode", 6, UINT64_MAX, frame);
 }
 
-void isr_general_protection(struct interrupt_frame *frame, uint64_t error_code) __attribute__((interrupt)) {
+void __attribute__((interrupt)) isr_general_protection(struct interrupt_frame *frame, uint64_t error_code) {
     fault_log_and_panic("General Protection Fault", 13, error_code, frame);
 }
 
-void isr_page_fault(struct interrupt_frame *frame, uint64_t error_code) __attribute__((interrupt)) {
+void __attribute__((interrupt)) isr_page_fault(struct interrupt_frame *frame, uint64_t error_code) {
     fault_log_and_panic("Page Fault", 14, error_code, frame);
 }

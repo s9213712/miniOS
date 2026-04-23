@@ -19,7 +19,7 @@ QEMU := qemu-system-x86_64
 INCLUDES := -I$(CURDIR)/kernel/include/mvos -I$(CURDIR)/kernel/include -I$(CURDIR)/libc
 
 CFLAGS := -std=c11 -ffreestanding -fno-pic -fno-pie -fno-stack-protector -fno-builtin \
-          -fno-asynchronous-unwind-tables -m64 -mno-red-zone -mcmodel=large -O2 -g \
+          -fno-asynchronous-unwind-tables -m64 -mno-red-zone -mcmodel=large -O2 -g -mgeneral-regs-only \
           -Wall -Wextra -Wno-unused-parameter -Werror=implicit-function-declaration $(INCLUDES)
 LDFLAGS := -T linker/x86_64.ld -z max-page-size=0x1000 -nostdlib
 
@@ -93,4 +93,3 @@ test-smoke: $(KERNEL_ELF)
 
 clean:
 	rm -rf $(OUTPUT_DIR)
-

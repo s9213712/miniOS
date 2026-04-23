@@ -46,7 +46,7 @@ void gdt_init(void) {
     gdt_ptr.limit = (uint16_t)(sizeof(gdt_entries) - 1);
     gdt_ptr.base = (uint64_t)&gdt_entries;
 
-    asm volatile("lgdt %0\n"
+    __asm__ volatile("lgdt %0\n"
                  "pushq $0x08\n"
                  "lea 1f(%%rip), %%rax\n"
                  "pushq %%rax\n"

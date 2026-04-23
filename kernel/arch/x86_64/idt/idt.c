@@ -60,5 +60,5 @@ void idt_init(void) {
     idt_ptr.limit = (uint16_t)(sizeof(idt) - 1);
     idt_ptr.base = (uint64_t)&idt;
 
-    asm volatile("lidt %0" : : "m"(idt_ptr));
+    __asm__ volatile("lidt %0" : : "m"(idt_ptr));
 }

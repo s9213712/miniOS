@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
 ISO_DIR="$ROOT_DIR/boot/iso_root"
 LIMINE_DIR="$ROOT_DIR/boot/limine"
+LOCAL_LIMINE_DIR="${LIMINE_LOCAL_DIR:-}"
 SCRIPT_DIR="$ROOT_DIR/scripts"
 ISO_PATH="$BUILD_DIR/mvos.iso"
 ISO_ENTRY_BIOS="boot/limine-bios-cd.bin"
@@ -29,14 +30,38 @@ for f in limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin BOOTX64.EFI limin
 done
 
 if [ "$need_download" -eq 1 ]; then
-  echo "[make_iso] Limine artifacts missing in $LIMINE_DIR."
-  echo "[make_iso] Attempting to download official v11.x-binary release tree into a temporary directory."
-  TEMP_DIR="$(mktemp -d)"
-  trap 'rm -rf "$TEMP_DIR"' EXIT
+  if [ -n "$LOCAL_LIMINE_DIR" ]; then
+    if [ ! -d "$LOCAL_LIMINE_DIR" ]; then
+      echo "[make_iso] LIMINE_LOCAL_DIR is set but not a directory: $LOCAL_LIMINE_DIR" >&2
+      exit 1
+    fi
+
+    for f in limine-bios.sys limine-bios-cd.bin limine-uefi-cd.bin BOOTX64.EFI; do
+      if [ ! -f "$LOCAL_LIMINE_DIR/$f" ]; then
+        echo "[make_iso] Missing $f in LIMINE_LOCAL_DIR=$LOCAL_LIMINE_DIR" >&2
+        echo "Set LIMINE_LOCAL_DIR to a directory containing all required Limine files." >&2
+        exit 1
+      fi
+    done
+
+    echo "[make_iso] Copying Limine artifacts from LIMINE_LOCAL_DIR=$LOCAL_LIMINE_DIR."
+    cp "$LOCAL_LIMINE_DIR/limine-bios.sys" \
+       "$LOCAL_LIMINE_DIR/limine-bios-cd.bin" \
+       "$LOCAL_LIMINE_DIR/limine-uefi-cd.bin" \
+       "$LOCAL_LIMINE_DIR/BOOTX64.EFI" \
+       "$LIMINE_DIR/"
+    cp "$ROOT_DIR/boot/limine.conf" "$LIMINE_DIR/"
+    need_download=0
+  else
+    echo "[make_iso] Limine artifacts missing in $LIMINE_DIR."
+    echo "[make_iso] Attempting to download official v11.x-binary release tree into a temporary directory."
+    TEMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$TEMP_DIR"' EXIT
     git clone --depth 1 --branch v11.x-binary https://github.com/Limine-bootloader/Limine.git "$TEMP_DIR/limine"
     cp "$TEMP_DIR/limine/limine-bios.sys" "$TEMP_DIR/limine/limine-bios-cd.bin" "$TEMP_DIR/limine/limine-uefi-cd.bin" "$TEMP_DIR/limine/BOOTX64.EFI" "$LIMINE_DIR/"
     cp "$ROOT_DIR/boot/limine.conf" "$LIMINE_DIR/"
-  echo "[make_iso] Limine artifacts copied into $LIMINE_DIR"
+    echo "[make_iso] Limine artifacts copied into $LIMINE_DIR"
+  fi
 fi
 
 rm -rf "$ISO_DIR"
