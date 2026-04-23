@@ -18,6 +18,7 @@ MiniOS is a small x86_64 educational OS with incremental phases and readable bou
 - **Phase 9**: framebuffer request diagnostics and VGA text mirror hookup.
 - **Phase 10**: framebuffer boot-window demo rendering.
 - **Phase 11**: optional interactive shell path (`ENABLE_SHELL=1`) without changing default boot path.
+- **Phase 12**: shell-driven GUI redraw command (`gui`) for manual verification.
 
 ## Core layout
 

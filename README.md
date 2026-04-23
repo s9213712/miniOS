@@ -71,6 +71,10 @@
   - 目的：補齊第一層使用者互動介面，提供簡易命令入口作為第二階段使用者體驗
   - 實作重點：`shell.c` 已存在，改以 `ENABLE_SHELL=1` 開關進入互動式 shell，預設關閉避免影響 smoke 時序
   - 預期成效：啟用後可在 serial 視窗輸入 `help`、`mem`、`ticks`、`hello`、`quit` 等命令
+- Phase 12：GUI 互動指令（可選）
+  - 目的：在 shell 中加入可重複驗證的簡單 GUI 動作
+  - 實作重點：新增 `gui` 指令，可在 `ENABLE_SHELL=1` 環境下透過 serial shell 觸發視窗重繪（只在已啟用 graphics backend 才作用）
+  - 預期成效：`gui` 指令後輸出 `GUI demo window drawn.`
 
 ## 目前可驗證狀態
 

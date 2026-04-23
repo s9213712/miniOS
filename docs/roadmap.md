@@ -113,3 +113,7 @@
 - Phase 11：互動 shell（可選）
   - 以 `ENABLE_SHELL=1` 進入 `shell_run()`
   - 保留預設流程不阻塞，維持 smoke 時間線一致
+- Phase 12：shell GUI 指令（可選）
+  - 在 shell 中加入 `gui` 指令
+  - 驗證已啟用 graphics backend 時可再次繪製視窗
+  - 保持 `make smoke-offline` 不受互動指令干擾
