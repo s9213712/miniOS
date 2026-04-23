@@ -2,11 +2,19 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_LOG="$(mktemp)"
-MAKE_ISO_LOG="/tmp/make_iso.log"
+SMOKE_LOG_DIR="${TEST_SMOKE_LOG_DIR:-/tmp}"
+SMOKE_BASENAME="${TEST_SMOKE_BASENAME:-miniOS-smoke}"
+RUN_LOG="$SMOKE_LOG_DIR/${SMOKE_BASENAME}_qemu.log"
+MAKE_ISO_LOG="$SMOKE_LOG_DIR/${SMOKE_BASENAME}_make_iso.log"
 QEMU_TIMEOUT="${QEMU_TIMEOUT:-8}"
 SMOKE_OFFLINE="${SMOKE_OFFLINE:-0}"
-cleanup() { rm -f "$RUN_LOG"; }
+
+mkdir -p "$SMOKE_LOG_DIR"
+cleanup() {
+  if [ "${SMOKE_KEEP_LOGS:-0}" != "1" ]; then
+    rm -f "$RUN_LOG" "$MAKE_ISO_LOG"
+  fi
+}
 trap cleanup EXIT
 
 EXPECTED_BOOT="hello from kernel"

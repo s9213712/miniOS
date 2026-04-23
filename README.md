@@ -130,6 +130,7 @@ make smoke-build
 make test-smoke
 make smoke
 make smoke-full
+TEST_SMOKE_LOG_DIR=./artifacts TEST_SMOKE_BASENAME=smoke-run SMOKE_KEEP_LOGS=1 make smoke
 
 # offline build + boot
 LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
