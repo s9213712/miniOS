@@ -3,11 +3,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SMOKE_LOG_DIR="${TEST_SMOKE_LOG_DIR:-/tmp}"
-SMOKE_BASENAME="${TEST_SMOKE_BASENAME:-miniOS-smoke}"
+SMOKE_BASENAME="${SMOKE_BASENAME:-miniOS-smoke}"
 RUN_LOG="$SMOKE_LOG_DIR/${SMOKE_BASENAME}_qemu.log"
 MAKE_ISO_LOG="$SMOKE_LOG_DIR/${SMOKE_BASENAME}_make_iso.log"
 QEMU_TIMEOUT="${QEMU_TIMEOUT:-8}"
 SMOKE_OFFLINE="${SMOKE_OFFLINE:-0}"
+LIMINE_CONF="$ROOT_DIR/boot/limine.conf"
+KERNEL_ELF="$ROOT_DIR/build/mvos.elf"
+KERNEL_BIN="$ROOT_DIR/build/mvos.bin"
 
 mkdir -p "$SMOKE_LOG_DIR"
 cleanup() {
@@ -20,6 +23,27 @@ trap cleanup EXIT
 EXPECTED_BOOT="hello from kernel"
 EXPECTED_FAULT="\\[fault\\]"
 EXPECTED_PMM="\\[pmm\\] memory map"
+EXPECTED_PROTO_LOWER="^protocol[[:space:]]*:[[:space:]]*limine$"
+EXPECTED_PROTO_UPPER="^PROTOCOL[[:space:]]*=[[:space:]]*limine$"
+EXPECTED_PATH_UPPER="^KERNEL_PATH[[:space:]]*=[[:space:]]*boot:///boot/mvos\\.bin$"
+EXPECTED_PATH_LOWER="^path[[:space:]]*:[[:space:]]*boot\\(\\):/boot/mvos\\.bin$"
+
+check_limine_conf() {
+  local conf_path="$1"
+  if [ ! -f "$conf_path" ]; then
+    echo "[test_smoke] [phase-0] Limine config missing: $conf_path" >&2
+    return 1
+  fi
+  if ! (grep -Eq "$EXPECTED_PROTO_LOWER" "$conf_path" || grep -Eq "$EXPECTED_PROTO_UPPER" "$conf_path"); then
+    echo "[test_smoke] [phase-0] Limine protocol mismatch in $conf_path. Expected PROTOCOL/ protocol = limine." >&2
+    return 1
+  fi
+  if ! (grep -Eq "$EXPECTED_PATH_UPPER" "$conf_path" || grep -Eq "$EXPECTED_PATH_LOWER" "$conf_path"); then
+    echo "[test_smoke] [phase-0] Limine kernel path mismatch in $conf_path. Expected KERNEL_PATH or path = boot()/boot:///boot/mvos.bin." >&2
+    return 1
+  fi
+  return 0
+}
 
 if [ -n "${PANIC_TEST:-}" ]; then
   make PANIC_TEST=1 -B
@@ -35,6 +59,38 @@ if [ "${SKIP_SMOKE_RUN:-0}" = "1" ]; then
   exit 0
 fi
 
+check_limine_conf "$LIMINE_CONF"
+
+if [ ! -f "$KERNEL_ELF" ] || [ ! -f "$KERNEL_BIN" ]; then
+  echo "[test_smoke] Missing build outputs: $KERNEL_ELF or $KERNEL_BIN" >&2
+  exit 1
+fi
+if ! readelf -S "$KERNEL_ELF" | grep -Eq " \\.requests(\\*| )| \\.requests\\."; then
+  echo "[test_smoke] .requests section missing in $KERNEL_ELF." >&2
+  readelf -S "$KERNEL_ELF" | sed -n '1,200p'
+  exit 1
+fi
+if ! readelf -s "$KERNEL_ELF" | grep -q "request_start"; then
+  echo "[test_smoke] Limine request_start symbol missing in $KERNEL_ELF." >&2
+  exit 1
+fi
+if ! readelf -s "$KERNEL_ELF" | grep -q "request_end"; then
+  echo "[test_smoke] Limine request_end symbol missing in $KERNEL_ELF." >&2
+  exit 1
+fi
+REQUEST_START_ADDR="$(readelf -s "$KERNEL_ELF" | awk '/request_start/ {print "0x"$2; exit}')"
+REQUEST_END_ADDR="$(readelf -s "$KERNEL_ELF" | awk '/request_end/ {print "0x"$2; exit}')"
+if [ -z "$REQUEST_START_ADDR" ] || [ -z "$REQUEST_END_ADDR" ]; then
+  echo "[test_smoke] Limine request marker symbols missing while parsing request order." >&2
+  exit 1
+fi
+if (( REQUEST_START_ADDR >= REQUEST_END_ADDR )); then
+  echo "[test_smoke] Limine request marker order is incorrect (start should be before end)." >&2
+  echo "[test_smoke] request_start: $REQUEST_START_ADDR"
+  echo "[test_smoke] request_end:   $REQUEST_END_ADDR"
+  exit 1
+fi
+
 make iso >"$MAKE_ISO_LOG" 2>&1 || {
   cat "$MAKE_ISO_LOG"
   if grep -q "Could not resolve host" "$MAKE_ISO_LOG" || [ "$SMOKE_OFFLINE" = "1" ]; then
@@ -46,7 +102,15 @@ make iso >"$MAKE_ISO_LOG" 2>&1 || {
     fi
   fi
   exit 1
-}
+  }
+
+ISO_STAGED_CONF="$ROOT_DIR/boot/iso_root/boot/limine.conf"
+if [ -f "$ISO_STAGED_CONF" ]; then
+  check_limine_conf "$ISO_STAGED_CONF"
+else
+  echo "[test_smoke] [phase-0] ISO-staged limine.conf missing: $ISO_STAGED_CONF" >&2
+  exit 1
+fi
 
 set +e
 if command -v timeout >/dev/null 2>&1; then
@@ -73,7 +137,26 @@ if ! grep -q "$EXPECTED_BOOT" "$RUN_LOG"; then
     echo "[test-smoke] qemu output was empty."
   fi
   if [ "$STATUS" -eq 124 ]; then
-    echo "[test_smoke] QEMU timed out after ${QEMU_TIMEOUT}s. This can indicate early boot did not reach the serial log path."
+    echo "[test_smoke] QEMU timed out after ${QEMU_TIMEOUT}s."
+    echo "[test_smoke] This usually means Limine did not reach kernel serial path."
+    if grep -q "Booting from DVD/CD" "$RUN_LOG" && grep -q "iPXE" "$RUN_LOG"; then
+      echo "[test_smoke] QEMU stayed in firmware boot path (SeaBIOS -> iPXE) and never entered Limine."
+      echo "[test_smoke] Likely causes:"
+      echo "[test_smoke] - limine boot sectors not applied to the ISO."
+      echo "[test_smoke] - the ISO boot catalog entry/path is not recognized by this QEMU."
+      echo "[test_smoke] - wrong Limine artifact selection for BIOS path."
+    fi
+    if grep -q "BdsDxe: loading Boot0001" "$RUN_LOG"; then
+      echo "[test_smoke] UEFI firmware launched DVD boot, but Limine did not hand off to kernel serial yet."
+    fi
+    echo "[test_smoke] Quick diagnostics:"
+    echo "[test_smoke] LIMINE CONF:"
+    grep -ni "protocol\\|path\\|kernel_path\\|timeout\\|serial" "$LIMINE_CONF"
+    echo "[test_smoke] ELF ENTRY: $(readelf -h "$KERNEL_ELF" | awk '/Entry point address/{print $4}')"
+    echo "[test_smoke] REQUEST SYMBOLS:"
+    readelf -s "$KERNEL_ELF" | grep -E 'request_start|request_end|kmain|_start' || true
+    echo "[test_smoke] REQUEST/BOOT SECTIONS:"
+    readelf -S "$KERNEL_ELF" | awk '/\.requests|\.text|\.rodata|\.data|\.bss/{print}'
   fi
   exit 1
 fi
