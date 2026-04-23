@@ -51,6 +51,10 @@
   ```bash
   make prefetch-limine
   ```
+- Python 開發健康檢查：
+  ```bash
+  python3 scripts/dev_status.py
+  ```
 
 ---
 
