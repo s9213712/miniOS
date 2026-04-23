@@ -22,6 +22,7 @@ MiniOS is a small x86_64 educational OS with incremental phases and readable bou
 - **Phase 13**: first GUI app command (`app`) demonstrating an independent drawing path inside framebuffer.
 - **Phase 14**: `app alt` variant for a second window demo to prepare extensible GUI app model.
 - **Phase 15**: `app` control subcommands (`list`, `status`) for lightweight GUI app management metadata.
+- **Phase 16**: explicit `app launch <name>` syntax to formalize app command routing.
 
 ## Core layout
 

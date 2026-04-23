@@ -39,7 +39,7 @@ static void shell_print_help(void) {
     console_write_string("  hello  - print hello from shell\n");
     console_write_string("  gui    - draw a tiny demo window (requires graphics backend)\n");
     console_write_string("  app    - launch a tiny GUI app demo (requires graphics backend)\n");
-    console_write_string("         usage: app [alt|status|list]\n");
+    console_write_string("         usage: app [alt|status|list|launch <name>]\n");
     console_write_string("  echo   - echo text after command\n");
     console_write_string("  panic  - trigger kernel panic path\n");
     console_write_string("  clear  - clear current command line\n");
@@ -169,27 +169,60 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 3 && shell_streq(trimmed_line, "app")) {
-        if (console_graphics_enabled()) {
-            while (*arg == ' ') {
-                ++arg;
+        if (!console_graphics_enabled()) {
+            console_write_string("GUI backend unavailable (no framebuffer graphics enabled).\n");
+            return;
+        }
+        while (*arg == ' ') {
+            ++arg;
+        }
+        if (*arg == '\0') {
+            console_launch_demo_gui_app();
+            console_write_string("GUI app launched.\n");
+            return;
+        }
+        if (shell_streq(arg, "alt")) {
+            console_launch_demo_gui_alt_app();
+            console_write_string("GUI alt app launched.\n");
+            return;
+        }
+        if (shell_streq(arg, "list")) {
+            console_write_string("available gui apps: app, app alt\n");
+            return;
+        }
+        if (shell_streq(arg, "status")) {
+            console_write_graphics_status();
+            console_write_string("GUI app status requested.\n");
+            return;
+        }
+        if (shell_streq(arg, "launch")) {
+            const char *launch_target = arg;
+            while (*launch_target != '\0' && *launch_target != ' ') {
+                ++launch_target;
             }
-            if (*arg == '\0') {
+            while (*launch_target == ' ') {
+                ++launch_target;
+            }
+            if (*launch_target == '\0') {
+                console_write_string("GUI app launch usage: app launch <name>\n");
+                return;
+            }
+            if (shell_streq(launch_target, "app")) {
                 console_launch_demo_gui_app();
                 console_write_string("GUI app launched.\n");
-            } else if (shell_streq(arg, "list")) {
-                console_write_string("available gui apps: app, app alt\n");
-            } else if (shell_streq(arg, "alt")) {
+                return;
+            }
+            if (shell_streq(launch_target, "alt")) {
                 console_launch_demo_gui_alt_app();
                 console_write_string("GUI alt app launched.\n");
-            } else if (shell_streq(arg, "status")) {
-                console_write_graphics_status();
-                console_write_string("GUI app status requested.\n");
-            } else {
-                console_write_string("GUI app usage: app [alt]\n");
+                return;
             }
-        } else {
-            console_write_string("GUI backend unavailable (no framebuffer graphics enabled).\n");
+            console_write_string("unknown app: ");
+            console_write_string(launch_target);
+            console_write_string("\n");
+            return;
         }
+        console_write_string("GUI app usage: app [alt|list|status|launch <name>]\n");
         return;
     }
     if (cmd_len == 5 && shell_streq(trimmed_line, "panic")) {

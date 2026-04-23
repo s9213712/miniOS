@@ -129,3 +129,6 @@
   - 在 `app` 指令加入 `list` 與 `status`
   - `app status` 需輸出 frame buffer 狀態（如 width/height/pitch/bpp）
   - 保持既有 `app` 與 `app alt` 行為不變，僅新增查詢能力，不新增阻塞邏輯
+- Phase 16：GUI app 指令路徑（可選）
+  - 為 `app` 新增明確的 `launch` 子指令，支援 `app launch app`、`app launch alt`
+  - 保持 `app` 預設行為向前相容，保持非阻塞性質
