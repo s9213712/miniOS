@@ -6,6 +6,7 @@
 #include <mvos/pmm.h>
 #include <mvos/heap.h>
 #include <mvos/limine.h>
+#include <mvos/interrupt.h>
 #include <stdint.h>
 
 static volatile uint64_t request_start[4]
@@ -84,7 +85,11 @@ void kmain(void) {
 
     gdt_init();
     idt_init();
+    timer_init(100);
     klogln("gdt/idt initialized");
+    klog("[phase3] timer ticks=");
+    klog_u64(timer_ticks());
+    klogln("[phase3] timer enabled");
 
     if (hhdm_request.response == NULL) {
         panic("missing HHDM request response");

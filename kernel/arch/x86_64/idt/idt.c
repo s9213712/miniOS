@@ -22,6 +22,7 @@ extern void isr_divide_by_zero(struct interrupt_frame *frame);
 extern void isr_invalid_opcode(struct interrupt_frame *frame);
 extern void isr_general_protection(struct interrupt_frame *frame, uint64_t error_code);
 extern void isr_page_fault(struct interrupt_frame *frame, uint64_t error_code);
+extern void isr_timer(struct interrupt_frame *frame);
 
 static struct idt_entry idt[256];
 static struct idt_pointer idt_ptr;
@@ -56,6 +57,7 @@ void idt_init(void) {
     idt_set_gate(6, isr_invalid_opcode);
     idt_set_gate(13, isr_general_protection);
     idt_set_gate(14, isr_page_fault);
+    idt_set_gate(32, isr_timer);
 
     idt_ptr.limit = (uint16_t)(sizeof(idt) - 1);
     idt_ptr.base = (uint64_t)&idt;
