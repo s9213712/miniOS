@@ -67,7 +67,7 @@ $(FLAGS_MARK):
 $(KERNEL_ELF): $(FLAGS_MARK) $(OBJS)
 	@echo "[LD] $@"
 	@$(LD) $(LDFLAGS) -o $@ $(ASM_OBJS) $(C_OBJS)
-	@$(OBJCOPY) -O binary $@ $(KERNEL_BIN)
+	@cp $@ $(KERNEL_BIN)
 
 $(OUTPUT_DIR)/%.o: %.c $(FLAGS_MARK)
 	@mkdir -p $(dir $@)

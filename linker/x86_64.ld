@@ -2,24 +2,32 @@ OUTPUT_FORMAT(elf64-x86-64)
 OUTPUT_ARCH(i386:x86-64)
 ENTRY(_start)
 
-SECTIONS {
-    . = 1M;
+KERNEL_VIRT_OFFSET = 0xffffffff80000000;
+KERNEL_PHYS_BASE  = 0x100000;
 
-    .text : {
+SECTIONS {
+    . = KERNEL_VIRT_OFFSET + KERNEL_PHYS_BASE;
+
+    .requests : AT(ADDR(.requests) - KERNEL_VIRT_OFFSET) {
+        KEEP(*(.requests.start))
+        KEEP(*(.requests))
+        KEEP(*(.requests.end))
+    }
+
+    .text : AT(ADDR(.text) - KERNEL_VIRT_OFFSET) {
         KEEP(*(.text._start))
         *(.text*)
     }
 
-    .rodata : {
+    .rodata : AT(ADDR(.rodata) - KERNEL_VIRT_OFFSET) {
         *(.rodata*)
-        *(.requests)
     }
 
-    .data : {
+    .data : AT(ADDR(.data) - KERNEL_VIRT_OFFSET) {
         *(.data*)
     }
 
-    .bss : {
+    .bss : AT(ADDR(.bss) - KERNEL_VIRT_OFFSET) {
         *(COMMON)
         *(.bss*)
     }
