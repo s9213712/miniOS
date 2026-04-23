@@ -28,11 +28,11 @@ if [ -z "$QEMU_BIN" ]; then
   exit 1
 fi
 
-QEMU_DISPLAY=(-nographic -vga none)
+QEMU_DISPLAY=(-nographic -vga none -display none)
 if [ "$QEMU_GUI" = "1" ]; then
   QEMU_DISPLAY=(-serial stdio -monitor none -vga std)
 else
-  QEMU_DISPLAY=(-serial stdio -monitor none -nographic -vga none)
+  QEMU_DISPLAY=(-serial stdio -monitor none -nographic -vga none -display none)
 fi
 
 set -x

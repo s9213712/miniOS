@@ -126,7 +126,7 @@ if [ "$STATUS" -ne 0 ] && [ "$STATUS" -ne 124 ]; then
   echo "[test_smoke] QEMU exited with status $STATUS."
 fi
 
-if ! grep -q "$EXPECTED_BOOT" "$RUN_LOG"; then
+if ! grep -Fq "$EXPECTED_BOOT" "$RUN_LOG"; then
   echo "[test_smoke] Expected boot text not found: $EXPECTED_BOOT" >&2
   echo "[test_smoke] ---- make_iso summary ----"
   tail -n 80 "$MAKE_ISO_LOG"
@@ -134,7 +134,10 @@ if ! grep -q "$EXPECTED_BOOT" "$RUN_LOG"; then
   if [ -s "$RUN_LOG" ]; then
     sed -n '1,140p' "$RUN_LOG"
   else
-    echo "[test-smoke] qemu output was empty."
+    echo "[test_smoke] qemu output was empty."
+    if ! command -v qemu-system-x86_64 >/dev/null 2>&1 && ! command -v qemu-system-x86 >/dev/null 2>&1 && ! command -v qemu-system-x86_64-static >/dev/null 2>&1; then
+      echo "[test_smoke] qemu binary could not be resolved." >&2
+    fi
   fi
   if [ "$STATUS" -eq 124 ]; then
     echo "[test_smoke] QEMU timed out after ${QEMU_TIMEOUT}s."
