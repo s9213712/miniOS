@@ -56,6 +56,9 @@ void pmm_init(const struct limine_memmap_response *response, uint64_t hhdm_offse
         if (entry->length < MVOS_PAGE_SIZE) {
             continue;
         }
+        if (entry->base > UINT64_MAX - entry->length) {
+            continue;
+        }
 
         const uint64_t aligned_base = align_up(entry->base, MVOS_PAGE_SIZE);
         const uint64_t aligned_end = align_down(entry->base + entry->length, MVOS_PAGE_SIZE);
