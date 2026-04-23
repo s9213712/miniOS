@@ -10,6 +10,8 @@
 #include <mvos/console.h>
 #include <mvos/scheduler.h>
 #include <mvos/vfs.h>
+#include <mvos/shell.h>
+#include <mvos/keyboard.h>
 #include <stdint.h>
 
 /* Limine request section markers are grouped as required for bootloader discovery.
@@ -246,6 +248,15 @@ void kmain(void) {
         panic("scheduler init failed");
     }
     klogln("[phase5] scheduler ready");
+
+#ifdef MINIOS_ENABLE_SHELL
+    /* Optional interactive phase for manual verification.
+     * Kept off by default to avoid changing CI smoke timeline.
+     */
+    keyboard_init();
+    klogln("[phase4] entering interactive shell (serial only)");
+    shell_run();
+#endif
 
 #ifdef MINIOS_FAULT_TEST_DIVIDE_BY_ZERO
     klogln("triggering divide-by-zero fault test");

@@ -39,6 +39,9 @@ endif
 ifeq ($(FAULT_TEST),pf)
   CFLAGS += -DMINIOS_FAULT_TEST_PAGE_FAULT=1
 endif
+ifeq ($(ENABLE_SHELL),1)
+  CFLAGS += -DMINIOS_ENABLE_SHELL=1
+endif
 
 C_SRCS := $(wildcard kernel/core/*.c kernel/dev/*.c kernel/mm/*.c libc/*.c)
 ARCH_SRCS := \

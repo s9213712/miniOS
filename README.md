@@ -67,6 +67,10 @@
   - 目的：使用 framebuffer 進行最小視窗渲染 demo
   - 實作重點：新增 framebuffer graphics backend、可選的視窗邊框/標題欄/關閉按鈕方塊；保留 serial 與 VGA 文字鏡射不變
   - 預期成效：`QEMU_GUI=1` 跑起時可看到視覺化 boot window（需 QEMU 有 GUI 顯示環境）
+- Phase 11：互動式 Shell（可選）
+  - 目的：補齊第一層使用者互動介面，提供簡易命令入口作為第二階段使用者體驗
+  - 實作重點：`shell.c` 已存在，改以 `ENABLE_SHELL=1` 開關進入互動式 shell，預設關閉避免影響 smoke 時序
+  - 預期成效：啟用後可在 serial 視窗輸入 `help`、`mem`、`ticks`、`hello`、`quit` 等命令
 
 ## 目前可驗證狀態
 
@@ -103,6 +107,13 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 - `SKIP_SMOKE_RUN=1 make test-smoke`：只做建置階段驗證
 - `QEMU_GUI=1 make run`：開啟 QEMU VGA 視窗並同步顯示 framebuffer 文字輸出
 - `QEMU_GUI=1 make run`：在有 GUI 環境的機器上也能看到 framebuffer 視窗 demo
+
+啟用互動 shell（預設關閉）：
+
+```bash
+ENABLE_SHELL=1 make run
+ENABLE_SHELL=1 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
+```
 
 GUI 限制：
 - 無法在沒有可用 display 的環境啟動 GUI，QEMU 會輸出 `gtk initialization failed`

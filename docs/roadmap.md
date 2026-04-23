@@ -107,3 +107,9 @@
   - 補齊 `limine.h` 的 framebuffer request 協定定義
   - 以 `limine_framebuffer_request` 檢查 framebuffer 回應並記錄輸出
   - 保留既有 VGA 文字鏡射作為可視 fallback
+- Phase 10：GUI boot window（完成）
+  - 啟用 framebuffer 圖形輸出後繪製視窗 demo
+  - 避免改動 smoke 的核心序列與文字序列輸出
+- Phase 11：互動 shell（可選）
+  - 以 `ENABLE_SHELL=1` 進入 `shell_run()`
+  - 保留預設流程不阻塞，維持 smoke 時間線一致
