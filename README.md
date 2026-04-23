@@ -1,7 +1,7 @@
-# MinimalOS v1 (Phase 6, 教學型專案)
+# MinimalOS v1 (Phase 7, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
-每個階段都有明確目的、實作範圍與預期成效，並保留各自 `phase-*` 分支作為教學歷史紀錄。
+每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
 
 ## 專案目的
 
@@ -10,19 +10,15 @@
 - 逐步加入 `PMM`、`heap`、中斷、scheduler、VFS 等核心概念
 - 以可重複的 smoke 測試保證每個階段都能回歸
 
-## 分支策略（請保留所有分支）
+## 分支策略
 
 - `main`：穩定可開機基線
-- `phase-0-baseline-hardening`
-- `phase-1-early-observability`
-- `phase-2-memory-management`
-- `phase-4-input-shell`
-- `phase-5-scheduler`
-- `phase-6-vfs-initramfs`
+- 已完成的 phase 提交已合併到 `main`，可用 commit 記錄回看各階段演進。
 
-本專案**不刪除任何 phase 分支**。  
-學習者可直接 checkout 任一分支閱讀歷史、比較實作與補丁。  
-合併回 `main` 僅作為參考流程，不是「清理歷史」的前提。
+## Phase 7：正式發佈前整理（完成）
+
+- 完成 Phase 7 文檔整理：里程碑、變更紀錄、回歸清單
+- 固定本次測試流程為所有階段共通驗收入口
 
 ## 每階段目的與預期成效
 
@@ -49,6 +45,10 @@
 - Phase 6：最小 VFS（initramfs-like）
   - 目的：加入 `open/read/list` 與缺檔錯誤路徑
   - 預期成效：能列出 `/boot/init/*`、讀取檔案、找不到檔案時回報 `missing=ok`
+
+- Phase 7：發佈前整理
+  - 目的：補齊變更摘要與回歸測試清單，形成可交付階段文件
+  - 預期成效：`CHANGELOG.md` 已建立，`test-smoke` 可作為每次提交後回歸基準
 
 ## 目前可驗證狀態
 

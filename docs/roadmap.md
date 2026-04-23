@@ -1,21 +1,12 @@
 # miniOS Roadmap（教學用）
 
-每一個 phase 都對應一個 `phase-*` 分支，這些分支保留為學習歷程，不做刪除。  
+每一個 phase 都曾經有獨立 `phase-*` 分支，完成後已併入 `main`，保留主線歷史作為學習紀錄。  
 本文件提供每個階段的目的、預期成效與最小可驗證成果，方便學員對照 `main`、回頭閱讀歷史。
 
 ## 分支保留原則
 
-- `main` 保留可開機主線
-- `phase-0-baseline-hardening`
-- `phase-1-early-observability`
-- `phase-2-memory-management`
-- `phase-4-input-shell`
-- `phase-5-scheduler`
-- `phase-6-vfs-initramfs`
-
-本專案**不刪除**上述分支。  
-若為教學實作，建議用 `git switch <phase-*>` 直接閱讀每個階段差異；  
-完成後再回到 `main` 不代表該分支失效，而是進一步比較。
+- `main` 保留可開機主線，所有已完成階段都以歷史提交存在
+- 每個 stage 的差異可由 commit 記錄或標籤回顧，不再保留長期 phase 分支
 
 ## 檢查前提
 
@@ -109,7 +100,7 @@
 
 ## 下一步階段建議
 
-- Phase 7：正式發佈前整理
+- Phase 7：正式發佈前整理（Current）
   - 將各 phase 成果萃取為一頁式變更總結
   - 補齊 `CHANGELOG` 與 regression checklist
-  - 保持 `make smoke-offline` 作為所有階段共同收斂點
+  - 維持 `make smoke-offline` 作為最終收斂檢查

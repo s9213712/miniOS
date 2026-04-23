@@ -1,4 +1,4 @@
-# Smoke Tests (Phase 6)
+# Smoke Tests (Phase 7)
 
 The current smoke tests are script-driven and rely on serial output.
 
