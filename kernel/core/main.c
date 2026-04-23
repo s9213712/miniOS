@@ -107,7 +107,7 @@ static void task_b(uint64_t tick) {
 
 void kmain(void) {
     /* Phase-1: bring up the serial path first so every later diagnostic is visible.
-     * vga console is still initialized for compatibility, but serial is the canonical smoke path.
+     * Framebuffer text output is enabled for mirroring once HHDM is confirmed.
      */
     serial_init();
     console_init();
@@ -139,6 +139,7 @@ void kmain(void) {
     if (memmap_request.response == NULL) {
         panic("missing memmap request response");
     }
+    console_enable_framebuffer_text_mode(hhdm_request.response->offset);
 
     klogln("[phase3] collecting boot memory map");
     klog("hhdm_offset=");

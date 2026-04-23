@@ -9,6 +9,7 @@ typedef enum {
 } mvos_console_target_t;
 
 void console_init(void);
+void console_enable_framebuffer_text_mode(uint64_t hhdm_offset);
 void console_set_target(mvos_console_target_t target);
 mvos_console_target_t console_target(void);
 void console_write_char(char c);

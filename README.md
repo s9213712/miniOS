@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 7, 教學型專案)
+# MinimalOS v1 (Phase 8, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -19,6 +19,11 @@
 
 - 完成 Phase 7 文檔整理：里程碑、變更紀錄、回歸清單
 - 固定本次測試流程為所有階段共通驗收入口
+
+- Phase 8：FrameBuffer GUI（完成）
+  - 加入簡易 VGA 文字介面鏡射輸出（目前以 0xB8000 文字緩衝為主）
+  - 保留 serial 作為主測試輸出（避免 smoke 失效）
+  - 可用 `QEMU_GUI=1 make run` 開啟 QEMU 視窗
 
 ## 每階段目的與預期成效
 
@@ -49,6 +54,9 @@
 - Phase 7：發佈前整理
   - 目的：補齊變更摘要與回歸測試清單，形成可交付階段文件
   - 預期成效：`CHANGELOG.md` 已建立，`test-smoke` 可作為每次提交後回歸基準
+- Phase 8：FrameBuffer GUI
+  - 目的：將關鍵 boot log 同步輸出到 VGA 文字控制台
+  - 預期成效：serial 測試不變，視窗內可見 `hello from kernel`
 
 ## 目前可驗證狀態
 
@@ -83,6 +91,7 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 ### 重要測試命令
 
 - `SKIP_SMOKE_RUN=1 make test-smoke`：只做建置階段驗證
+- `QEMU_GUI=1 make run`：開啟 QEMU VGA 視窗並同步顯示 framebuffer 文字輸出
 - `make smoke` / `make smoke-full`：完整 smoke alias
 - `make smoke-offline`：離線模式 smoke（建議搭配 `SMOKE_OFFLINE=1`）
 - `PANIC_TEST=1 make run`：啟用 panic path

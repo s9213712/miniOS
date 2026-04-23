@@ -104,3 +104,5 @@
   - 將各 phase 成果萃取為一頁式變更總結
   - 補齊 `CHANGELOG` 與 regression checklist
   - 維持 `make smoke-offline` 作為最終收斂檢查
+- Phase 8：FrameBuffer GUI（進行中）
+  - 啟用 VGA 文字緩衝鏡射輸出，保留 serial 作為 smoke 主要通道
