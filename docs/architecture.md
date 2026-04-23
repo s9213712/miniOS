@@ -1,6 +1,6 @@
 # Architecture and phase notes
 
-MiniOS starts with a minimal x86_64 boot-capable skeleton and keeps all boot plumbing intentionally small.
+MiniOS is a small x86_64 educational OS with incremental phases and readable boundaries.
 
 - Target: x86_64
 - Bootloader: Limine
@@ -9,19 +9,23 @@ MiniOS starts with a minimal x86_64 boot-capable skeleton and keeps all boot plu
 
 ## Stage status
 
-- **Phase 0**: scaffolding, scripts, docs, and baseline build/run/debug pipeline.
-- **Phase 1**: Limine boot handoff, minimal serial logging, panic halt path.
-- **Phase 2**: GDT/IDT initialization and fault visibility.
-- **Phase 3**: HHDM + simple physical memory map parsing + page allocator/bump heap.
+- **Phase 0**: baseline hardening and smoke diagnosability.
+- **Phase 1**: Limine handoff and serial-first startup visibility.
+- **Phase 2**: HHDM + memmap parsing + PMM/heap bootstrap.
+- **Phase 3**: interrupt/timer foundations.
+- **Phase 5**: cooperative scheduler scaffold.
+- **Phase 6**: read-only minimal VFS/initramfs-style diagnostics.
 
 ## Core layout
 
 - `kernel/arch/x86_64/gdt/` stores `gdt_init()`.
 - `kernel/arch/x86_64/idt/` stores `idt_init()` and interrupt descriptor storage.
-- `kernel/arch/x86_64/interrupt/` stores exception handlers.
-- `kernel/core/main.c` is the first C entry point and the phase 2 fault test hooks.
+- `kernel/arch/x86_64/interrupt/` stores timer and fault handlers.
+- `kernel/core/main.c` is the first C entry point and coordinates phase-driven init.
 - `kernel/mm/pmm.c` provides a simple bump-page allocator from the highest usable memory-map region.
 - `kernel/mm/heap.c` exposes `kmalloc` as a first kernel-heap shim.
+- `kernel/core/scheduler.c` hosts the cooperative round-robin teaching scheduler.
+- `kernel/core/vfs.c` implements read-only initramfs-like file APIs (`open/read/list/close`).
 - `kernel/core/{panic.c,assert.c,log.c}` provide serial-backed fail-fast behavior.
 
 Build output layout:
@@ -29,7 +33,7 @@ Build output layout:
 - `build/mvos.bin` (flat binary)
 - `build/mvos.iso` (Limine-bootable ISO)
 
-Current architecture intentionally excludes framebuffer, scheduler, userspace, network, SMP, and VFS.
+Current architecture keeps framebuffer mostly out of core kernel boot validation and emphasizes serial logging.
 
 ## Host prerequisites
 

@@ -3,6 +3,9 @@
 #include <mvos/log.h>
 #include <stdint.h>
 
+/* Minimal readonly initramfs:
+ * each node stores fixed bytes in a static table and exposes open/read/close/list.
+ */
 typedef struct vfs_node {
     const char *path;
     const uint8_t *data;
@@ -24,6 +27,9 @@ static const uint8_t init_file_readme_txt[] =
     "miniOS init filesystem\n"
     "used for phase 6 smoke diagnostics.\n";
 
+/* In-memory manifest is intentionally tiny and deterministic for smoke testing.
+ * Node metadata is computed once lazily during first open.
+ */
 static vfs_node_t g_nodes[] = {
     {"/boot/init/boot.txt", init_file_boot_txt, sizeof(init_file_boot_txt) - 1, 0},
     {"/boot/init/readme.txt", init_file_readme_txt, sizeof(init_file_readme_txt) - 1, 0},
@@ -34,6 +40,7 @@ static vfs_node_t g_nodes[] = {
 static vfs_open_state_t g_open_files[MAX_OPEN_FILES];
 
 static uint32_t fnv1a_hash32(const void *ptr, uint64_t len) {
+    /* Simple 32-bit FNV-1a checksum, no security claims, only integrity smoke checks. */
     const uint8_t *p = (const uint8_t *)ptr;
     uint32_t h = 0x811c9dc5u;
     for (uint64_t i = 0; i < len; ++i) {
@@ -44,6 +51,9 @@ static uint32_t fnv1a_hash32(const void *ptr, uint64_t len) {
 }
 
 static void init_file_checksums(void) {
+    /* Lazy checksum initialization keeps startup code small and avoids extra init path.
+     * If checksums are already present (non-zero), this function is a no-op.
+     */
     for (uint64_t i = 0; i < sizeof(g_nodes) / sizeof(g_nodes[0]); ++i) {
         vfs_node_t *node = &g_nodes[i];
         if (node->checksum == 0) {
@@ -53,6 +63,7 @@ static void init_file_checksums(void) {
 }
 
 static int path_eq(const char *a, const char *b) {
+    /* Exact path matcher keeps behavior explicit and allocation-free. */
     uint64_t i = 0;
     while (a[i] != '\0' && b[i] != '\0') {
         if (a[i] != b[i]) {
@@ -64,6 +75,7 @@ static int path_eq(const char *a, const char *b) {
 }
 
 static int has_prefix(const char *str, const char *prefix) {
+    /* Prefix matcher for list() filtering, e.g. "/boot/init" root. */
     if (prefix == NULL || prefix[0] == '\0') {
         return 1;
     }
@@ -78,6 +90,12 @@ static int has_prefix(const char *str, const char *prefix) {
 }
 
 int vfs_open(const char *path, mvos_vfs_file_t *file) {
+    /* Phase-6 entry point: allocate one slot from fixed open table, bind node data.
+     * Return code policy:
+     *  -1: invalid arguments
+     *  -2: file not found
+     *  -3: no free handle slot
+     */
     init_file_checksums();
 
     if (path == NULL || file == NULL) {
@@ -111,11 +129,21 @@ int vfs_open(const char *path, mvos_vfs_file_t *file) {
 }
 
 int vfs_read(mvos_vfs_file_t *file, void *buffer, uint64_t max_len, uint64_t *bytes_read) {
+    /* Read is streaming-friendly: cursor advances and caller owns bytes buffer.
+     * End-of-file returns bytes_read=0, return 0.
+     */
     if (!file || !file->in_use || !buffer || max_len == 0) {
         if (bytes_read) {
             *bytes_read = 0;
         }
         return -1;
+    }
+
+    if (file->cursor >= file->size) {
+        if (bytes_read) {
+            *bytes_read = 0;
+        }
+        return 0;
     }
 
     uint64_t remaining = file->size - file->cursor;
@@ -133,6 +161,9 @@ int vfs_read(mvos_vfs_file_t *file, void *buffer, uint64_t max_len, uint64_t *by
 }
 
 void vfs_close(mvos_vfs_file_t *file) {
+    /* Close validates handle ownership, then releases matching internal slot.
+     * Double-close is tolerated by early return.
+     */
     if (!file || !file->in_use) {
         return;
     }
@@ -146,6 +177,9 @@ void vfs_close(mvos_vfs_file_t *file) {
 }
 
 uint64_t vfs_list(mvos_vfs_list_visitor_t visitor, const char *prefix, void *user_data) {
+    /* Optional visitor allows callers to emit custom path listings without exposing
+     * internal array details.
+     */
     uint64_t listed = 0;
     for (uint64_t i = 0; i < sizeof(g_nodes) / sizeof(g_nodes[0]); ++i) {
         if (has_prefix(g_nodes[i].path, prefix)) {
@@ -173,6 +207,9 @@ static void vfs_log_entry(const char *path, uint64_t size, uint32_t checksum, vo
 }
 
 void vfs_diagnostic_list(void) {
+    /* Diagnostic helper used in boot smoke path.
+     * Confirms manifest discoverability before moving to task/scheduler path.
+     */
     console_write_string("[vfs] listing /boot/init/\n");
     uint64_t count = vfs_list(vfs_log_entry, "/boot/init", NULL);
     console_write_string("[vfs] files=");
@@ -181,6 +218,9 @@ void vfs_diagnostic_list(void) {
 }
 
 void vfs_diagnostic_read_file(void) {
+    /* Verifies read() behavior and expected byte accounting for a real test file.
+     * Keeps expected values stable so CI can compare against serial output.
+     */
     mvos_vfs_file_t file;
     if (vfs_open("/boot/init/readme.txt", &file) != 0) {
         klog("[vfs] open /boot/init/readme.txt failed\n");
@@ -214,6 +254,7 @@ void vfs_diagnostic_read_file(void) {
 }
 
 void vfs_diagnostic_missing(void) {
+    /* Negative-path probe ensures missing files fail cleanly and predictably. */
     mvos_vfs_file_t file;
     if (vfs_open("/boot/init/missing.txt", &file) != 0) {
         klog("[vfs] missing=ok /boot/init/missing.txt not found\n");

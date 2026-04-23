@@ -1,115 +1,115 @@
-# miniOS Roadmap
+# miniOS Roadmap（教學用）
 
-This roadmap is organized by one branch per phase.  
-每個階段完成後，先 merge 回主線再進入下一個階段，避免跨階段大改。
+每一個 phase 都對應一個 `phase-*` 分支，這些分支保留為學習歷程，不做刪除。  
+本文件提供每個階段的目的、預期成效與最小可驗證成果，方便學員對照 `main`、回頭閱讀歷史。
 
-## Baseline and Scope
-- Baseline branch: `main`
-- 本文件列出的階段以 `phase-*` 開頭為獨立分支名稱
-- 所有變更以目前可開機 + `make smoke-offline` 通過為前提
+## 分支保留原則
 
-## Phase 0：基準穩定（`phase-0-baseline-hardening`）
-- 目標：固定目前開機成功條件，讓 CI 與 smoke 可預測、錯誤可追蹤。
-- 主要工作
-  - 驗證 `boot/limine.conf` 與 `boot/iso_root/boot/limine.conf` 的 `PROTOCOL`、`KERNEL_PATH` 對應 `/boot/mvos.bin`。
-  - 完整化 `make smoke-offline` timeout/error message 輸出。
-  - 在 `README.md` 明確寫入：必要前置條件、建置步驟、預期 serial 字串、失敗診斷。
-- 驗收標準
-  - `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline` 8 秒內輸出 `hello from kernel`。
-  - 未通過時，輸出清楚失敗階段與原因（非僅 `timeout`）。
+- `main` 保留可開機主線
+- `phase-0-baseline-hardening`
+- `phase-1-early-observability`
+- `phase-2-memory-management`
+- `phase-4-input-shell`
+- `phase-5-scheduler`
+- `phase-6-vfs-initramfs`
 
-### Phase 0 具體可執行清單（順序）
-1. 建立階段分支：
-`git checkout main && git checkout -b phase-0-baseline-hardening`
-2. 檢查並更新 limine 設定（兩份檔）：
-`boot/limine.conf`、`boot/iso_root/boot/limine.conf`
-   - `PROTOCOL=limine`
-   - `KERNEL_PATH=boot:///boot/mvos.bin`
-3. 統一 kernel 輸出規則並確保與預期一致。
-4. 跑完整 smoke：
-`LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
-5. 不通過時補診斷輸出：
-   - 讀取 `scripts/test_smoke.sh` 與 `scripts/make_iso.sh` log 點位
-   - 在失敗點列印 `[phase-0] failed at ...` 及下一步建議
-6. 更新 `README.md`：
-   - 將 `make smoke-offline`、必要依賴、預期 serial 訊息、問題排查整理成一節
-7. 重新測：
-`LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`（通過為止）
-8. commit 與 merge 指引：
-`git add ... && git commit -m "phase-0: baseline hardening and smoke diagnostics"`  
-`git checkout main && git merge --no-ff phase-0-baseline-hardening`
+本專案**不刪除**上述分支。  
+若為教學實作，建議用 `git switch <phase-*>` 直接閱讀每個階段差異；  
+完成後再回到 `main` 不代表該分支失效，而是進一步比較。
 
-## Phase 1：輸出與 early-boot 可觀測性（`phase-1-early-observability`）
-- 目標：早期啟動可觀測性最小化但一致。
-- 主要工作
-  - 確認 `kernel/arch/x86_64/boot/entry.asm` 早期 COM1 serial 初始化與最前段輸出穩定。
-  - 統一 `miniOS: kernel entry`、`hello from kernel` 的啟動訊息格式。
-  - 補齊 panic/assert 日誌到 serial 的一致路徑與前綴。
-- 驗收標準
-  - serial 前段輸出順序固定且可 grep。
-  - 觸發故障時輸出錯誤碼/節點與上下文。
+## 檢查前提
 
-## Phase 2：記憶體管理加固（`phase-2-memory-management`）
-- 目標：PMM / heap 從測試用走向可持續使用。
-- 主要工作
-  - 完善 `kernel/mm/pmm.c` 取頁邊界檢查、對齊與失敗回報。
-  - 完成最小可回收 `kfree` 流程，或明確標記目前不支持並阻止假成功回傳。
-  - 設計簡單 allocator 統計輸出，避免無限擴張/重複釋放。
-- 驗收標準
-  - 重複分配/釋放壓測不崩潰，分配失敗有明確碼。
-  - `main` 中的基本 heap 自測通過（分配後、釋放後狀態可核對）。
+每個階段都必須滿足：
 
-## Phase 3：中斷與時間基礎（`phase-3-interrupt-timer`）
-- 目標：建立可預期的 event loop 前置條件。
-- 主要工作
-  - 檢視/固定 IDT/GDT 初始化順序與 handler 對應。
-  - 加入 timer IRQ（先以最小可用 PIT，後續可替換為 APIC）。
-  - 增加 `ticks` 計數器與 1ms/10ms 對外可見輸出接口。
-- 驗收標準
-  - 啟動後有穩定 tick 增長（可由 serial 查證）。
-  - IRQ/fault handler 可辨識並持續運作，不會因未註冊 handler 直接 triple fault。
+1. `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline` 通過
+2. serial 8 秒內看到 `hello from kernel`
+3. 測試失敗有可讀診斷（不只 timeout）
 
-## Phase 4：輸入與 shell（`phase-4-input-shell`）
-- 目標：建立最低層互動能力，驗證 runtime 邏輯。
-- 主要工作
-  - 啟用並測試 `kernel/dev/keyboard.c` 輸入流程。
-  - 接上 `kernel/core/shell.c`，新增 `help`、`mem`、`ticks`、`reboot`、`halt`。
-  - 讓 shell 走 serial I/O，避免 framebuffer 仍阻塞進度。
-- 驗收標準
-  - 可通過串列鍵入指令並回傳結果。
-  - 非預期鍵位輸入不會卡死或造成 kernel panic。
+## Phase 0：基準穩定
 
-## Phase 5：任務切換骨架（`phase-5-scheduler`）
-- 目標：建立最小 task abstraction 及 context 切換能力。
-- 主要工作
-  - `Task` 結構、task list、context save/restore。
-  - 建立 2 個空任務與 yield/test，使用 timer 觸發切換。
-  - 加入簡單 stack 佈局保護與 `current_task` 檢查。
-- 驗收標準
-  - 啟動後能輪流執行兩個任務並持續輸出 trace。
-  - 任務切換時不破壞 kernel 的 serial 輸出與堆管理狀態。
+目的：建立可回歸的啟動標準與錯誤診斷。  
+預期成效：固定 boot 設定、request 區段與 smoke 的結構化輸出。
 
-## Phase 6：暫存檔案系統（`phase-6-vfs-initramfs`）
-- 目標：提供最小 I/O 與資源載入入口。
-- 主要工作
-  - 引入 initramfs 掛載流程（只讀）。
-  - 實作極小 VFS 介面：`open/read/close/list`。
-  - 用固定映像中的測試檔驅動 loader/diagnostic。
-- 驗收標準
-  - 能讀取至少 1 個內建測試檔並輸出檔案長度/校驗。
-  - 找不到檔案時回報一致錯誤碼，不異常結束。
+必做：
 
-## Phase 7：發行與整合（`phase-7-release`）
-- 目標：整合回主線並形成可維護節奏。
-- 主要工作
-  - 將各 phase 驗收結果整理進 `CHANGELOG`/`README`。
-  - 更新 smoke 測試腳本，新增 regression checklist。
-  - 清理過時文件，保留單一權威文件。
-- 驗收標準
-  - `make smoke-offline` 全量成功。
-  - 主線具備「本地開發→測試→合併」一致流程。
+- 驗證 `boot/limine.conf`、`boot/iso_root/boot/limine.conf` 的  
+  `PROTOCOL=limine`、`KERNEL_PATH=boot:///boot/mvos.bin`
+- 補齊 smoke 失敗訊息與重試流程
+- 在 `README` 補上完整前置、建置與預期輸出
 
-## 里程碑節奏（建議）
-1. 每次只做一個分支：完成 `phase-*` 後 merge 回 `main`。  
-2. 每個階段保留最小必要改動，不做尚未納入該階段目標的重構。  
-3. 當某階段失敗先修補同階段，必要時回退到該分支，不拖累下一個階段。
+驗收：
+
+- 8 秒內看到 `hello from kernel`
+- 缺少 Limine/bootloader 時報錯有清楚原因
+
+## Phase 1：早期可觀測性
+
+目的：確保 kernel 進入 C 前後可追蹤。  
+預期成效：早期 `serial` 輸出順序穩定，panic/fault 有一致標頭。
+
+必做：
+
+- 確認序列化啟動輸出（`serial_init` 早於其他輸出）
+- 驗證 early entry 與 `limine` 請求段可被 `readelf` 讀取
+- 將 panic/fault path 走向 `serial` 對齊
+
+## Phase 2：記憶體管理
+
+目的：建立 HHDM + memmap + PMM/heap 的最低可用鏈路。  
+預期成效：可穩定列出實體頁資訊並完成一次基礎分配測試。
+
+必做：
+
+- `pmm_init` 前後輸出 memory map 與頁面統計
+- `kmalloc`/`kfree` 行為在 boot 中可觀測
+- `main` 記錄 `free/total/allocated` 統計
+
+## Phase 3：中斷與節拍
+
+目的：加入最小時鐘驅動，讓系統有 timer timebase。  
+預期成效：`timer_ticks()` 持續上升，IRQ handler 可穩定進入。
+
+必做：
+
+- PIT 設定 timer 時間片
+- 安裝 ISR（timer + 例外向量）
+- timer 訊息可供 scheduler 與測試邏輯使用
+
+## Phase 4：輸入與 shell（可選擴充）
+
+目的：保留互動介面骨架以利後續實作。  
+預期成效：鍵盤與 shell 程式可獨立編譯啟用，不阻塞 core boot path。
+
+必做：
+
+- 確認 `kernel/core/shell.c` 和輸入路徑可切換啟用
+- serial I/O 為主輸出通道，不以 framebuffer 為依賴
+
+## Phase 5：任務切換骨架
+
+目的：加入最小 cooperative scheduler。  
+預期成效：兩個測試任務可按 tick 輪詢輸出 trace，不改變 boot 基本流程。
+
+必做：
+
+- 任務註冊表（name/entry/runs/active）
+- timer tick 觸發 `scheduler_run_once()` 切換邏輯
+- `scheduler_ticks()` 提供測試可觀測時間軸
+
+## Phase 6：最小 VFS / initramfs
+
+目的：加入只讀檔案入口，作為 loader 與診斷前置。  
+預期成效：`list/open/read/close/missing` 行為可在 boot 初段驗證。
+
+必做：
+
+- 內建 `/boot/init/*` 測試節點（固定字串）
+- `vfs_open/vfs_read/vfs_close/vfs_list` 實作
+- boot-path 診斷：`vfs_diagnostic_list/read_file/missing`
+
+## 下一步階段建議
+
+- Phase 7：正式發佈前整理
+  - 將各 phase 成果萃取為一頁式變更總結
+  - 補齊 `CHANGELOG` 與 regression checklist
+  - 保持 `make smoke-offline` 作為所有階段共同收斂點

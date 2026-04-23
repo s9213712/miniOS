@@ -1,3 +1,6 @@
+/* Interrupt subsystem is intentionally kept minimal for teaching:
+ * timer tick generation + basic fault entry points.
+ */
 #include <mvos/log.h>
 #include <mvos/panic.h>
 #include <mvos/serial.h>
@@ -47,14 +50,19 @@ static inline void io_wait(void) {
 static volatile uint64_t timer_tick_count;
 
 static void timer_tick_bump(void) {
+    /* Timer heartbeat is monotonic and lock-free; used by scheduler diagnostics. */
     ++timer_tick_count;
 }
 
 uint64_t timer_ticks(void) {
+    /* Exposed as a read-only debug counter for task and test output. */
     return timer_tick_count;
 }
 
 void __attribute__((interrupt)) isr_timer(struct interrupt_frame *frame) {
+    /* Timer interrupt handler:
+     * bump debug tick, notify scheduler, then acknowledge the PIC.
+     */
     (void)frame;
     timer_tick_bump();
     scheduler_on_timer_tick();
@@ -63,6 +71,7 @@ void __attribute__((interrupt)) isr_timer(struct interrupt_frame *frame) {
 }
 
 static void remap_pic(void) {
+    /* Re-map PIC IRQs to avoid clashing with CPU exception vectors 0x00-0x1f. */
     uint8_t a1 = inb(PIC1_DATA);
     uint8_t a2 = inb(PIC2_DATA);
 
@@ -88,11 +97,13 @@ static void remap_pic(void) {
 }
 
 static void pic_unmask_timer_irq(void) {
+    /* Keep only timer IRQ enabled for now; this is sufficient for smoke/scheduler demonstration. */
     uint8_t mask = inb(PIC1_DATA);
     outb(PIC1_DATA, (uint8_t)(mask & ~(1u << 0)));
 }
 
 void timer_init(uint16_t hz) {
+    /* Configure PIT channel0 periodic mode and enable timer IRQ. */
     if (hz == 0) {
         panic("timer_init requires non-zero frequency");
     }
@@ -118,6 +129,9 @@ void timer_init(uint16_t hz) {
 }
 
 static void fault_log_and_panic(const char *name, uint64_t vector, uint64_t error_code, const struct interrupt_frame *frame) {
+    /* Shared fault formatter: consistent serial prefix + vector/info then full halt.
+     * Keeps diagnostics deterministic for smoke checks.
+     */
     serial_init();
     klogln("[fault]");
     klog(name);

@@ -1,9 +1,10 @@
-# Smoke tests (Phase 3)
+# Smoke Tests (Phase 6)
 
 The current smoke tests are script-driven and rely on serial output.
 
 - `hello from kernel` should be present in a normal boot.
 - `[pmm] memory map` and `[phase3] memory allocator ready` should be present in normal boot.
+- `[vfs] listing /boot/init/` and `[phase5] scheduler ready` should appear after phase-6/scheduler checks.
 - With `PANIC_TEST=1`, kernel should hit panic path and emit `[panic]`.
 - With `FAULT_TEST=div0|opcode|gpf|pf`, kernel should hit fault path and emit `[fault]`.
 

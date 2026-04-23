@@ -1,62 +1,78 @@
-# MinimalOS v1 (Phase 3)
+# MinimalOS v1 (Phase 6, 教學型專案)
 
-A small educational x86_64 OS prototype that boots with Limine and prints early boot output
-via serial.
+這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
+每個階段都有明確目的、實作範圍與預期成效，並保留各自 `phase-*` 分支作為教學歷史紀錄。
 
-## What works now
+## 專案目的
 
-- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline` 會成功執行 smoke 檢查並輸出 `hello from kernel`。
-- `make` 會輸出 ELF 格式的 `build/mvos.elf`，`build/mvos.bin` 保留為同一份 ELF 檔便於 limine 載入。
-- `.requests` section 與 Limine 請求標記已放在 kernel 早期段落，entry 已做 serial 初始化與早期輸出。
+- 以 `Limine` 為 bootloader 建立可開機核心骨架
+- 用 serial 輸出做早期可觀測性，避免只靠 framebuffer
+- 逐步加入 `PMM`、`heap`、中斷、scheduler、VFS 等核心概念
+- 以可重複的 smoke 測試保證每個階段都能回歸
 
-## Prerequisites
+## 分支策略（請保留所有分支）
 
-Use the setup helper first:
+- `main`：穩定可開機基線
+- `phase-0-baseline-hardening`
+- `phase-1-early-observability`
+- `phase-2-memory-management`
+- `phase-4-input-shell`
+- `phase-5-scheduler`
+- `phase-6-vfs-initramfs`
+
+本專案**不刪除任何 phase 分支**。  
+學習者可直接 checkout 任一分支閱讀歷史、比較實作與補丁。  
+合併回 `main` 僅作為參考流程，不是「清理歷史」的前提。
+
+## 每階段目的與預期成效
+
+- Phase 0：啟動基線穩定化
+  - 目的：完成 `limine.conf`、`.requests`、smoke 錯誤訊息與離線流程標準化
+  - 預期成效：`hello from kernel` 於 8 秒內在 serial 出現；失敗時有明確原因
+
+- Phase 1：早期可觀測性
+  - 目的：固定 boot 早期輸出與錯誤路徑可視化
+  - 預期成效：`hello from kernel` 與 `gdt/idt initialized` 穩定出現在 serial
+
+- Phase 2：記憶體管理
+  - 目的：建立 HHDM + `memmap` 驗證、PMM/heap 初始化
+  - 預期成效：`[phase3] memory allocator ready`、`free pages` 數值可觀察且可重複
+
+- Phase 4：輸入與 shell
+  - 目的：保留對輸入子系統的接線實作
+  - 預期成效：可追查 shell/鍵盤相關程式，但不影響 boot smoke 基本路徑
+
+- Phase 5：任務切換骨架
+  - 目的：加入以 timer tick 駆動的最小 cooperative scheduler
+  - 預期成效：`task-a` / `task-b` 有預期節拍輸出（`[sched]`）
+
+- Phase 6：最小 VFS（initramfs-like）
+  - 目的：加入 `open/read/list` 與缺檔錯誤路徑
+  - 預期成效：能列出 `/boot/init/*`、讀取檔案、找不到檔案時回報 `missing=ok`
+
+## 目前可驗證狀態
+
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline` 通常能通過
+- `build/mvos.elf` 為 ELF 格式，`build/mvos.bin` 指向同一 kernel 影像（與 Limine 相容）
+- Limine request symbols (`request_start` / `request_end`) 可被測試腳本驗證
+- kernel serial 流中會輸出：`MiniOS Phase 3 bootstrap`、`hello from kernel`
+
+## 本地準備
+
 ```bash
-./scripts/setup-dev.sh
+./scripts/setup-dev.sh --install
 ```
 
-If dependencies are missing, `scripts/setup-dev.sh --install` (Debian/Ubuntu only) will install them.
+常用指令（Ubuntu/WSL 範例）：
 
-### Common install command (WSL/Ubuntu)
 ```bash
 sudo apt-get update
 sudo apt-get install -y build-essential binutils gcc make nasm qemu-system-x86 qemu-system-gui xorriso git curl wget
 ```
 
-Some Ubuntu/WSL repositories do not provide `gcc-x86-64-elf` or `binutils-x86-64-elf` package names. This project falls back to native `gcc/ld/objcopy` automatically if x86_64 elf-prefixed cross tools are not installed:
-```bash
-./scripts/setup-dev.sh --install
-```
+若套件源缺少 `gcc-x86-64-elf`，Make 會自動退回本機 `gcc/ld/objcopy`。
 
-Required host commands:
-- `git`
-- `bash` + `make`
-- `nasm`
-- `gcc`/`ld`/`objcopy` (or cross toolchain `x86_64-*-elf-*`)
-- `xorriso`
-- `qemu-system-x86`/`qemu-system-x86_64`
-- `curl` or `wget`
-- `python3` (for some smoke debug helpers)
-
-If your package source has no dedicated ELF cross tools, native `gcc/ld/objcopy` are used automatically by Make.
-
-Recommended first-run bootstrap command:
-```bash
-./scripts/setup-dev.sh --install
-```
-
-Minimal required check:
-```bash
-make
-LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
-```
-
-### Kernel binary format note
-
-`build/mvos.bin` is intentionally built as ELF, not raw. Do not convert it with `objcopy -O binary` unless your bootloader is explicitly raw-compatible.
-
-## Quick flow (3 steps)
+## 建置 / 測試流程
 
 ```bash
 make
@@ -64,176 +80,48 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
 LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 ```
 
-If `LIMINE_LOCAL_DIR` points to your local Limine binary tree, smoke and run use that path for both build and boot.
+### 重要測試命令
 
-## Bootstrap/Runtime Requirements
+- `SKIP_SMOKE_RUN=1 make test-smoke`：只做建置階段驗證
+- `make smoke` / `make smoke-full`：完整 smoke alias
+- `make smoke-offline`：離線模式 smoke（建議搭配 `SMOKE_OFFLINE=1`）
+- `PANIC_TEST=1 make run`：啟用 panic path
+- `FAULT_TEST=div0|opcode|gpf|pf make run`：啟用 fault path
 
-For an offline environment (no GitHub access), add:
-- `LIMINE_LOCAL_DIR=/path/to/Limine-bootloader/Limine` when invoking `make test-smoke`.
-- The optional `make` step in a local Limine source tree is only needed if you want to build the native `limine` BIOS installer.
+## 預期 serial 輸出
 
-## Full test status
+常態開機時建議至少看到：
 
-- Build verification: pass (`SKIP_SMOKE_RUN=1 make test-smoke`)
-- Full boot test: run `make test-smoke` and check serial markers below; if this fails, inspect `make iso`/QEMU logs and `bootstrap` paths in `make_iso.sh`.
-
-```bash
-# Online flow (downloads Limine automatically if missing)
-make test-smoke
-
-# Offline flow (no network, Limine already downloaded)
-LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
-```
-
-Required Limine assets (either in `boot/limine/` or `LIMINE_LOCAL_DIR`):
-- `limine-bios.sys`
-- `limine-bios-cd.bin`
-- `limine-uefi-cd.bin`
-- `BOOTX64.EFI`
-
-Optional:
-- Build native `limine` utility in local clone so BIOS patching can run on Linux:
-```bash
-cd /tmp/limine-bin
-make
-```
-
-## Build targets
-
-- `make` builds `build/mvos.elf`
-- `make run` boots ISO via QEMU (builds ISO if missing)
-- `make debug` starts QEMU in GDB wait mode
-- `make iso` creates `build/mvos.iso`
-- `make clean` removes `build/`
-- `make test-smoke` builds and runs a basic smoke test
-- `make smoke` / `make smoke-full` runs full boot smoke test (alias)
-- `make smoke-build` builds artifacts and validates without QEMU run
-- `make smoke-offline` runs smoke using `LIMINE_LOCAL_DIR`/`LIMINE_CACHE_DIR`
-- `make prefetch-limine` warms local Limine cache (offline bootstrap helper)
-- `PANIC_TEST=1 make run` exercises panic path
-- `FAULT_TEST=div0|opcode|gpf|pf make run` exercises fault path
-
-### Limine bootstrap
-
-`make iso` checks assets in this order:
-- `boot/limine/` if already populated
-- `LIMINE_LOCAL_DIR` if provided
-- `LIMINE_CACHE_DIR` if present
-- online download of `v11.x-binary` if network is available
-
-A typical offline setup uses:
-- `boot/limine` for committed default files
-- `boot/limine.conf` for config
-
-Phase 1 expects Limine assets in `boot/limine/`:
-- `limine-bios.sys`
-- `limine-bios-cd.bin`
-- `limine-uefi-cd.bin`
-- `BOOTX64.EFI`
-- `limine.conf` (already present as project default)
-
-If missing, `make iso` attempts to clone `v11.x-binary` and copy these assets automatically.
-If network access is blocked, set `LIMINE_LOCAL_DIR` or `LIMINE_CACHE_DIR` to a local directory containing the files above.
-The `.github/workflows/ci.yml` job uses `LIMINE_CACHE_DIR` and retries `make test-smoke` once on failure.
-
-The offline smoke path is:
-```bash
-LIMINE_LOCAL_DIR=/path/to/limine-bin make smoke-offline
-```
-
-## Expected serial output
-
-On successful boot you should see:
-- `[serial] ready`
 - `MiniOS Phase 3 bootstrap`
 - `boot banner: kernel entering C`
 - `hello from kernel`
 - `gdt/idt initialized`
-- `[pmm] memory map`
-- `- base=... len=... type=...` (per memory-map entry)
-- `[pmm] selected region ...`
-- `free pages: ...`
 - `[phase3] memory allocator ready`
-- `kmalloc(256) = ...`
+- `[vfs] files=...`
+- `[phase5] scheduler ready`
+- `Booting from DVD/CD...`（QEMU 韌體路徑）
 
-Boot sequence to look for during smoke:
-- `Booting from DVD/CD...`
-- `hello from kernel`
-- `[pmm] selected region ...`
+可選路徑：
 
-Optional panic path:
-- `PANIC_TEST=1 make run` prints `[panic] panic test path enabled` and `System halted.`
+- `PANIC_TEST=1 make run` 會看到 `[panic]`
+- `FAULT_TEST=... make run` 會看到 `[fault]`
 
-Optional fault path:
-- `FAULT_TEST=div0 make run` prints `[fault]` and `Divide Error`.
-- `FAULT_TEST=opcode make run` prints `Invalid Opcode`.
-- `FAULT_TEST=gpf make run` prints `General Protection Fault`.
-- `FAULT_TEST=pf make run` prints `Page Fault`.
+## 專案目錄
 
-## Smoke test
+- `boot/limine.conf`、`boot/limine/`、`boot/iso_root/boot/limine.conf`
+- `kernel/`：核心、mm、裝置、arch
+- `docs/`：架構與 road map
+- `scripts/`：smoke/build/qemu 工具
+- `tests/smoke/`：smoke 使用說明
 
-`make test-smoke` (or `./scripts/test_smoke.sh`) verifies boot output and optional fault/panic markers.
+## 常見問題排查
 
-```bash
-# build-only check (fast)
-SKIP_SMOKE_RUN=1 make test-smoke
-make smoke-build
+- `readelf -S build/mvos.elf | grep ".requests"` 不存在：檢查 Limine request block
+- `hello from kernel` 未出現：確認 `boot/limine.conf` 有 `KERNEL_PATH=boot:///boot/mvos.bin`
+- 無法載入 Limine：使用 `LIMINE_LOCAL_DIR` 指向已準備好的 bootloader 檔案
 
-# full boot smoke
-make test-smoke
-make smoke
-make smoke-full
-TEST_SMOKE_LOG_DIR=./artifacts TEST_SMOKE_BASENAME=smoke-run SMOKE_KEEP_LOGS=1 make smoke
+重跑建議：
 
-# offline build + boot
-LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
-make smoke-offline
-LIMINE_LOCAL_DIR=/path/to/limine-bin make smoke-offline
-LIMINE_CACHE_DIR=./boot/limine make smoke-offline
-
-# cache-only smoke bootstrap
-make prefetch-limine
-```
-
-Smoke helper (recommended for diagnosis):
-```bash
-TEST_SMOKE_LOG_DIR=./artifacts TEST_SMOKE_BASENAME=smoke-run SMOKE_KEEP_LOGS=1 SMOKE_OFFLINE=1 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
-```
-
-The test will verify:
-- `hello from kernel`
-- `[pmm] memory map`
-- optional panic/fault markers when enabled
-- explicit failure reasons instead of only timeout.
-
-## Layout
-
-- `boot/limine.conf` and `boot/limine/`
-- `kernel/arch/x86_64/boot/entry.asm`
-- `kernel/arch/x86_64/gdt/`, `kernel/arch/x86_64/idt/`, `kernel/arch/x86_64/interrupt/`
-- `kernel/core/main.c`, `kernel/core/panic.c`, `kernel/core/log.c`, `kernel/core/assert.c`
-- `kernel/mm/pmm.c`, `kernel/mm/heap.c`
-- `kernel/dev/serial.c`
-- `kernel/include/mvos/` headers
-- `kernel/include/mvos/pmm.h`, `kernel/include/mvos/heap.h`
-- `libc/*.c`
-- `linker/x86_64.ld`
-- `scripts/{make_iso.sh,run_qemu.sh,debug_qemu.sh,test_smoke.sh}`
-- `docs/{architecture.md,roadmap.md,debugging.md}`
-
-## Troubleshooting
-
-Common causes:
-- Limine config not using `KERNEL_PATH=boot:///boot/mvos.bin`.
-- offline bootstrap missing Limine assets.
-- stale boot artifacts in `build/` after config changes.
-
-Useful checks:
-- `readelf -l build/mvos.elf` should show `VirtAddr` in high-half for PHDR load.
-- `file build/mvos.bin` should show `ELF 64-bit`.
-- `grep -n "PROTOCOL\\|KERNEL_PATH\\|SERIAL" boot/limine.conf` should be valid in one of the accepted formats.
-
-Reset and retest:
 ```bash
 make clean
 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline

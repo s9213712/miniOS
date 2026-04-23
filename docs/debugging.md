@@ -1,4 +1,4 @@
-# Debugging guide (Phase 3)
+# Debugging guide (Phase 6)
 
 ## Serial output (default path)
 - All kernel logs print on UART COM1.
@@ -15,7 +15,7 @@
 - Assertions route to `kassert_fail(...)` and use the same halt path.
 
 ## Fault path
-- Exception handlers for divide-by-zero, invalid opcode, general-protection, and page fault are installed by IDT setup in phase 2.
+- Exception handlers for divide-by-zero, invalid opcode, general-protection, and page fault are installed by IDT setup.
 - When a fault occurs, the handler prints:
   - `[fault]`
   - fault name

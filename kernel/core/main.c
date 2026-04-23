@@ -12,6 +12,9 @@
 #include <mvos/vfs.h>
 #include <stdint.h>
 
+/* Limine request section markers are grouped as required for bootloader discovery.
+ * Smoke tests also verify that request_start is ordered before request_end.
+ */
 static volatile uint64_t request_start[4]
     __attribute__((used, section(".requests.start"))) = LIMINE_REQUESTS_START_MARKER;
 
@@ -47,6 +50,9 @@ static volatile struct limine_memmap_request memmap_request
 static volatile uint64_t request_end[2]
     __attribute__((used, section(".requests.end"))) = LIMINE_REQUESTS_END_MARKER;
 
+/* Fault injection is compile-time only so normal boot remains deterministic.
+ * When enabled, each helper intentionally executes only the requested architecture trap.
+ */
 static void trigger_divide_by_zero_fault(void) {
     __asm__ volatile(
         "mov $1, %%rax\n\t"
@@ -76,6 +82,9 @@ static void trigger_page_fault(void) {
     *bad = 0x12345678;
 }
 
+/* Phase-5 cooperative example tasks.
+ * Output cadence is intentionally sparse to reduce QEMU serial noise.
+ */
 static void task_a(uint64_t tick) {
     if ((tick & 0xff) != 0) {
         return;
@@ -97,6 +106,9 @@ static void task_b(uint64_t tick) {
 }
 
 void kmain(void) {
+    /* Phase-1: bring up the serial path first so every later diagnostic is visible.
+     * vga console is still initialized for compatibility, but serial is the canonical smoke path.
+     */
     serial_init();
     console_init();
     klogln("MiniOS Phase 3 bootstrap");
@@ -107,6 +119,9 @@ void kmain(void) {
     panic("panic test path enabled");
 #endif
 
+    /* Phase-2 / Phase-3: install CPU tables and timer, then initialize memory.
+     * These are required preconditions for fault handling and all later subsystems.
+     */
     gdt_init();
     idt_init();
     timer_init(100);
@@ -115,6 +130,9 @@ void kmain(void) {
     klog_u64(timer_ticks());
     klogln("[phase3] timer enabled");
 
+    /* Fail-fast on missing bootloader responses to make protocol changes obvious
+     * during early boot smoke checks.
+     */
     if (hhdm_request.response == NULL) {
         panic("missing HHDM request response");
     }
@@ -159,9 +177,17 @@ void kmain(void) {
     klog_u64((uint64_t)heap_block);
     klogln("");
     klogln("[phase3] memory allocator ready");
+
+    /* Phase-6: initramfs-style VFS smoke diagnostics.
+     * This validates file-open/read/list behavior before scheduling starts.
+     */
     vfs_diagnostic_list();
     vfs_diagnostic_read_file();
     vfs_diagnostic_missing();
+
+    /* Phase-5: register teaching tasks and switch output cadence.
+     * Timer interrupts drive tick advancement; scheduler does cooperative dispatch.
+     */
     scheduler_init();
     if (scheduler_add_task("task-a", task_a) < 0 || scheduler_add_task("task-b", task_b) < 0) {
         panic("scheduler init failed");
@@ -188,6 +214,9 @@ void kmain(void) {
     trigger_page_fault();
 #endif
 
+    /* Final loop keeps kernel alive: wake on interrupt, run one scheduler slice.
+     * Keeps deterministic order for smoke assertions.
+     */
     for (;;) {
         __asm__ volatile("hlt");
         scheduler_run_once();
