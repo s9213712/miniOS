@@ -9,7 +9,7 @@
 #include <stdint.h>
 
 static volatile uint64_t request_start[4]
-    __attribute__((used, section(".requests"))) = LIMINE_REQUESTS_START_MARKER;
+    __attribute__((used, section(".requests.start"))) = LIMINE_REQUESTS_START_MARKER;
 
 static volatile struct limine_bootloader_info_request bootloader_info_request
     __attribute__((used, section(".requests"))) = {
@@ -41,7 +41,7 @@ static volatile struct limine_memmap_request memmap_request
 };
 
 static volatile uint64_t request_end[2]
-    __attribute__((used, section(".requests"))) = LIMINE_REQUESTS_END_MARKER;
+    __attribute__((used, section(".requests.end"))) = LIMINE_REQUESTS_END_MARKER;
 
 static void trigger_divide_by_zero_fault(void) {
     __asm__ volatile(
