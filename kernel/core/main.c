@@ -60,6 +60,16 @@ static volatile struct limine_framebuffer_request framebuffer_request
 static volatile uint64_t request_end[2]
     __attribute__((used, section(".requests.end"))) = LIMINE_REQUESTS_END_MARKER;
 
+static inline uint64_t physical_or_mapped_fb_addr(uint64_t address, uint64_t hhdm_offset) {
+    /* Limine framebuffer address is normally physical, but some firmware paths may
+     * already provide a mapped address in higher half. Only translate low addresses.
+     */
+    if (address < 0x100000000ULL && hhdm_offset != 0) {
+        return address + hhdm_offset;
+    }
+    return address;
+}
+
 /* Fault injection is compile-time only so normal boot remains deterministic.
  * When enabled, each helper intentionally executes only the requested architecture trap.
  */
@@ -179,7 +189,7 @@ void kmain(void) {
             if (fb->bpp == 24u || fb->bpp == 32u) {
                 console_enable_graphics_framebuffer(
                     hhdm_request.response->offset,
-                    (uint64_t)fb->address,
+                    physical_or_mapped_fb_addr((uint64_t)fb->address, hhdm_request.response->offset),
                     fb->width,
                     fb->height,
                     fb->pitch,
