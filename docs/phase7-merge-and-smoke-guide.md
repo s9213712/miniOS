@@ -1,6 +1,6 @@
 # Phase 7 合併流程（文字教學）
 
-此文件為純文字流程，目標是 **取消不合併分支限制**，將所有教學 phase 分支依序合併到 `main`，並確認 `main` 可啟動 smoke 測試再推送。
+此文件為純文字流程參考，目標是 **取消不合併分支限制**，將教學 phase 分支依序合併到 `main`，並確認 `main` 可啟動 smoke 測試再推送。
 
 ## 目標
 - 不刪除任何分支，保留所有 `phase-*` 分支供教學追蹤。
@@ -32,7 +32,7 @@
    - `Phase 3 memory map verified.`
    - `PASS`
 
-實作結果：`smoke-offline` 成功通過。
+實作結果：`smoke-offline` 成功通過（含 serial 8 秒內 `hello from kernel` 驗證）。
 
 補測：
 - `LIMINE_LOCAL_DIR=/tmp/limine-bin make test-smoke`

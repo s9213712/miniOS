@@ -49,6 +49,7 @@ To verify full boot path:
 make clean
 SKIP_SMOKE_RUN=1 make test-smoke
 LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
+LIMINE_LOCAL_DIR=/path/to/limine-bin make smoke-offline
 make smoke-offline
 ```
 

@@ -7,6 +7,8 @@
 > cd /home/s92137/miniOS
 > ```
 
+> 目前進度摘要：`smoke` 主線穩定後，支援 `run`、`ls`、`cat`、`app`、`tasks`、`run cpp`，且 `run hello` 僅以 kernel fallback 執行。Python 尚未提供 miniOS 內部 runtime。
+
 ---
 
 ## 一、前置檢查（建議先做）
@@ -51,9 +53,13 @@
   ```bash
   make prefetch-limine
   ```
-- Python 開發健康檢查：
+- 僅做健康檢查（不重建）：
   ```bash
   python3 scripts/dev_status.py
+  ```
+- 完整檢查並重建：
+  ```bash
+  python3 scripts/dev_status.py --build
   ```
 
 ---
@@ -126,19 +132,19 @@
   - `app launch <name>`
   - `app info <name>`
   - `app alt`
-  - `run`
-  - `run hello`
-  - `run ticks`
-  - `run scheduler`
-  - `run cpp`
-  - `gui`
-  - `reboot`
-  - `halt`
+- `run`
+- `run hello`
+- `run ticks`
+- `run scheduler`
+- `run cpp`
+- `gui`
+- `reboot`
+- `halt`
 
-- 目前沒有提供 Python 直譯器（不能直接執行 `.py`）。
-- C 應用是直接編譯進 miniOS 核心，透過 `run <name>` 在 shell 內叫用（例如 `run hello`）。
-- `ls` 與 `cat` 目前只支援內建 initfs（唯讀）路徑，無法進行實際檔案建立/修改。
-- C++ 目前可當作 `run cpp` 的最小示範 app（目前仍是 kernel-mode fallback，非一般使用者程式環境）。
+- miniOS 本體目前沒有 Python 直譯器（不能直接執行 `.py`），如需 Python 檢查請使用 host 的 `scripts/dev_status.py`。
+- C 應用是直接編譯進 miniOS 核心，透過 `run <name>` 在 shell 內叫用（例如 `run hello`、`run cpp`）。
+- `ls` 與 `cat` 目前只支援 initfs 內建唯讀節點，無法建立或修改檔案。
+- `run cpp` 為目前 C++ 使用者應用示範，仍以 kernel-mode fallback 路徑實作。
 
 ---
 
@@ -189,6 +195,7 @@
   - 確認 `boot/limine.conf` 與 `boot/iso_root/boot/limine.conf` 的 `PROTOCOL=limine` 與 `KERNEL_PATH=boot:///boot/mvos.bin`
   - 確認 `LIMINE_LOCAL_DIR` 有指到正確目錄
   - 檢查 `build/mvos.elf` 是否有 `.requests`（`readelf -S build/mvos.elf | grep .requests`）
+- serial 8 秒內未見 `hello from kernel` 時，先確認 `serial_init` 與 Limine handoff log 是否都存在，並改看 `/tmp` 下 smoke 日誌最後 80 行
 - 清空並重試：
   ```bash
   make clean

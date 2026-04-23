@@ -1,12 +1,18 @@
 # miniOS Roadmap（教學用）
 
-每一個 phase 都曾經有獨立 `phase-*` 分支，完成後已併入 `main`，保留主線歷史作為學習紀錄。  
+每一個 phase 都曾經有獨立 `phase-*` 分支，完成後以 commit 形式保留在主線歷史中，作為學習紀錄與回溯點。  
 本文件提供每個階段的目的、預期成效與最小可驗證成果，方便學員對照 `main`、回頭閱讀歷史。
 
 ## 分支保留原則
 
-- `main` 保留可開機主線，所有已完成階段都以歷史提交存在
-- 每個 stage 的差異可由 commit 記錄或標籤回顧，不再保留長期 phase 分支
+- `main` 為可開機主線（最終目標），其階段歷史在每次 phase 提交中可回溯。
+- 本教學保留變更節點與測試紀錄；在本分支也可直接沿用分支作為教學實作線，實務上可視情況再合併到 `main`。
+
+## 最近進度摘要
+
+- 2026-04-24：`Phase 22` 完成，已補齊 `run cpp` 演示命令，並同步更新 smoke/文件流程。
+- `Phase 21` 的 `ls`/`cat` 目前仍為唯讀 initfs 檢視能力。
+- `Phase 20` `run hello` 路徑先走 kernel fallback，後續保留 ring3 切換開關。
 
 ## 檢查前提
 
@@ -146,6 +152,6 @@
 - Phase 21：檔案可見性（可選）
   - shell 新增 `ls`、`cat`，讓訓練系統可查詢 `/boot/init` 內建節點
   - `cat` 仍走唯讀流程，保留 boot 時序穩定
-- Phase 22：基本 C++ 示範（進行中）
+- Phase 22：基本 C++ 示範（完成）
   - 在 `userapp` 管線加入 C++ 對應編譯路徑，提供 `run cpp` 範例 app
-  - `Python` 仍停留在「未提供 runtime」狀態
+  - `Python` 仍停留在「未提供 runtime」狀態，現階段改以主機端 `python3 scripts/dev_status.py` 驗證環境

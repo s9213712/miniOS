@@ -13,7 +13,12 @@
 - 驗證段輸出包含：
   - `Boot text found.`
   - `Phase 3 memory map verified.`
+  - `kernel entering C`（kernel 進入 C 入口）
   - `PASS`
+
+建議同時確認：
+- `readelf -S build/mvos.elf | grep ".requests"` 存在
+- `boot/limine.conf` 與 `boot/iso_root/boot/limine.conf` 皆有 `PROTOCOL=limine` 與 `KERNEL_PATH=boot:///boot/mvos.bin`
 
 ## 失敗診斷要點
 - 若 timeout：  
@@ -22,6 +27,7 @@
 - 若 serial 無內容：  
   - 確認 Limine serial 有被啟用且 kernel entry 早期已進入 `serial_init`
   - 確認 kernel 檔案有正確載入（`build/mvos.bin`）
+  - 建議加上 `TEST_SMOKE_BASENAME=smoke-$(date +%s)` 保留每次失敗日誌
 - 若 memory checks 失敗：  
   - 檢查 `limine` bootloader request 回應非空
   - 檢查 PMM 初始化是否在 `gdt/idt` 後順序執行

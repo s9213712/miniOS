@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 21, 教學型專案)
+# MinimalOS v1 (Phase 22, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -9,6 +9,13 @@
 - 用 serial 輸出做早期可觀測性，避免只靠 framebuffer
 - 逐步加入 `PMM`、`heap`、中斷、scheduler、VFS 等核心概念
 - 以可重複的 smoke 測試保證每個階段都能回歸
+
+## 最近工程進度
+
+- 2026-04-24：`Phase 22` 完成 `run cpp`，並補上可直接呼叫的 C++ 示範入口。
+- `Phase 21` 完成 `ls`/`cat` initfs 檢視流程，確保唯讀測試資料可直接在 shell 驗證。
+- `Phase 20` 的 `run hello` 先以 kernel fallback 啟動，保留後續啟用 ring3 的開關。
+- `Phase 18` 的 `tasks`、`Phase 17` 的 `app` 查詢、`Phase 22` 的 C++ 路徑都已可作為 smoke 之外的進階教學示例。
 
 ## 分支策略
 
@@ -33,7 +40,7 @@
   - shell 增加 `ls`/`cat`，可列舉並讀出 initfs 的虛擬檔內容（`/boot/init/...`）。
   - 保留讀寫分離（目前階段仍為唯讀，適合 smoke 路徑不破壞）。
   - 預期成效：在互動 shell 中執行 `ls`、`ls /boot/init`、`cat /boot/init/readme.txt` 均有穩定輸出。
-- Phase 22：基礎 C++ 範例程式（進行中）
+- Phase 22：基礎 C++ 範例程式（完成）
   - 新增 `run cpp` 示範 app（C++ 函式已編入核心映像並可呼叫）。
   - `Python` 仍不支援直接於 miniOS 內部執行；先以 C/C++ kernel-mode fallback 為主。
 
@@ -116,7 +123,7 @@
 
 ## 目前可驗證狀態
 
-- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline` 通常能通過
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline` 通過（serial 8 秒內出現 `hello from kernel`）
 - `build/mvos.elf` 為 ELF 格式，`build/mvos.bin` 指向同一 kernel 影像（與 Limine 相容）
 - Limine request symbols (`request_start` / `request_end`) 可被測試腳本驗證
 - kernel serial 流中會輸出：`MiniOS Phase 3 bootstrap`、`hello from kernel`
@@ -148,7 +155,8 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 
 - `SKIP_SMOKE_RUN=1 make test-smoke`：只做建置階段驗證
 - `QEMU_GUI=1 make run`：開啟 QEMU VGA 視窗並同步顯示 framebuffer 文字輸出
-- `QEMU_GUI=1 make run`：在有 GUI 環境的機器上也能看到 framebuffer 視窗 demo
+- `python3 scripts/dev_status.py --build`：環境 + 建置健康檢查（建議每次大改後）
+- `python3 scripts/dev_status.py`：只做環境檢查，不會重建
 
 啟用互動 shell（預設關閉）：
 
@@ -196,6 +204,7 @@ GUI 限制：
 - `readelf -S build/mvos.elf | grep ".requests"` 不存在：檢查 Limine request block
 - `hello from kernel` 未出現：確認 `boot/limine.conf` 有 `KERNEL_PATH=boot:///boot/mvos.bin`
 - 無法載入 Limine：使用 `LIMINE_LOCAL_DIR` 指向已準備好的 bootloader 檔案
+- `python3 scripts/dev_status.py`：快速確認 `make` / `gcc` / `nasm` / `qemu-system-x86_64` / `xorriso` 可用
 
 重跑建議：
 

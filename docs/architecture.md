@@ -26,7 +26,7 @@ MiniOS is a small x86_64 educational OS with incremental phases and readable bou
 - **Phase 17**: add `app info <name>` to expose app metadata and verify discoverability by command path.
 - **Phase 18**: add `tasks` shell command to expose scheduler task names and run counters without changing core boot or smoke behavior.
 - **Phase 21**: add shell command visibility for initfs content (`ls` + `cat`) to support user-level file-system introspection.
-- **Phase 22**: add a C++-compiled userapp path demonstration (`run cpp`) as a minimum non-Python basic program sample.
+- **Phase 22**: add a C++-compiled userapp path demonstration (`run cpp`) as a minimum non-Python basic program sample. (Completed; executed as kernel-mode fallback in this stage.)
 
 ## Core layout
 
@@ -57,6 +57,9 @@ Current architecture keeps serial as primary boot diagnostics, with framebuffer 
 - Ubuntu/WSL may not expose `gcc-x86-64-elf` packages; native `gcc/ld/objcopy` fallback is supported if elf-prefixed cross tools are absent.
 - Optional cache path: `LIMINE_CACHE_DIR` (default `.cache/miniOS-limine`).
 - `make prefetch-limine` for explicit local cache warm-up.
+
+Current user-visible runtime limit:
+- `run cpp` demonstrates C++ build flow, while miniOS still does not include a Python interpreter for executing `.py` programs inside the VM.
 
 Quick check:
 ```bash
