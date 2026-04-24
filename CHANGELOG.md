@@ -1,5 +1,23 @@
 # Changelog
 
+## Issue Follow-ups – 2026-04-24
+
+### Fixed
+- `scripts/dev_status.py --build-programs` help/runtime wording now consistently uses `make host-programs`.
+- Added `build-host-programs` alias target in `Makefile` for backward compatibility.
+- Moved ISO staging path from `boot/iso_root` to `build/iso_root` in build/smoke scripts.
+
+### Added
+- Added `scripts/test_host_programs.sh` and `make test-host-programs` for host-program manifest regression coverage.
+- Regression checks now validate both dynamic and static modes, including:
+  - top-level `default_link_mode`
+  - per-program `link_mode`
+  - `-static` flag behavior by mode
+
+### Validation
+- `make test-host-programs`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 30 – Linux ABI Preview Scaffold
 
 ### Added

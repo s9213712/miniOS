@@ -45,7 +45,7 @@ def main() -> int:
     parser.add_argument(
         "--build-programs",
         action="store_true",
-        help="run make build-host-programs",
+        help="run make host-programs",
     )
     args = parser.parse_args()
 
@@ -54,7 +54,7 @@ def main() -> int:
         print("[dev-status] running: make -B")
         status = run(["make", "-B"])
     if args.build_programs:
-        print("[dev-status] running: make build-host-programs")
+        print("[dev-status] running: make host-programs")
         programs_status = run(["make", "host-programs"])
         if programs_status != 0:
             status = programs_status

@@ -230,7 +230,7 @@ GUI 限制：
 
 ## 專案目錄
 
-- `boot/limine.conf`、`boot/limine/`、`boot/iso_root/boot/limine.conf`
+- `boot/limine.conf`、`boot/limine/`、`build/iso_root/boot/limine.conf`
 - `kernel/`：核心、mm、裝置、arch
 - `docs/`：架構與 road map
 - `scripts/`：smoke/build/qemu 工具

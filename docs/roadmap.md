@@ -38,7 +38,7 @@
 
 必做：
 
-- 驗證 `boot/limine.conf`、`boot/iso_root/boot/limine.conf` 的  
+- 驗證 `boot/limine.conf`、`build/iso_root/boot/limine.conf` 的  
   `PROTOCOL=limine`、`KERNEL_PATH=boot:///boot/mvos.bin`
 - 補齊 smoke 失敗訊息與重試流程
 - 在 `README` 補上完整前置、建置與預期輸出

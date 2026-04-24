@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/build"
-ISO_DIR="$ROOT_DIR/boot/iso_root"
+ISO_DIR="$ROOT_DIR/build/iso_root"
 LIMINE_DIR="$ROOT_DIR/boot/limine"
 LOCAL_LIMINE_DIR="${LIMINE_LOCAL_DIR:-}"
 LIMINE_CACHE_DIR="${LIMINE_CACHE_DIR:-$ROOT_DIR/.cache/miniOS-limine}"

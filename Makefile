@@ -3,7 +3,7 @@
 PROJECT := mvos
 BUILD_DIR := build
 OUTPUT_DIR := $(BUILD_DIR)
-ISO_DIR := boot/iso_root
+ISO_DIR := build/iso_root
 LIMINE_DIR := boot/limine
 ISO_NAME := $(PROJECT).iso
 KERNEL_ELF := $(OUTPUT_DIR)/$(PROJECT).elf
@@ -70,7 +70,7 @@ OBJS := $(C_OBJS) $(CXX_OBJS) $(ASM_OBJS)
 
 FLAGS_MARK := $(OUTPUT_DIR)/.build-flags
 
-.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline prefetch-limine host-programs clean-host-programs
+.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline prefetch-limine host-programs build-host-programs clean-host-programs test-host-programs
 
 HOST_PROGRAMS_SRC_DIR := samples/user-programs
 HOST_PROGRAMS_OUT_DIR := $(OUTPUT_DIR)/host-programs
@@ -141,6 +141,11 @@ host-programs:
 	  --out-dir "$(HOST_PROGRAMS_OUT_DIR)" \
 	  --manifest "$(HOST_PROGRAMS_MANIFEST)" \
 	  $(if $(MHOST_VERBOSE),--verbose,)
+
+build-host-programs: host-programs
+
+test-host-programs:
+	@bash scripts/test_host_programs.sh
 
 clean-host-programs:
 	rm -rf "$(HOST_PROGRAMS_OUT_DIR)"

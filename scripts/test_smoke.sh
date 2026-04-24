@@ -105,7 +105,7 @@ make iso >"$MAKE_ISO_LOG" 2>&1 || {
   exit 1
   }
 
-ISO_STAGED_CONF="$ROOT_DIR/boot/iso_root/boot/limine.conf"
+ISO_STAGED_CONF="$ROOT_DIR/build/iso_root/boot/limine.conf"
 if [ -f "$ISO_STAGED_CONF" ]; then
   check_limine_conf "$ISO_STAGED_CONF"
 else

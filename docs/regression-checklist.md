@@ -18,12 +18,13 @@
 
 建議同時確認：
 - `readelf -S build/mvos.elf | grep ".requests"` 存在
-- `boot/limine.conf` 與 `boot/iso_root/boot/limine.conf` 皆有 `PROTOCOL=limine` 與 `KERNEL_PATH=boot:///boot/mvos.bin`
+- `boot/limine.conf` 與 `build/iso_root/boot/limine.conf` 皆有 `PROTOCOL=limine` 與 `KERNEL_PATH=boot:///boot/mvos.bin`
+- `make test-host-programs` 通過（manifest `default_link_mode` / `link_mode` 回歸）
 
 ## 失敗診斷要點
 - 若 timeout：  
   - 檢查 ISO 內 `boot/limine.conf` 的 `PROTOCOL=limine` 與 `KERNEL_PATH=boot:///boot/mvos.bin`
-  - 檢查 `scripts/make_iso.sh` 是否更新 `boot/limine.conf` 到 `boot/iso_root/boot/`
+  - 檢查 `scripts/make_iso.sh` 是否更新 `boot/limine.conf` 到 `build/iso_root/boot/`
 - 若 serial 無內容：  
   - 確認 Limine serial 有被啟用且 kernel entry 早期已進入 `serial_init`
   - 確認 kernel 檔案有正確載入（`build/mvos.bin`）

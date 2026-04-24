@@ -44,6 +44,10 @@
   ```bash
   make host-programs
   ```
+- 主機端編譯回歸測試（dynamic/static manifest contract）：
+  ```bash
+  make test-host-programs
+  ```
 - 主機端編譯腳本（可用來驗證輸出）：
   ```bash
   python3 scripts/build_user_programs.py --source-dir samples/user-programs --out-dir build/host-programs
@@ -228,7 +232,7 @@
 ## 八、常用排查
 
 - 若 `make smoke-offline` 失敗：
-  - 確認 `boot/limine.conf` 與 `boot/iso_root/boot/limine.conf` 的 `PROTOCOL=limine` 與 `KERNEL_PATH=boot:///boot/mvos.bin`
+  - 確認 `boot/limine.conf` 與 `build/iso_root/boot/limine.conf` 的 `PROTOCOL=limine` 與 `KERNEL_PATH=boot:///boot/mvos.bin`
   - 確認 `LIMINE_LOCAL_DIR` 有指到正確目錄
   - 檢查 `build/mvos.elf` 是否有 `.requests`（`readelf -S build/mvos.elf | grep .requests`）
 - serial 8 秒內未見 `hello from kernel` 時，先確認 `serial_init` 與 Limine handoff log 是否都存在，並改看 `/tmp` 下 smoke 日誌最後 80 行
