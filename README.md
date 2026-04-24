@@ -13,6 +13,7 @@
 ## 最近工程進度
 
 - 2026-04-24：`Phase 22` 完成 `run cpp`，並補上可直接呼叫的 C++ 示範入口。
+- 2026-04-24：`Phase 23` 完善 shell `run` 指令體驗，加入 `run --help`、`run --status`，並可見 `user/kernel` 執行模式。
 - `Phase 21` 完成 `ls`/`cat` initfs 檢視流程，確保唯讀測試資料可直接在 shell 驗證。
 - `Phase 20` 的 `run hello` 先以 kernel fallback 啟動，保留後續啟用 ring3 的開關。
 - `Phase 18` 的 `tasks`、`Phase 17` 的 `app` 查詢、`Phase 22` 的 C++ 路徑都已可作為 smoke 之外的進階教學示例。
@@ -43,6 +44,9 @@
 - Phase 22：基礎 C++ 範例程式（完成）
   - 新增 `run cpp` 示範 app（C++ 函式已編入核心映像並可呼叫）。
   - `Python` 仍不支援直接於 miniOS 內部執行；先以 C/C++ kernel-mode fallback 為主。
+- Phase 23：互動指令可觀測性（進行中）
+  - 改善 `run` 命令幫助與狀態檢視，支援 `run --help` 與 `run --status`。
+  - `run --status` 會顯示每個 app 的執行模式（user/kernel），避免混淆未啟用 ring3 的情況。
 
 ## 每階段目的與預期成效
 

@@ -10,3 +10,4 @@ uint64_t userapp_count(void);
 const char *userapp_name(uint64_t index);
 const char *userapp_desc(uint64_t index);
 int userapp_run(const char *name);
+int userapp_is_user_mode(uint64_t index);

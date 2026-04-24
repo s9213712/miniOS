@@ -110,6 +110,13 @@ const char *userapp_desc(uint64_t index) {
     return g_userapps[index].description;
 }
 
+int userapp_is_user_mode(uint64_t index) {
+    if (index >= g_userapp_count) {
+        return -1;
+    }
+    return g_userapps[index].user_mode ? 1 : 0;
+}
+
 int userapp_run(const char *name) {
     if (name == NULL || name[0] == '\0') {
         return -1;

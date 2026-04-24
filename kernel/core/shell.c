@@ -118,6 +118,51 @@ static void shell_cmd_cat(const char *arg) {
     vfs_close(&file);
 }
 
+static void shell_cmd_run_help(void) {
+    console_write_string("run usage:\n");
+    console_write_string("  run                 list available user apps\n");
+    console_write_string("  run --help          show this message\n");
+    console_write_string("  run --status        show user apps and execution mode\n");
+    console_write_string("  run <name>          execute app by name\n");
+}
+
+static void shell_cmd_run_list(void) {
+    uint64_t count = userapp_count();
+    console_write_string("available user apps:\n");
+    for (uint64_t i = 0; i < count; ++i) {
+        const char *name = userapp_name(i);
+        const char *desc = userapp_desc(i);
+        console_write_string("  ");
+        console_write_string(name == NULL ? "(unnamed)" : name);
+        console_write_string(" - ");
+        console_write_string(desc == NULL ? "(no description)" : desc);
+        console_write_string("\n");
+    }
+    if (count == 0) {
+        console_write_string("  (none)\n");
+    }
+}
+
+static void shell_cmd_run_status(void) {
+    uint64_t count = userapp_count();
+    console_write_string("run status:\n");
+    console_write_string("  total=");
+    console_write_u64(count);
+    console_write_string(" apps\n");
+    for (uint64_t i = 0; i < count; ++i) {
+        const char *name = userapp_name(i);
+        const char *desc = userapp_desc(i);
+        int user_mode = userapp_is_user_mode(i);
+        console_write_string("  ");
+        console_write_string(name == NULL ? "(unnamed)" : name);
+        console_write_string(" [");
+        console_write_string(user_mode == 1 ? "user" : "kernel");
+        console_write_string("] ");
+        console_write_string(desc == NULL ? "(no description)" : desc);
+        console_write_string("\n");
+    }
+}
+
 static void shell_print_help(void) {
     console_write_string("Available commands:\n");
     console_write_string("  help   - show this help\n");
@@ -130,8 +175,8 @@ static void shell_print_help(void) {
     console_write_string("  gui    - draw a tiny demo window (requires graphics backend)\n");
     console_write_string("  app    - launch a tiny GUI app demo (requires graphics backend)\n");
     console_write_string("         usage: app [alt|status|list|launch <name>|info <name>]\n");
-        console_write_string("  run    - list or run built-in user apps\n");
-        console_write_string("         usage: run [name]\n");
+    console_write_string("  run    - list or run built-in user apps\n");
+    console_write_string("         usage: run [--help|status|<name>]\n");
     console_write_string("  ls     - list virtual filesystem entries\n");
     console_write_string("         usage: ls [prefix]\n");
     console_write_string("  cat    - print a virtual file content\n");
@@ -287,20 +332,15 @@ static void shell_exec(const char *line) {
             ++arg;
         }
         if (*arg == '\0') {
-            console_write_string("run usage: run <name>\n");
-            console_write_string("available user apps:\n");
-            for (uint32_t i = 0; i < userapp_count(); ++i) {
-                const char *name = userapp_name(i);
-                const char *desc = userapp_desc(i);
-                console_write_string("  ");
-                console_write_string(name == NULL ? "(unnamed)" : name);
-                console_write_string(" - ");
-                console_write_string(desc == NULL ? "(no description)" : desc);
-                console_write_string("\n");
-            }
-            if (userapp_count() == 0) {
-                console_write_string("  (none)\n");
-            }
+            shell_cmd_run_list();
+            return;
+        }
+        if (shell_streq(arg, "status") || shell_streq(arg, "--status")) {
+            shell_cmd_run_status();
+            return;
+        }
+        if (shell_streq(arg, "-h") || shell_streq(arg, "--help")) {
+            shell_cmd_run_help();
             return;
         }
         int status = userapp_run(arg);
@@ -309,7 +349,7 @@ static void shell_exec(const char *line) {
             console_write_string(arg);
             console_write_string("\n");
         } else if (status == -1) {
-            console_write_string("run usage: run <name>\n");
+            shell_cmd_run_help();
         } else {
             console_write_string("unknown user app: ");
             console_write_string(arg);

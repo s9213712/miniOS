@@ -7,7 +7,7 @@
 > cd /home/s92137/miniOS
 > ```
 
-> 目前進度摘要：`smoke` 主線穩定後，支援 `run`、`ls`、`cat`、`app`、`tasks`、`run cpp`，且 `run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Python 尚未提供 miniOS 內部 runtime。
+> 目前進度摘要：`smoke` 主線穩定後，新增 `run --help`、`run --status`，並支援 `run`、`ls`、`cat`、`app`、`tasks`、`run cpp`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Python 尚未提供 miniOS 內部 runtime。
 
 ---
 
@@ -138,6 +138,8 @@
 - `run scheduler`
 - `run cpp`
 - `run python`（目前僅回報 Python 尚未支援於 miniOS）
+  - `run --help` 列出 `run` 可用子選項
+  - `run --status` 顯示可用 app 與執行模式（user/kernel）
   - `run` 無參數時會列出所有可用 app 與描述
 - `gui`
 - `reboot`
