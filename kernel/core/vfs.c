@@ -3,6 +3,9 @@
 #include <mvos/log.h>
 #include <stdint.h>
 
+extern const uint8_t g_linux_user_elf_sample[];
+extern const uint64_t g_linux_user_elf_sample_len;
+
 /* Minimal initramfs + writable /tmp overlay:
  * - readonly bootstrap nodes for deterministic smoke behavior
  * - writable runtime nodes under /tmp for teaching filesystem mutations
@@ -41,6 +44,7 @@ static const uint8_t init_file_readme_txt[] =
 static vfs_node_t g_nodes[] = {
     {"/boot/init/boot.txt", init_file_boot_txt, sizeof(init_file_boot_txt) - 1, 0},
     {"/boot/init/readme.txt", init_file_readme_txt, sizeof(init_file_readme_txt) - 1, 0},
+    {"/boot/init/hello_linux_tiny", g_linux_user_elf_sample, 0, 0},
 };
 
 #define MAX_OPEN_FILES 4
@@ -60,6 +64,16 @@ static uint32_t fnv1a_hash32(const void *ptr, uint64_t len) {
     return h;
 }
 
+static uint64_t static_node_size(const vfs_node_t *node) {
+    if (node == NULL) {
+        return 0;
+    }
+    if (node->data == g_linux_user_elf_sample) {
+        return g_linux_user_elf_sample_len;
+    }
+    return node->size;
+}
+
 static void init_file_checksums(void) {
     /* Lazy checksum initialization keeps startup code small and avoids extra init path.
      * If checksums are already present (non-zero), this function is a no-op.
@@ -67,7 +81,7 @@ static void init_file_checksums(void) {
     for (uint64_t i = 0; i < sizeof(g_nodes) / sizeof(g_nodes[0]); ++i) {
         vfs_node_t *node = &g_nodes[i];
         if (node->checksum == 0) {
-            node->checksum = fnv1a_hash32(node->data, node->size);
+            node->checksum = fnv1a_hash32(node->data, static_node_size(node));
         }
     }
 }
@@ -187,7 +201,7 @@ int vfs_open(const char *path, mvos_vfs_file_t *file) {
             g_open_files[i] = (vfs_open_state_t){ .in_use = 1 };
             if (static_node != NULL) {
                 file->data = static_node->data;
-                file->size = static_node->size;
+                file->size = static_node_size(static_node);
                 file->path = static_node->path;
                 file->checksum = static_node->checksum;
                 file->dynamic = 0;
@@ -279,7 +293,7 @@ uint64_t vfs_list(mvos_vfs_list_visitor_t visitor, const char *prefix, void *use
         if (has_prefix(g_nodes[i].path, prefix)) {
             ++listed;
             if (visitor) {
-                visitor(g_nodes[i].path, g_nodes[i].size, g_nodes[i].checksum, user_data);
+                visitor(g_nodes[i].path, static_node_size(&g_nodes[i]), g_nodes[i].checksum, user_data);
             }
         }
     }

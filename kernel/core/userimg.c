@@ -215,20 +215,20 @@ const char *userimg_result_name(mvos_userimg_result_t rc) {
     }
 }
 
-mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out) {
-    if (out == 0) {
+mvos_userimg_result_t userimg_prepare_image(const uint8_t *image, uint64_t image_len, mvos_userimg_report_t *out) {
+    if (out == 0 || image == 0) {
         return MVOS_USERIMG_ERR_NULL_ARG;
     }
 
     *out = (mvos_userimg_report_t){0};
 
     mvos_elf64_report_t elf_report;
-    mvos_elf64_result_t elf_rc = elf64_inspect_image(g_linux_user_elf_sample, g_linux_user_elf_sample_len, &elf_report);
+    mvos_elf64_result_t elf_rc = elf64_inspect_image(image, image_len, &elf_report);
     if (elf_rc != MVOS_ELF64_OK) {
         return MVOS_USERIMG_ERR_ELF;
     }
 
-    const elf64_ehdr_t *eh = (const elf64_ehdr_t *)g_linux_user_elf_sample;
+    const elf64_ehdr_t *eh = (const elf64_ehdr_t *)image;
     if (eh->e_ident[0] != ELF_MAGIC0 ||
         eh->e_ident[1] != ELF_MAGIC1 ||
         eh->e_ident[2] != ELF_MAGIC2 ||
@@ -240,7 +240,7 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
     uint64_t ph_bytes = 0;
     uint64_t ph_end = 0;
     ph_bytes = (uint64_t)eh->e_phnum * sizeof(elf64_phdr_t);
-    if (checked_add_u64(eh->e_phoff, ph_bytes, &ph_end) != 0 || ph_end > g_linux_user_elf_sample_len) {
+    if (checked_add_u64(eh->e_phoff, ph_bytes, &ph_end) != 0 || ph_end > image_len) {
         return MVOS_USERIMG_ERR_LAYOUT;
     }
 
@@ -258,7 +258,7 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
 
     userimg_layout_region_t layout[USERIMG_MAX_LAYOUT_REGIONS];
     uint32_t layout_count = 0;
-    const elf64_phdr_t *ph = (const elf64_phdr_t *)(g_linux_user_elf_sample + eh->e_phoff);
+    const elf64_phdr_t *ph = (const elf64_phdr_t *)(image + eh->e_phoff);
 
     for (uint64_t i = 0; i < eh->e_phnum; ++i) {
         if (ph[i].p_type != ELF_PHDR_LOAD || ph[i].p_memsz == 0) {
@@ -267,7 +267,7 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
         uint64_t file_end = 0;
         if (ph[i].p_filesz > ph[i].p_memsz ||
             checked_add_u64(ph[i].p_offset, ph[i].p_filesz, &file_end) != 0 ||
-            file_end > g_linux_user_elf_sample_len) {
+            file_end > image_len) {
             return MVOS_USERIMG_ERR_LAYOUT;
         }
 
@@ -400,11 +400,15 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
         uint64_t segment_offset = ph[i].p_vaddr - src_floor;
         uint64_t mapped_segment = 0;
         if (checked_add_u64(mapped_base, segment_offset, &mapped_segment) != 0 ||
-            vmm_copy_to_user(mapped_segment, g_linux_user_elf_sample + ph[i].p_offset, ph[i].p_filesz) != 0) {
+            vmm_copy_to_user(mapped_segment, image + ph[i].p_offset, ph[i].p_filesz) != 0) {
             rollback_mapped_layout();
             *out = (mvos_userimg_report_t){0};
             return MVOS_USERIMG_ERR_MAP;
         }
     }
     return MVOS_USERIMG_OK;
+}
+
+mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out) {
+    return userimg_prepare_image(g_linux_user_elf_sample, g_linux_user_elf_sample_len, out);
 }

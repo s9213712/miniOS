@@ -84,6 +84,25 @@ int main(void) {
         return 1;
     }
 
+    mvos_vfs_file_t elf_file;
+    if (vfs_open("/boot/init/hello_linux_tiny", &elf_file) != 0) {
+        fprintf(stderr, "[test_vfs_rw] failed to open static ELF sample from initfs\n");
+        return 1;
+    }
+    uint8_t elf_magic[4] = {0};
+    uint64_t elf_bytes = 0;
+    if (vfs_read(&elf_file, elf_magic, sizeof(elf_magic), &elf_bytes) != 0 ||
+        elf_bytes != sizeof(elf_magic) ||
+        elf_magic[0] != 0x7f ||
+        elf_magic[1] != 'E' ||
+        elf_magic[2] != 'L' ||
+        elf_magic[3] != 'F') {
+        fprintf(stderr, "[test_vfs_rw] static ELF sample magic mismatch\n");
+        vfs_close(&elf_file);
+        return 1;
+    }
+    vfs_close(&elf_file);
+
     if (vfs_write_file("/tmp/note.txt", "hello", 5, 0) != 0) {
         fprintf(stderr, "[test_vfs_rw] write failed\n");
         return 1;

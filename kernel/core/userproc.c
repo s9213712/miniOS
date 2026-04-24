@@ -561,10 +561,10 @@ static int64_t userproc_linux_execve(uint64_t user_path,
         return rc;
     }
 
-    if (!userproc_streq(path_buf, "hello_linux_tiny") &&
-        !userproc_streq(path_buf, "/bin/hello_linux_tiny") &&
-        !userproc_streq(path_buf, "/boot/init/hello_linux_tiny")) {
-        return -2; /* ENOENT */
+    const char *exec_path = path_buf;
+    if (userproc_streq(path_buf, "hello_linux_tiny") ||
+        userproc_streq(path_buf, "/bin/hello_linux_tiny")) {
+        exec_path = "/boot/init/hello_linux_tiny";
     }
 
     const char *argv_vec[MINIOS_EXEC_STACK_MAX_ARGC];
@@ -601,8 +601,15 @@ static int64_t userproc_linux_execve(uint64_t user_path,
     const char *const *argv_ptr = use_default_argv ? default_argv0 : argv_vec;
     const char *const *envp_ptr = (envc == 0) ? NULL : envp_vec;
 
+    mvos_vfs_file_t exec_file;
+    int open_rc = vfs_open(exec_path, &exec_file);
+    if (open_rc != 0) {
+        return -2; /* ENOENT */
+    }
+
     mvos_userimg_report_t report;
-    mvos_userimg_result_t img_rc = userimg_prepare_embedded_sample(&report);
+    mvos_userimg_result_t img_rc = userimg_prepare_image((const uint8_t *)exec_file.data, exec_file.size, &report);
+    vfs_close(&exec_file);
     if (img_rc != MVOS_USERIMG_OK) {
         return -8; /* ENOEXEC */
     }

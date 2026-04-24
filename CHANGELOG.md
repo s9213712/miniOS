@@ -5,6 +5,8 @@
 ### Added
 - Added a first userspace file-descriptor bridge from Linux x86-64 syscalls to the miniOS VFS.
 - Added syscall coverage for `read`, `close`, `fstat`, `openat`, and `newfstatat`.
+- Added a VFS-backed ELF load path via `userimg_prepare_image(image, len, ...)`.
+- Exposed the tiny Linux ELF as `/boot/init/hello_linux_tiny` in initfs.
 - Extended the tiny Linux ELF demo to open and read `/boot/init/readme.txt` through real user-mode syscalls.
 - Extended execve smoke checks to require the initfs read marker from userspace.
 - Added host regression coverage for shell command parsing and CI coverage for all host regressions.
@@ -26,6 +28,7 @@
 - Guarded VMM alignment overflow and made user image region rollback include the just-mapped region on backing failures.
 - Prevented VMM from promoting existing supervisor page-table branches to user/writable mappings.
 - Cleared user leaf PTEs during `vmm_unmap_range()` and backed runtime `brk` heap pages.
+- Changed `execve()` to load ELF bytes from miniOS VFS instead of directly using the embedded sample global.
 
 ## Phase 43 – x86-64 `syscall` Userspace Entry
 

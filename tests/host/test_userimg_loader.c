@@ -1,5 +1,6 @@
 #include <mvos/userimg.h>
 #include <mvos/userproc.h>
+#include <mvos/vfs.h>
 #include <mvos/vmm.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -143,6 +144,22 @@ int main(void) {
     mvos_userimg_report_t report;
     if (userimg_prepare_embedded_sample(&report) != MVOS_USERIMG_OK) {
         fprintf(stderr, "[test_userimg_loader] prepare_embedded_sample failed\n");
+        return 1;
+    }
+    mvos_vfs_file_t elf_file;
+    if (vfs_open("/boot/init/hello_linux_tiny", &elf_file) != 0) {
+        fprintf(stderr, "[test_userimg_loader] failed to open VFS ELF sample\n");
+        return 1;
+    }
+    mvos_userimg_report_t vfs_report;
+    if (userimg_prepare_image((const uint8_t *)elf_file.data, elf_file.size, &vfs_report) != MVOS_USERIMG_OK) {
+        fprintf(stderr, "[test_userimg_loader] prepare_image from VFS failed\n");
+        vfs_close(&elf_file);
+        return 1;
+    }
+    vfs_close(&elf_file);
+    if (vfs_report.mapped_entry == 0 || vfs_report.image_size != report.image_size) {
+        fprintf(stderr, "[test_userimg_loader] VFS image report mismatch\n");
         return 1;
     }
     if (report.entry == 0 || report.mapped_entry == 0) {
