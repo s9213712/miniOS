@@ -56,9 +56,40 @@ static int checked_add_u64(uint64_t a, uint64_t b, uint64_t *out) {
     return 0;
 }
 
-int elf64_inspect_image(const uint8_t *image, uint64_t size, mvos_elf64_report_t *report) {
+const char *elf64_result_name(mvos_elf64_result_t rc) {
+    switch (rc) {
+        case MVOS_ELF64_OK:
+            return "ok";
+        case MVOS_ELF64_ERR_NULL_ARG:
+            return "null-arg-or-image-too-small";
+        case MVOS_ELF64_ERR_MAGIC:
+            return "bad-magic";
+        case MVOS_ELF64_ERR_CLASS:
+            return "bad-class-data-version";
+        case MVOS_ELF64_ERR_MACHINE:
+            return "unsupported-machine";
+        case MVOS_ELF64_ERR_TYPE:
+            return "unsupported-type";
+        case MVOS_ELF64_ERR_HEADER:
+            return "invalid-elf-header";
+        case MVOS_ELF64_ERR_PHTAB:
+            return "invalid-program-header-table";
+        case MVOS_ELF64_ERR_SEG_SIZE:
+            return "segment-filesz-gt-memsz";
+        case MVOS_ELF64_ERR_SEG_FILE:
+            return "segment-file-range-overflow";
+        case MVOS_ELF64_ERR_SEG_MEM:
+            return "segment-memory-range-overflow";
+        case MVOS_ELF64_ERR_NO_LOAD:
+            return "no-load-segments";
+        default:
+            return "unknown";
+    }
+}
+
+mvos_elf64_result_t elf64_inspect_image(const uint8_t *image, uint64_t size, mvos_elf64_report_t *report) {
     if (image == 0 || report == 0 || size < sizeof(elf64_ehdr_t)) {
-        return -1;
+        return MVOS_ELF64_ERR_NULL_ARG;
     }
 
     *report = (mvos_elf64_report_t){0};
@@ -69,25 +100,25 @@ int elf64_inspect_image(const uint8_t *image, uint64_t size, mvos_elf64_report_t
         eh->e_ident[1] != ELF_MAGIC1 ||
         eh->e_ident[2] != ELF_MAGIC2 ||
         eh->e_ident[3] != ELF_MAGIC3) {
-        return -2;
+        return MVOS_ELF64_ERR_MAGIC;
     }
     if (eh->e_ident[4] != ELF_CLASS_64 || eh->e_ident[5] != ELF_DATA_LSB || eh->e_ident[6] != ELF_VERSION_CURRENT) {
-        return -3;
+        return MVOS_ELF64_ERR_CLASS;
     }
     if (eh->e_machine != ELF_MACHINE_X86_64) {
-        return -4;
+        return MVOS_ELF64_ERR_MACHINE;
     }
     if (eh->e_type != ELF_TYPE_EXEC && eh->e_type != ELF_TYPE_DYN) {
-        return -5;
+        return MVOS_ELF64_ERR_TYPE;
     }
     if (eh->e_ehsize != sizeof(elf64_ehdr_t) || eh->e_phentsize != sizeof(elf64_phdr_t) || eh->e_phnum == 0) {
-        return -6;
+        return MVOS_ELF64_ERR_HEADER;
     }
 
     uint64_t ph_bytes = (uint64_t)eh->e_phnum * sizeof(elf64_phdr_t);
     uint64_t ph_end = 0;
     if (checked_add_u64(eh->e_phoff, ph_bytes, &ph_end) != 0 || ph_end > size) {
-        return -7;
+        return MVOS_ELF64_ERR_PHTAB;
     }
 
     report->entry = eh->e_entry;
@@ -101,17 +132,17 @@ int elf64_inspect_image(const uint8_t *image, uint64_t size, mvos_elf64_report_t
             continue;
         }
         if (ph[i].p_filesz > ph[i].p_memsz) {
-            return -8;
+            return MVOS_ELF64_ERR_SEG_SIZE;
         }
 
         uint64_t seg_file_end = 0;
         if (checked_add_u64(ph[i].p_offset, ph[i].p_filesz, &seg_file_end) != 0 || seg_file_end > size) {
-            return -9;
+            return MVOS_ELF64_ERR_SEG_FILE;
         }
 
         uint64_t seg_mem_end = 0;
         if (checked_add_u64(ph[i].p_vaddr, ph[i].p_memsz, &seg_mem_end) != 0) {
-            return -10;
+            return MVOS_ELF64_ERR_SEG_MEM;
         }
 
         if (ph[i].p_vaddr < report->min_vaddr) {
@@ -130,18 +161,18 @@ int elf64_inspect_image(const uint8_t *image, uint64_t size, mvos_elf64_report_t
     }
 
     if (report->load_count == 0) {
-        return -11;
+        return MVOS_ELF64_ERR_NO_LOAD;
     }
 
-    return 0;
+    return MVOS_ELF64_OK;
 }
 
 void elf_sample_diagnostic(void) {
     mvos_elf64_report_t report;
-    int rc = elf64_inspect_image(g_linux_user_elf_sample, g_linux_user_elf_sample_len, &report);
-    if (rc != 0) {
-        console_write_string("[elf] sample inspect failed rc=");
-        console_write_u64((uint64_t)(int64_t)rc);
+    mvos_elf64_result_t rc = elf64_inspect_image(g_linux_user_elf_sample, g_linux_user_elf_sample_len, &report);
+    if (rc != MVOS_ELF64_OK) {
+        console_write_string("[elf] sample inspect failed: ");
+        console_write_string(elf64_result_name(rc));
         console_write_string("\n");
         return;
     }

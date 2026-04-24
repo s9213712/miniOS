@@ -4,9 +4,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BLOB="${ROOT_DIR}/kernel/core/elf_sample_blob.c"
 SOURCE="${ROOT_DIR}/samples/linux-user/hello_linux_tiny.S"
+HOST_TEST="${ROOT_DIR}/tests/host/test_elf_inspect.c"
 
 if [ ! -f "${SOURCE}" ]; then
     echo "[test_elf_sample] missing source: ${SOURCE}"
+    exit 1
+fi
+if [ ! -f "${HOST_TEST}" ]; then
+    echo "[test_elf_sample] missing host test: ${HOST_TEST}"
     exit 1
 fi
 
@@ -40,4 +45,20 @@ if [ "${byte_count}" -lt 128 ]; then
 fi
 
 echo "[test_elf_sample] blob bytes=${byte_count}"
+
+TMP_DIR="$(mktemp -d)"
+cleanup() {
+    rm -rf "${TMP_DIR}"
+}
+trap cleanup EXIT
+
+HOST_BIN="${TMP_DIR}/test_elf_inspect"
+gcc -std=c11 -Wall -Wextra -Werror \
+    -I"${ROOT_DIR}/kernel/include" \
+    "${HOST_TEST}" \
+    "${ROOT_DIR}/kernel/core/elf.c" \
+    "${ROOT_DIR}/kernel/core/elf_sample_blob.c" \
+    -o "${HOST_BIN}"
+
+"${HOST_BIN}"
 echo "[test_elf_sample] PASS"
