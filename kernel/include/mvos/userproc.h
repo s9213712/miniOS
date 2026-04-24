@@ -28,7 +28,13 @@ uint64_t userproc_enter_execve_and_wait(uint64_t entry,
 void userproc_set_return_context(uint64_t return_rip, uint64_t return_stack);
 void userproc_set_current_app_id(uint64_t app_id);
 void userproc_syscall_init(void);
-uint64_t userproc_dispatch(uint64_t syscall, uint64_t arg1, uint64_t arg2, uint64_t arg3);
+uint64_t userproc_dispatch(uint64_t syscall,
+                           uint64_t arg1,
+                           uint64_t arg2,
+                           uint64_t arg3,
+                           uint64_t arg4,
+                           uint64_t arg5,
+                           uint64_t arg6);
 void userproc_linux_abi_probe(void);
 int userproc_handoff_dry_run(uint64_t entry, uint64_t user_stack_top);
 const char *userproc_handoff_result_name(int rc);

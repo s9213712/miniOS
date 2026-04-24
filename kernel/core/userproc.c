@@ -670,8 +670,16 @@ int userproc_prepare_exec_stack(uint8_t *stack_mem,
     return 0;
 }
 
-uint64_t userproc_dispatch(uint64_t syscall, uint64_t arg1, uint64_t arg2, uint64_t arg3) {
-    (void)arg3;
+uint64_t userproc_dispatch(uint64_t syscall,
+                           uint64_t arg1,
+                           uint64_t arg2,
+                           uint64_t arg3,
+                           uint64_t arg4,
+                           uint64_t arg5,
+                           uint64_t arg6) {
+    (void)arg4;
+    (void)arg5;
+    (void)arg6;
     if (!g_userproc_running) {
         return userproc_errno(-1);
     }
@@ -764,7 +772,10 @@ void userproc_linux_abi_probe(void) {
         MINIOS_LINUX_SYSCALL_WRITE,
         1,
         (uint64_t)(uintptr_t)msg1,
-        sizeof(msg1) - 1);
+        sizeof(msg1) - 1,
+        0,
+        0,
+        0);
     userproc_probe_print_ret("write.ret", ret);
 
     static const char msg2[] = "[linux-abi] writev[0] ";
@@ -774,19 +785,19 @@ void userproc_linux_abi_probe(void) {
     iov[0].iov_len = sizeof(msg2) - 1;
     iov[1].iov_base = (uint64_t)(uintptr_t)msg3;
     iov[1].iov_len = sizeof(msg3) - 1;
-    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_WRITEV, 1, (uint64_t)(uintptr_t)iov, 2);
+    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_WRITEV, 1, (uint64_t)(uintptr_t)iov, 2, 0, 0, 0);
     userproc_probe_print_ret("writev.ret", ret);
 
-    userproc_probe_print_ret("getpid.ret", userproc_dispatch(MINIOS_LINUX_SYSCALL_GETPID, 0, 0, 0));
-    userproc_probe_print_ret("gettid.ret", userproc_dispatch(MINIOS_LINUX_SYSCALL_GETTID, 0, 0, 0));
+    userproc_probe_print_ret("getpid.ret", userproc_dispatch(MINIOS_LINUX_SYSCALL_GETPID, 0, 0, 0, 0, 0, 0));
+    userproc_probe_print_ret("gettid.ret", userproc_dispatch(MINIOS_LINUX_SYSCALL_GETTID, 0, 0, 0, 0, 0, 0));
 
-    uint64_t brk0 = userproc_dispatch(MINIOS_LINUX_SYSCALL_BRK, 0, 0, 0);
+    uint64_t brk0 = userproc_dispatch(MINIOS_LINUX_SYSCALL_BRK, 0, 0, 0, 0, 0, 0);
     userproc_probe_print_ret("brk.current", brk0);
-    uint64_t brk1 = userproc_dispatch(MINIOS_LINUX_SYSCALL_BRK, brk0 + 0x1000, 0, 0);
+    uint64_t brk1 = userproc_dispatch(MINIOS_LINUX_SYSCALL_BRK, brk0 + 0x1000, 0, 0, 0, 0, 0);
     userproc_probe_print_ret("brk.bumped", brk1);
 
     minios_utsname_t uts;
-    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_UNAME, (uint64_t)(uintptr_t)&uts, 0, 0);
+    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_UNAME, (uint64_t)(uintptr_t)&uts, 0, 0, 0, 0, 0);
     userproc_probe_print_ret("uname.ret", ret);
     if (!userproc_is_errno(ret)) {
         console_write_string("[linux-abi] uname.sysname=");
@@ -796,15 +807,27 @@ void userproc_linux_abi_probe(void) {
         console_write_string("\n");
     }
 
-    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_ARCH_PRCTL, MINIOS_ARCH_SET_FS, 0x700000001000ULL, 0);
+    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_ARCH_PRCTL, MINIOS_ARCH_SET_FS, 0x700000001000ULL, 0, 0, 0, 0);
     userproc_probe_print_ret("arch_prctl.set_fs", ret);
     uint64_t fs_base = 0;
-    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_ARCH_PRCTL, MINIOS_ARCH_GET_FS, (uint64_t)(uintptr_t)&fs_base, 0);
+    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_ARCH_PRCTL,
+                            MINIOS_ARCH_GET_FS,
+                            (uint64_t)(uintptr_t)&fs_base,
+                            0,
+                            0,
+                            0,
+                            0);
     userproc_probe_print_ret("arch_prctl.get_fs", ret);
     userproc_probe_print_ret("arch_prctl.fs_base", fs_base);
 
     uint64_t tid_storage = 0;
-    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_SET_TID_ADDRESS, (uint64_t)(uintptr_t)&tid_storage, 0, 0);
+    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_SET_TID_ADDRESS,
+                            (uint64_t)(uintptr_t)&tid_storage,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0);
     userproc_probe_print_ret("set_tid_address.ret", ret);
     userproc_probe_print_ret("set_tid_address.ptr", g_userproc_tid_addr);
 
@@ -814,7 +837,10 @@ void userproc_linux_abi_probe(void) {
     ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_EXECVE,
                             (uint64_t)(uintptr_t)exec_path,
                             (uint64_t)(uintptr_t)exec_argv,
-                            (uint64_t)(uintptr_t)exec_envp);
+                            (uint64_t)(uintptr_t)exec_envp,
+                            0,
+                            0,
+                            0);
     userproc_probe_print_ret("execve.ret", ret);
 
     g_userproc_running = prev_running;

@@ -175,15 +175,17 @@ syscall_entry:
     push r14
     push r15
 
-    mov r8, rax
-    mov r9, rdi
-    mov r10, rsi
-    mov r11, rdx
-    mov rdi, r8
-    mov rsi, r9
-    mov rdx, r10
-    mov rcx, r11
+    mov rdi, [rsp + 112]    ; syscall number
+    mov rsi, [rsp + 72]     ; arg1: rdi
+    mov rdx, [rsp + 80]     ; arg2: rsi
+    mov rcx, [rsp + 88]     ; arg3: rdx
+    mov r8, [rsp + 40]      ; arg4: r10 in the Linux syscall ABI
+    mov r9, [rsp + 56]      ; arg5: r8
+    mov rax, [rsp + 48]     ; arg6: r9
+    sub rsp, 16
+    mov [rsp], rax
     call userproc_dispatch
+    add rsp, 16
     cmp rax, 1
     je .syscall_user_exit
     mov [rsp + 112], rax
@@ -233,16 +235,21 @@ isr_user_syscall:
     ; rdi     = arg1
     ; rsi     = arg2
     ; rdx     = arg3
+    ; r10     = arg4
+    ; r8      = arg5
+    ; r9      = arg6
     ; user_dispatch returns 1 on exit request.
-    mov r8, rax
-    mov r9, rdi
-    mov r10, rsi
-    mov r11, rdx
-    mov rdi, r8
-    mov rsi, r9
-    mov rdx, r10
-    mov rcx, r11
+    mov rdi, [rsp + 112]
+    mov rsi, [rsp + 72]
+    mov rdx, [rsp + 80]
+    mov rcx, [rsp + 88]
+    mov r8, [rsp + 40]
+    mov r9, [rsp + 56]
+    mov rax, [rsp + 48]
+    sub rsp, 16
+    mov [rsp], rax
     call userproc_dispatch
+    add rsp, 16
     cmp rax, 1
     je .user_syscall_exit
     mov [rsp + 112], rax

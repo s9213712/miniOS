@@ -4,6 +4,7 @@
 
 ### Added
 - Added long-mode `syscall` MSR setup (`EFER.SCE`, `STAR`, `LSTAR`, `SFMASK`) during kernel init.
+- Extended syscall dispatch plumbing to carry the full Linux x86-64 argument set (`rdi/rsi/rdx/r10/r8/r9`).
 - Added `syscall_entry` in `kernel/arch/x86_64/userproc.asm`:
   - switches from user RSP to the miniOS syscall kernel stack
   - builds an `iretq` return frame from `RCX/R11/RSP`

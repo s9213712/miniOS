@@ -279,7 +279,10 @@ int main(void) {
         TEST_LINUX_SYSCALL_EXECVE,
         (uint64_t)(uintptr_t)exec_path,
         (uint64_t)(uintptr_t)exec_argv,
-        (uint64_t)(uintptr_t)exec_envp);
+        (uint64_t)(uintptr_t)exec_envp,
+        0,
+        0,
+        0);
     if (exec_rc != 1ULL) {
         fprintf(stderr, "[test_userimg_loader] expected execve scaffold success signal (1), got %lld\n",
                 (long long)exec_rc);
@@ -297,7 +300,10 @@ int main(void) {
         TEST_LINUX_SYSCALL_EXECVE,
         (uint64_t)(uintptr_t)"/bad/path",
         (uint64_t)(uintptr_t)exec_argv,
-        (uint64_t)(uintptr_t)exec_envp);
+        (uint64_t)(uintptr_t)exec_envp,
+        0,
+        0,
+        0);
     if ((int64_t)exec_rc != -2) {
         fprintf(stderr, "[test_userimg_loader] expected execve ENOENT (-2), got %lld\n", (long long)exec_rc);
         free(stack_mem);
@@ -309,7 +315,7 @@ int main(void) {
         return 1;
     }
 
-    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_EXECVE, 0, 0, 0);
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_EXECVE, 0, 0, 0, 0, 0, 0);
     if ((int64_t)exec_rc != -14) {
         fprintf(stderr, "[test_userimg_loader] expected execve EFAULT (-14), got %lld\n", (long long)exec_rc);
         free(stack_mem);
@@ -318,7 +324,7 @@ int main(void) {
 
     g_console_last_u64 = 0;
     g_console_u64_count = 0;
-    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_UNIMPLEMENTED, 0, 0, 0);
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_UNIMPLEMENTED, 0, 0, 0, 4, 5, 6);
     if ((int64_t)exec_rc != -38) {
         fprintf(stderr, "[test_userimg_loader] expected unimplemented syscall ENOSYS (-38), got %lld\n",
                 (long long)exec_rc);
