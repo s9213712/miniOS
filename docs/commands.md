@@ -132,7 +132,7 @@
   ```
 - 最小 execve userspace demo（啟動時跑 `run linux-abi` probe，包含 tiny ELF 進入/退出）：
   ```bash
-  EXECVE_DEMO=1 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
+  LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-execve-demo
   ```
 - 僅建置 smoke，不跑 QEMU：
   ```bash

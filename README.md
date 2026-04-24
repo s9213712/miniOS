@@ -64,11 +64,13 @@ make test-vmm-basic
 make test-userimg-loader
 make test-host-programs
 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
+LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-execve-demo
 ```
 
 常用命令：
 - `make host-programs`
 - `make refresh-elf-sample`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-execve-demo`
 - `ENABLE_SHELL=1 make run`
 - `python3 scripts/dev_status.py --build`
 
