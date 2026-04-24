@@ -28,8 +28,8 @@ extern uint64_t minios_userapp_cpp_magic(void);
 #define MINIOS_PHASE20_USER_MODE 0
 #endif
 
-static uint8_t g_userapp_user_stack[MINIOS_USERAPP_STACK_SIZE];
-static uint8_t g_userimg_stack_scratch[MINIOS_USERIMG_STACK_SCRATCH_SIZE];
+static uint8_t g_userapp_user_stack[MINIOS_USERAPP_STACK_SIZE] __attribute__((aligned(16)));
+static uint8_t g_userimg_stack_scratch[MINIOS_USERIMG_STACK_SCRATCH_SIZE] __attribute__((aligned(16)));
 
 typedef struct {
     const char *name;

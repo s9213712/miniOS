@@ -21,6 +21,7 @@
 - Hardened framebuffer console drawing against mirror double-writes and rectangle arithmetic overflow.
 - Added defensive null handling for kernel console, serial, and string helper paths.
 - Added a bounded keyboard polling API for future non-blocking/scripted shell flows.
+- Marked legacy userapp stack scratch buffers with explicit 16-byte alignment.
 - Extended the tiny Linux ELF demo to open and read `/boot/init/readme.txt` through real user-mode syscalls.
 - Extended execve smoke checks to require the initfs read marker from userspace.
 - Added host regression coverage for shell command parsing and CI coverage for all host regressions.
