@@ -123,12 +123,14 @@ enum {
     TEST_LINUX_SYSCALL_GETEUID = 107,
     TEST_LINUX_SYSCALL_GETEGID = 108,
     TEST_LINUX_SYSCALL_GETPPID = 110,
+    TEST_LINUX_SYSCALL_GETRLIMIT = 97,
     TEST_LINUX_SYSCALL_CLOCK_GETTIME = 228,
     TEST_LINUX_SYSCALL_OPENAT = 257,
     TEST_LINUX_SYSCALL_NEWFSTATAT = 262,
     TEST_LINUX_SYSCALL_READLINKAT = 267,
     TEST_LINUX_SYSCALL_FACCESSAT = 269,
     TEST_LINUX_SYSCALL_DUP3 = 292,
+    TEST_LINUX_SYSCALL_PRLIMIT64 = 302,
     TEST_LINUX_SYSCALL_GETRANDOM = 318,
     TEST_LINUX_SYSCALL_STATX = 332,
     TEST_LINUX_SYSCALL_GETDENTS64 = 217,
@@ -141,6 +143,8 @@ enum {
     TEST_F_SETFL = 4,
     TEST_RT_SIGSET_SIZE = 8,
     TEST_RT_SIGACTION_SIZE = 32,
+    TEST_RLIMIT_STACK = 3,
+    TEST_RLIMIT_NOFILE = 7,
     TEST_SEEK_SET = 0,
     TEST_SEEK_CUR = 1,
     TEST_PROT_READ = 0x1,
@@ -153,6 +157,11 @@ enum {
     TEST_DT_DIR = 4,
     TEST_DT_REG = 8,
 };
+
+typedef struct {
+    uint64_t rlim_cur;
+    uint64_t rlim_max;
+} test_rlimit_t;
 
 typedef struct {
     uint64_t st_dev;
@@ -574,6 +583,52 @@ int main(void) {
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETPPID, 0, 0, 0, 0, 0, 0);
     if (exec_rc != 1) {
         fprintf(stderr, "[test_userimg_loader] expected getppid 1, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    test_rlimit_t limit;
+    memset(&limit, 0, sizeof(limit));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETRLIMIT,
+                                TEST_RLIMIT_NOFILE,
+                                (uint64_t)(uintptr_t)&limit,
+                                0,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0 || limit.rlim_cur < 8 || limit.rlim_max < limit.rlim_cur) {
+        fprintf(stderr, "[test_userimg_loader] expected getrlimit nofile success, rc=%lld cur=%llu max=%llu\n",
+                (long long)exec_rc,
+                (unsigned long long)limit.rlim_cur,
+                (unsigned long long)limit.rlim_max);
+        free(stack_mem);
+        return 1;
+    }
+    memset(&limit, 0, sizeof(limit));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_PRLIMIT64,
+                                0,
+                                TEST_RLIMIT_STACK,
+                                0,
+                                (uint64_t)(uintptr_t)&limit,
+                                0,
+                                0);
+    if (exec_rc != 0 || limit.rlim_cur == 0 || limit.rlim_max < limit.rlim_cur) {
+        fprintf(stderr, "[test_userimg_loader] expected prlimit64 stack query success, rc=%lld cur=%llu max=%llu\n",
+                (long long)exec_rc,
+                (unsigned long long)limit.rlim_cur,
+                (unsigned long long)limit.rlim_max);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_PRLIMIT64,
+                                0,
+                                TEST_RLIMIT_STACK,
+                                (uint64_t)(uintptr_t)&limit,
+                                0,
+                                0,
+                                0);
+    if ((int64_t)exec_rc != -1) {
+        fprintf(stderr, "[test_userimg_loader] expected prlimit64 set EPERM (-1), got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

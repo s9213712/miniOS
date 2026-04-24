@@ -41,6 +41,7 @@ enum {
     MINIOS_LINUX_SYSCALL_GETEUID = 107,
     MINIOS_LINUX_SYSCALL_GETEGID = 108,
     MINIOS_LINUX_SYSCALL_GETPPID = 110,
+    MINIOS_LINUX_SYSCALL_GETRLIMIT = 97,
     MINIOS_LINUX_SYSCALL_ARCH_PRCTL = 158,
     MINIOS_LINUX_SYSCALL_GETTID = 186,
     MINIOS_LINUX_SYSCALL_GETDENTS64 = 217,
@@ -52,6 +53,7 @@ enum {
     MINIOS_LINUX_SYSCALL_READLINKAT = 267,
     MINIOS_LINUX_SYSCALL_FACCESSAT = 269,
     MINIOS_LINUX_SYSCALL_DUP3 = 292,
+    MINIOS_LINUX_SYSCALL_PRLIMIT64 = 302,
     MINIOS_LINUX_SYSCALL_GETRANDOM = 318,
     MINIOS_LINUX_SYSCALL_STATX = 332,
     MINIOS_SYSCALL_USER_PRINT = 1
@@ -95,6 +97,10 @@ enum {
     MINIOS_F_SETFL = 4,
     MINIOS_RT_SIGSET_SIZE = 8,
     MINIOS_RT_SIGACTION_SIZE = 32,
+    MINIOS_RLIMIT_DATA = 2,
+    MINIOS_RLIMIT_STACK = 3,
+    MINIOS_RLIMIT_NOFILE = 7,
+    MINIOS_RLIMIT_AS = 9,
     MINIOS_S_IFREG = 0100000,
     MINIOS_S_IFDIR = 0040000,
     MINIOS_S_IFCHR = 0020000,
@@ -123,6 +129,11 @@ typedef struct {
     uint64_t iov_base;
     uint64_t iov_len;
 } minios_iovec_t;
+
+typedef struct {
+    uint64_t rlim_cur;
+    uint64_t rlim_max;
+} minios_rlimit_t;
 
 typedef struct {
     uint64_t st_dev;
@@ -1291,6 +1302,57 @@ static uint64_t userproc_linux_getcwd(uint64_t user_buf, uint64_t size) {
     return user_buf;
 }
 
+static int userproc_fill_rlimit(uint64_t resource, minios_rlimit_t *limit) {
+    if (limit == NULL) {
+        return -14; /* EFAULT */
+    }
+    switch (resource) {
+        case MINIOS_RLIMIT_DATA:
+        case MINIOS_RLIMIT_AS:
+            limit->rlim_cur = UINT64_MAX;
+            limit->rlim_max = UINT64_MAX;
+            return 0;
+        case MINIOS_RLIMIT_STACK:
+            limit->rlim_cur = MINIOS_EXECVE_STACK_SCRATCH_SIZE;
+            limit->rlim_max = MINIOS_EXECVE_STACK_SCRATCH_SIZE;
+            return 0;
+        case MINIOS_RLIMIT_NOFILE:
+            limit->rlim_cur = MINIOS_USERPROC_FD_BASE + MINIOS_USERPROC_MAX_FDS;
+            limit->rlim_max = MINIOS_USERPROC_FD_BASE + MINIOS_USERPROC_MAX_FDS;
+            return 0;
+        default:
+            return -22; /* EINVAL */
+    }
+}
+
+static uint64_t userproc_linux_getrlimit(uint64_t resource, uint64_t user_limit) {
+    if (user_limit == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    minios_rlimit_t limit;
+    int rc = userproc_fill_rlimit(resource, &limit);
+    if (rc != 0) {
+        return userproc_errno(rc);
+    }
+    return userproc_errno(userproc_copy_to_user(user_limit, &limit, sizeof(limit)));
+}
+
+static uint64_t userproc_linux_prlimit64(uint64_t pid,
+                                         uint64_t resource,
+                                         uint64_t user_new_limit,
+                                         uint64_t user_old_limit) {
+    if (pid != 0 && pid != 1000 + g_userproc_current_app_id) {
+        return userproc_errno(-3); /* ESRCH */
+    }
+    if (user_new_limit != 0) {
+        return userproc_errno(-1); /* EPERM: limits are fixed in the single-process sandbox. */
+    }
+    if (user_old_limit == 0) {
+        return 0;
+    }
+    return userproc_linux_getrlimit(resource, user_old_limit);
+}
+
 static uint64_t userproc_linux_faccessat(uint64_t dirfd, uint64_t user_path, uint64_t mode, uint64_t flags) {
     (void)mode;
     (void)flags;
@@ -2069,6 +2131,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_uname(arg1);
         case MINIOS_LINUX_SYSCALL_FCNTL:
             return userproc_linux_fcntl(arg1, arg2, arg3);
+        case MINIOS_LINUX_SYSCALL_GETRLIMIT:
+            return userproc_linux_getrlimit(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_READLINK:
             return userproc_linux_readlinkat((uint64_t)(int64_t)MINIOS_AT_FDCWD, arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_GETCWD:
@@ -2103,6 +2167,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_faccessat(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_DUP3:
             return userproc_linux_dup3(arg1, arg2, arg3);
+        case MINIOS_LINUX_SYSCALL_PRLIMIT64:
+            return userproc_linux_prlimit64(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_GETRANDOM:
             return userproc_linux_getrandom(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_STATX:
