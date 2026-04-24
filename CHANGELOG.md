@@ -23,6 +23,7 @@
 - Added directory and relative-`dirfd` handling for `access`/`faccessat` existence probes.
 - Added fixed single-user process identity syscalls for `getuid`, `getgid`, `geteuid`, `getegid`, and `getppid`.
 - Added read-only `getrlimit`/`prlimit64` support for common runtime resource-limit queries.
+- Added `gettimeofday` support for legacy libc/runtime time probes.
 - Pinned default Limine bootstrap downloads to a fixed ref and keyed the default cache path by that ref.
 - Hardened framebuffer console drawing against mirror double-writes and rectangle arithmetic overflow.
 - Added defensive null handling for kernel console, serial, and string helper paths.

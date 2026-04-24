@@ -118,6 +118,7 @@ enum {
     TEST_LINUX_SYSCALL_FCNTL = 72,
     TEST_LINUX_SYSCALL_EXECVE = 59,
     TEST_LINUX_SYSCALL_READLINK = 89,
+    TEST_LINUX_SYSCALL_GETTIMEOFDAY = 96,
     TEST_LINUX_SYSCALL_GETUID = 102,
     TEST_LINUX_SYSCALL_GETGID = 104,
     TEST_LINUX_SYSCALL_GETEUID = 107,
@@ -188,6 +189,16 @@ typedef struct {
     int64_t tv_sec;
     int64_t tv_nsec;
 } test_timespec_t;
+
+typedef struct {
+    int64_t tv_sec;
+    int64_t tv_usec;
+} test_timeval_t;
+
+typedef struct {
+    int32_t tz_minuteswest;
+    int32_t tz_dsttime;
+} test_timezone_t;
 
 typedef struct {
     int64_t tv_sec;
@@ -1226,6 +1237,34 @@ int main(void) {
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOCK_GETTIME, 1, (uint64_t)(uintptr_t)&ts, 0, 0, 0, 0);
     if (exec_rc != 0 || ts.tv_sec < 0 || ts.tv_nsec < 0 || ts.tv_nsec >= 1000000000LL) {
         fprintf(stderr, "[test_userimg_loader] expected clock_gettime success, rc=%lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    test_timeval_t tv;
+    test_timezone_t tz;
+    memset(&tv, 0, sizeof(tv));
+    memset(&tz, 0xA5, sizeof(tz));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETTIMEOFDAY,
+                                (uint64_t)(uintptr_t)&tv,
+                                (uint64_t)(uintptr_t)&tz,
+                                0,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0 || tv.tv_sec < 0 || tv.tv_usec < 0 || tv.tv_usec >= 1000000LL ||
+        tz.tz_minuteswest != 0 || tz.tz_dsttime != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected gettimeofday success, rc=%lld usec=%lld tz=%d/%d\n",
+                (long long)exec_rc,
+                (long long)tv.tv_usec,
+                tz.tz_minuteswest,
+                tz.tz_dsttime);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETTIMEOFDAY, 0, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected gettimeofday null args success, got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

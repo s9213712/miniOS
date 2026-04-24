@@ -36,6 +36,7 @@ enum {
     MINIOS_LINUX_SYSCALL_EXECVE = 59,
     MINIOS_LINUX_SYSCALL_EXIT = 60,
     MINIOS_LINUX_SYSCALL_READLINK = 89,
+    MINIOS_LINUX_SYSCALL_GETTIMEOFDAY = 96,
     MINIOS_LINUX_SYSCALL_GETUID = 102,
     MINIOS_LINUX_SYSCALL_GETGID = 104,
     MINIOS_LINUX_SYSCALL_GETEUID = 107,
@@ -202,6 +203,16 @@ typedef struct {
     int64_t tv_sec;
     int64_t tv_nsec;
 } minios_timespec_t;
+
+typedef struct {
+    int64_t tv_sec;
+    int64_t tv_usec;
+} minios_timeval_t;
+
+typedef struct {
+    int32_t tz_minuteswest;
+    int32_t tz_dsttime;
+} minios_timezone_t;
 
 typedef enum {
     MINIOS_USERPROC_FD_NONE = 0,
@@ -1390,6 +1401,31 @@ static uint64_t userproc_linux_clock_gettime(uint64_t clock_id, uint64_t user_tp
     return userproc_errno(userproc_copy_to_user(user_tp, &ts, sizeof(ts)));
 }
 
+static uint64_t userproc_linux_gettimeofday(uint64_t user_tv, uint64_t user_tz) {
+    uint64_t ticks = timer_ticks();
+    if (user_tv != 0) {
+        minios_timeval_t tv = {
+            .tv_sec = (int64_t)(ticks / 100ULL),
+            .tv_usec = (int64_t)((ticks % 100ULL) * 10000ULL),
+        };
+        int64_t rc = userproc_copy_to_user(user_tv, &tv, sizeof(tv));
+        if (rc != 0) {
+            return userproc_errno(rc);
+        }
+    }
+    if (user_tz != 0) {
+        minios_timezone_t tz = {
+            .tz_minuteswest = 0,
+            .tz_dsttime = 0,
+        };
+        int64_t rc = userproc_copy_to_user(user_tz, &tz, sizeof(tz));
+        if (rc != 0) {
+            return userproc_errno(rc);
+        }
+    }
+    return 0;
+}
+
 static uint64_t userproc_linux_getrandom(uint64_t user_buf, uint64_t count, uint64_t flags) {
     (void)flags;
     if (count == 0) {
@@ -2157,6 +2193,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_arch_prctl(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_CLOCK_GETTIME:
             return userproc_linux_clock_gettime(arg1, arg2);
+        case MINIOS_LINUX_SYSCALL_GETTIMEOFDAY:
+            return userproc_linux_gettimeofday(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_OPENAT:
             return userproc_linux_openat(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_NEWFSTATAT:
