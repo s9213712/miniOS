@@ -6,7 +6,6 @@
 - 每次變更結束都執行：
   - `make clean`
   - `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
-  - `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-execve-demo`
 
 ## 必要輸出檢查
 - serial 在 8 秒內出現 `MiniOS Phase 3 bootstrap`
