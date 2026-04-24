@@ -37,6 +37,7 @@ enum {
     MINIOS_LINUX_SYSCALL_EXIT = 60,
     MINIOS_LINUX_SYSCALL_READLINK = 89,
     MINIOS_LINUX_SYSCALL_GETTIMEOFDAY = 96,
+    MINIOS_LINUX_SYSCALL_SYSINFO = 99,
     MINIOS_LINUX_SYSCALL_GETUID = 102,
     MINIOS_LINUX_SYSCALL_GETGID = 104,
     MINIOS_LINUX_SYSCALL_GETEUID = 107,
@@ -213,6 +214,22 @@ typedef struct {
     int32_t tz_minuteswest;
     int32_t tz_dsttime;
 } minios_timezone_t;
+
+typedef struct {
+    int64_t uptime;
+    uint64_t loads[3];
+    uint64_t totalram;
+    uint64_t freeram;
+    uint64_t sharedram;
+    uint64_t bufferram;
+    uint64_t totalswap;
+    uint64_t freeswap;
+    uint16_t procs;
+    uint16_t __pad;
+    uint64_t totalhigh;
+    uint64_t freehigh;
+    uint32_t mem_unit;
+} minios_sysinfo_t;
 
 typedef enum {
     MINIOS_USERPROC_FD_NONE = 0,
@@ -1426,6 +1443,20 @@ static uint64_t userproc_linux_gettimeofday(uint64_t user_tv, uint64_t user_tz) 
     return 0;
 }
 
+static uint64_t userproc_linux_sysinfo(uint64_t user_info) {
+    if (user_info == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    minios_sysinfo_t info;
+    memset(&info, 0, sizeof(info));
+    info.uptime = (int64_t)(timer_ticks() / 100ULL);
+    info.totalram = 64ULL * 1024ULL * 1024ULL;
+    info.freeram = 32ULL * 1024ULL * 1024ULL;
+    info.procs = 1;
+    info.mem_unit = 1;
+    return userproc_errno(userproc_copy_to_user(user_info, &info, sizeof(info)));
+}
+
 static uint64_t userproc_linux_getrandom(uint64_t user_buf, uint64_t count, uint64_t flags) {
     (void)flags;
     if (count == 0) {
@@ -2195,6 +2226,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_clock_gettime(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_GETTIMEOFDAY:
             return userproc_linux_gettimeofday(arg1, arg2);
+        case MINIOS_LINUX_SYSCALL_SYSINFO:
+            return userproc_linux_sysinfo(arg1);
         case MINIOS_LINUX_SYSCALL_OPENAT:
             return userproc_linux_openat(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_NEWFSTATAT:

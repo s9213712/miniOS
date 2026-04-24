@@ -119,6 +119,7 @@ enum {
     TEST_LINUX_SYSCALL_EXECVE = 59,
     TEST_LINUX_SYSCALL_READLINK = 89,
     TEST_LINUX_SYSCALL_GETTIMEOFDAY = 96,
+    TEST_LINUX_SYSCALL_SYSINFO = 99,
     TEST_LINUX_SYSCALL_GETUID = 102,
     TEST_LINUX_SYSCALL_GETGID = 104,
     TEST_LINUX_SYSCALL_GETEUID = 107,
@@ -199,6 +200,22 @@ typedef struct {
     int32_t tz_minuteswest;
     int32_t tz_dsttime;
 } test_timezone_t;
+
+typedef struct {
+    int64_t uptime;
+    uint64_t loads[3];
+    uint64_t totalram;
+    uint64_t freeram;
+    uint64_t sharedram;
+    uint64_t bufferram;
+    uint64_t totalswap;
+    uint64_t freeswap;
+    uint16_t procs;
+    uint16_t __pad;
+    uint64_t totalhigh;
+    uint64_t freehigh;
+    uint32_t mem_unit;
+} test_sysinfo_t;
 
 typedef struct {
     int64_t tv_sec;
@@ -1264,6 +1281,33 @@ int main(void) {
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETTIMEOFDAY, 0, 0, 0, 0, 0, 0);
     if (exec_rc != 0) {
         fprintf(stderr, "[test_userimg_loader] expected gettimeofday null args success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    test_sysinfo_t info;
+    memset(&info, 0, sizeof(info));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_SYSINFO,
+                                (uint64_t)(uintptr_t)&info,
+                                0,
+                                0,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0 || info.mem_unit != 1 || info.totalram == 0 || info.freeram > info.totalram ||
+        info.procs == 0) {
+        fprintf(stderr, "[test_userimg_loader] expected sysinfo success, rc=%lld mem_unit=%u total=%llu free=%llu procs=%u\n",
+                (long long)exec_rc,
+                info.mem_unit,
+                (unsigned long long)info.totalram,
+                (unsigned long long)info.freeram,
+                info.procs);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_SYSINFO, 0, 0, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != -14) {
+        fprintf(stderr, "[test_userimg_loader] expected sysinfo EFAULT (-14), got %lld\n",
                 (long long)exec_rc);
         free(stack_mem);
         return 1;
