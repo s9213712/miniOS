@@ -6,7 +6,10 @@ BUILD_DIR="$ROOT_DIR/build"
 ISO_DIR="$ROOT_DIR/build/iso_root"
 LIMINE_DIR="$ROOT_DIR/boot/limine"
 LOCAL_LIMINE_DIR="${LIMINE_LOCAL_DIR:-}"
-LIMINE_CACHE_DIR="${LIMINE_CACHE_DIR:-$ROOT_DIR/.cache/miniOS-limine}"
+LIMINE_REF_DEFAULT="5be26a73d7b7b4d4477d18be94e1d16e615adf56"
+LIMINE_REF="${LIMINE_REF:-$LIMINE_REF_DEFAULT}"
+LIMINE_CACHE_KEY="$(printf '%s' "$LIMINE_REF" | tr -c 'A-Za-z0-9._-' '_')"
+LIMINE_CACHE_DIR="${LIMINE_CACHE_DIR:-$ROOT_DIR/.cache/miniOS-limine-$LIMINE_CACHE_KEY}"
 ISO_PATH="$BUILD_DIR/mvos.iso"
 ISO_ENTRY_BIOS="boot/limine-bios-cd.bin"
 ISO_ENTRY_UEFI="boot/limine-uefi-cd.bin"
@@ -86,6 +89,7 @@ cache_limine_from() {
   if [ -f "$src/limine" ]; then
     cp "$src/limine" "$cache_dest/" || true
   fi
+  printf '%s\n' "$LIMINE_REF" > "$cache_dest/.limine-ref"
 }
 
 cleanup() {
@@ -137,9 +141,12 @@ if [ "$need_download" -eq 1 ]; then
     exit 1
   else
     echo "[make_iso] Limine artifacts missing in $LIMINE_DIR."
-    echo "[make_iso] Attempting to download official v11.x-binary release tree into a temporary directory."
+    echo "[make_iso] Attempting to download pinned Limine ref $LIMINE_REF into a temporary directory."
     TEMP_DIR="$(mktemp -d)"
-    git clone --depth 1 --branch v11.x-binary https://github.com/Limine-bootloader/Limine.git "$TEMP_DIR/limine"
+    git init "$TEMP_DIR/limine" >/dev/null
+    git -C "$TEMP_DIR/limine" remote add origin https://github.com/Limine-bootloader/Limine.git
+    git -C "$TEMP_DIR/limine" fetch --depth 1 origin "$LIMINE_REF"
+    git -C "$TEMP_DIR/limine" checkout --detach FETCH_HEAD >/dev/null
     if ! has_limine_artifacts "$TEMP_DIR/limine"; then
       echo "[make_iso] Downloaded Limine tree is incomplete."
       exit 1

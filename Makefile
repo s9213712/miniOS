@@ -196,8 +196,7 @@ clean-host-programs:
 
 prefetch-limine: $(KERNEL_ELF)
 	@echo "[make] prefetching Limine artifacts into cache"
-	@LIMINE_CACHE_DIR="${LIMINE_CACHE_DIR:-$(CURDIR)/.cache/miniOS-limine}" \
-	SMOKE_KEEP_LOGS=1 \
+	@SMOKE_KEEP_LOGS=1 \
 	SMOKE_OFFLINE=0 \
 	TEST_SMOKE_LOG_DIR="${CURDIR}/.cache/miniOS-smoke-logs" \
 	SMOKE_BASENAME="prefetch" \
