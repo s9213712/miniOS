@@ -102,9 +102,11 @@ enum {
     TEST_LINUX_SYSCALL_MMAP = 9,
     TEST_LINUX_SYSCALL_MPROTECT = 10,
     TEST_LINUX_SYSCALL_MUNMAP = 11,
+    TEST_LINUX_SYSCALL_IOCTL = 16,
     TEST_LINUX_SYSCALL_PREAD64 = 17,
     TEST_LINUX_SYSCALL_ACCESS = 21,
     TEST_LINUX_SYSCALL_GETCWD = 79,
+    TEST_LINUX_SYSCALL_FCNTL = 72,
     TEST_LINUX_SYSCALL_EXECVE = 59,
     TEST_LINUX_SYSCALL_CLOCK_GETTIME = 228,
     TEST_LINUX_SYSCALL_OPENAT = 257,
@@ -113,6 +115,10 @@ enum {
     TEST_LINUX_SYSCALL_GETRANDOM = 318,
     TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
     TEST_AT_FDCWD = -100,
+    TEST_F_GETFD = 1,
+    TEST_F_SETFD = 2,
+    TEST_F_GETFL = 3,
+    TEST_F_SETFL = 4,
     TEST_SEEK_SET = 0,
     TEST_SEEK_CUR = 1,
     TEST_PROT_READ = 0x1,
@@ -422,6 +428,41 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_GETFD, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected fcntl F_GETFD success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_GETFL, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected fcntl F_GETFL readonly flags, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_SETFD, 1, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected fcntl F_SETFD success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_SETFL, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected fcntl F_SETFL success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_IOCTL, fd, 0, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != -25) {
+        fprintf(stderr, "[test_userimg_loader] expected ioctl ENOTTY (-25), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
     char read_buf[64];
     memset(read_buf, 0, sizeof(read_buf));
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READ,
@@ -531,6 +572,34 @@ int main(void) {
                                 0);
     if ((int64_t)exec_rc != -9) {
         fprintf(stderr, "[test_userimg_loader] expected read after close EBADF (-9), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_GETFD, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != -9) {
+        fprintf(stderr, "[test_userimg_loader] expected fcntl after close EBADF (-9), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_IOCTL, fd, 0, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != -9) {
+        fprintf(stderr, "[test_userimg_loader] expected ioctl after close EBADF (-9), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, 1, TEST_F_GETFL, 0, 0, 0, 0);
+    if (exec_rc != 1) {
+        fprintf(stderr, "[test_userimg_loader] expected stdout fcntl F_GETFL O_WRONLY, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_IOCTL, 1, 0, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != -25) {
+        fprintf(stderr, "[test_userimg_loader] expected stdout ioctl ENOTTY (-25), got %lld\n",
                 (long long)exec_rc);
         free(stack_mem);
         return 1;

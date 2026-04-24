@@ -20,10 +20,12 @@ enum {
     MINIOS_LINUX_SYSCALL_MPROTECT = 10,
     MINIOS_LINUX_SYSCALL_MUNMAP = 11,
     MINIOS_LINUX_SYSCALL_BRK = 12,
+    MINIOS_LINUX_SYSCALL_IOCTL = 16,
     MINIOS_LINUX_SYSCALL_PREAD64 = 17,
     MINIOS_LINUX_SYSCALL_ACCESS = 21,
     MINIOS_LINUX_SYSCALL_WRITEV = 20,
     MINIOS_LINUX_SYSCALL_UNAME = 63,
+    MINIOS_LINUX_SYSCALL_FCNTL = 72,
     MINIOS_LINUX_SYSCALL_GETCWD = 79,
     MINIOS_LINUX_SYSCALL_GETPID = 39,
     MINIOS_LINUX_SYSCALL_EXECVE = 59,
@@ -58,6 +60,7 @@ enum {
     MINIOS_USERPROC_FD_BASE = 3,
     MINIOS_AT_FDCWD = -100,
     MINIOS_O_ACCMODE = 0x3,
+    MINIOS_O_WRONLY = 0x1,
     MINIOS_O_DIRECTORY = 00200000,
     MINIOS_PROT_READ = 0x1,
     MINIOS_PROT_WRITE = 0x2,
@@ -70,6 +73,10 @@ enum {
     MINIOS_SEEK_END = 2,
     MINIOS_CLOCK_REALTIME = 0,
     MINIOS_CLOCK_MONOTONIC = 1,
+    MINIOS_F_GETFD = 1,
+    MINIOS_F_SETFD = 2,
+    MINIOS_F_GETFL = 3,
+    MINIOS_F_SETFL = 4,
     MINIOS_S_IFREG = 0100000,
     MINIOS_S_IFCHR = 0020000,
     MINIOS_USERPROC_MMAP_BASE = 0x0000400001000000ULL,
@@ -397,6 +404,13 @@ static int userproc_fd_to_index(uint64_t fd, uint64_t *out_index) {
     return 0;
 }
 
+static int userproc_fd_is_valid(uint64_t fd) {
+    if (fd <= 2) {
+        return 1;
+    }
+    return userproc_fd_to_index(fd, NULL) == 0;
+}
+
 static uint64_t userproc_alloc_fd(mvos_vfs_file_t *file) {
     if (file == NULL || !file->in_use) {
         return userproc_errno(-22); /* EINVAL */
@@ -481,6 +495,38 @@ static uint64_t userproc_linux_pread64(uint64_t fd, uint64_t user_buf, uint64_t 
         return userproc_errno(-14); /* EFAULT */
     }
     return bytes;
+}
+
+static uint64_t userproc_linux_ioctl(uint64_t fd, uint64_t request, uint64_t argp) {
+    (void)request;
+    (void)argp;
+    if (!userproc_fd_is_valid(fd)) {
+        return userproc_errno(-9); /* EBADF */
+    }
+    return userproc_errno(-25); /* ENOTTY */
+}
+
+static uint64_t userproc_linux_fcntl(uint64_t fd, uint64_t cmd, uint64_t arg) {
+    (void)arg;
+    if (!userproc_fd_is_valid(fd)) {
+        return userproc_errno(-9); /* EBADF */
+    }
+
+    switch (cmd) {
+        case MINIOS_F_GETFD:
+            return 0;
+        case MINIOS_F_SETFD:
+            return 0;
+        case MINIOS_F_GETFL:
+            if (fd == 1 || fd == 2) {
+                return MINIOS_O_WRONLY;
+            }
+            return 0;
+        case MINIOS_F_SETFL:
+            return 0;
+        default:
+            return userproc_errno(-22); /* EINVAL */
+    }
 }
 
 static uint64_t userproc_linux_write(uint64_t fd, uint64_t user_buf, uint64_t count) {
@@ -1336,6 +1382,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_mprotect(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_MUNMAP:
             return userproc_linux_munmap(arg1, arg2);
+        case MINIOS_LINUX_SYSCALL_IOCTL:
+            return userproc_linux_ioctl(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_WRITEV:
             return userproc_linux_writev(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_PREAD64:
@@ -1346,6 +1394,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_access_path(arg1);
         case MINIOS_LINUX_SYSCALL_UNAME:
             return userproc_linux_uname(arg1);
+        case MINIOS_LINUX_SYSCALL_FCNTL:
+            return userproc_linux_fcntl(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_GETCWD:
             return userproc_linux_getcwd(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_GETPID:
@@ -1538,6 +1588,10 @@ void userproc_linux_abi_probe(void) {
                                 0,
                                 0);
         userproc_probe_print_ret("pread64.readme_ret", ret);
+        ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_FCNTL, fd, MINIOS_F_GETFL, 0, 0, 0, 0);
+        userproc_probe_print_ret("fcntl.getfl_ret", ret);
+        ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_IOCTL, fd, 0, 0, 0, 0, 0);
+        userproc_probe_print_ret("ioctl.readme_ret", ret);
         uint64_t file_map = userproc_dispatch(MINIOS_LINUX_SYSCALL_MMAP,
                                               0,
                                               4096,

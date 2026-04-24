@@ -14,6 +14,7 @@
 - Added minimal `mprotect` support for exact VMM ranges and synchronized runtime PTE write permissions.
 - Added readonly/private VFS file-backed `mmap` support by copying fd contents into backed user pages.
 - Added VFS-backed `pread64` support for offset-based reads without mutating fd cursor state.
+- Added minimal `fcntl` and `ioctl` syscall handling for common runtime fd capability probes.
 - Extended the tiny Linux ELF demo to open and read `/boot/init/readme.txt` through real user-mode syscalls.
 - Extended execve smoke checks to require the initfs read marker from userspace.
 - Added host regression coverage for shell command parsing and CI coverage for all host regressions.
