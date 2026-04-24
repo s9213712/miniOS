@@ -1,6 +1,6 @@
 # miniOS Linux Parity Goals（Stage 版）
 
-最後更新：2026-04-24（Stage 3 / Phase 40 baseline）
+最後更新：2026-04-24（Stage 3 / Phase 41 baseline）
 
 這份文件聚焦 miniOS 與一般 Linux 系統之間的差距，並用 Stage 管理收斂路徑。  
 Phase 細節只作為歷史，不作為主要規劃單位。

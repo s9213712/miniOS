@@ -29,11 +29,12 @@ Phase 仍保留在 git history 與 `CHANGELOG.md`，但日常規劃以 Stage 為
 
 ## Stage 3：Linux ABI + Minimal Exec Bring-up
 
-- 範圍：Phase 35-40（持續中）
+- 範圍：Phase 35-41（持續中）
 - 已完成：
   - Linux ABI 預覽 syscall 子集合
   - `run elf-inspect`
   - `run elf-load`（load+stack mapping、handoff dry-run、exec stack scaffold）
+  - `execve` syscall scaffold（路徑驗證 + 內嵌 ELF 載入 + stack prep）
   - `make test-userimg-loader`
 - 狀態：進行中（scaffold 已完成，正在補齊真正 `execve`）
 

@@ -28,6 +28,13 @@ void userproc_enter_asm(uint64_t entry, uint64_t user_stack) {
     (void)user_stack;
 }
 
+extern uint64_t g_userproc_running;
+extern uint64_t g_userproc_current_app_id;
+
+enum {
+    TEST_LINUX_SYSCALL_EXECVE = 59,
+};
+
 static uint64_t read_u64(const uint8_t *stack_mem, uint64_t stack_base, uint64_t stack_top, uint64_t addr) {
     if (addr < stack_base || addr + sizeof(uint64_t) > stack_top) {
         return UINT64_MAX;
@@ -182,6 +189,52 @@ int main(void) {
         &layout);
     if (stack_rc != -4) {
         fprintf(stderr, "[test_userimg_loader] expected null argv error (-4), got %d\n", stack_rc);
+        free(stack_mem);
+        return 1;
+    }
+
+    const char exec_path[] = "/bin/hello_linux_tiny";
+    const char *exec_argv[] = {"hello_linux_tiny", "--host-test", NULL};
+    const char *exec_envp[] = {"TERM=minios", NULL};
+    g_userproc_running = 1;
+    g_userproc_current_app_id = 41;
+    uint64_t exec_rc = userproc_dispatch(
+        TEST_LINUX_SYSCALL_EXECVE,
+        (uint64_t)(uintptr_t)exec_path,
+        (uint64_t)(uintptr_t)exec_argv,
+        (uint64_t)(uintptr_t)exec_envp);
+    if (exec_rc != 1ULL) {
+        fprintf(stderr, "[test_userimg_loader] expected execve scaffold success signal (1), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    if (g_userproc_running != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected execve scaffold to stop current app context\n");
+        free(stack_mem);
+        return 1;
+    }
+
+    g_userproc_running = 1;
+    exec_rc = userproc_dispatch(
+        TEST_LINUX_SYSCALL_EXECVE,
+        (uint64_t)(uintptr_t)"/bad/path",
+        (uint64_t)(uintptr_t)exec_argv,
+        (uint64_t)(uintptr_t)exec_envp);
+    if ((int64_t)exec_rc != -2) {
+        fprintf(stderr, "[test_userimg_loader] expected execve ENOENT (-2), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    if (g_userproc_running != 1) {
+        fprintf(stderr, "[test_userimg_loader] expected failed execve to keep running state\n");
+        free(stack_mem);
+        return 1;
+    }
+
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_EXECVE, 0, 0, 0);
+    if ((int64_t)exec_rc != -14) {
+        fprintf(stderr, "[test_userimg_loader] expected execve EFAULT (-14), got %lld\n", (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

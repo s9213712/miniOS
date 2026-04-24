@@ -1,6 +1,7 @@
 #include <mvos/userproc.h>
 #include <mvos/console.h>
 #include <mvos/interrupt.h>
+#include <mvos/userimg.h>
 #include <mvos/vmm.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -13,6 +14,7 @@ enum {
     MINIOS_LINUX_SYSCALL_WRITEV = 20,
     MINIOS_LINUX_SYSCALL_UNAME = 63,
     MINIOS_LINUX_SYSCALL_GETPID = 39,
+    MINIOS_LINUX_SYSCALL_EXECVE = 59,
     MINIOS_LINUX_SYSCALL_EXIT = 60,
     MINIOS_LINUX_SYSCALL_ARCH_PRCTL = 158,
     MINIOS_LINUX_SYSCALL_GETTID = 186,
@@ -31,6 +33,9 @@ enum {
 enum {
     MINIOS_EXEC_STACK_MAX_ARGC = 32,
     MINIOS_EXEC_STACK_MAX_ENVC = 32,
+    MINIOS_EXECVE_MAX_PATH = 256,
+    MINIOS_EXECVE_MAX_ARG_STR = 128,
+    MINIOS_EXECVE_STACK_SCRATCH_SIZE = 65536,
 };
 
 typedef struct {
@@ -55,6 +60,7 @@ uint64_t g_userproc_running;
 static uint64_t g_userproc_fs_base;
 static uint64_t g_userproc_gs_base;
 static uint64_t g_userproc_tid_addr;
+static uint8_t g_userproc_execve_stack_scratch[MINIOS_EXECVE_STACK_SCRATCH_SIZE];
 
 static int userproc_streq(const char *a, const char *b) {
     uint64_t i = 0;
@@ -147,6 +153,56 @@ static void userproc_copy_cstr(char *dst, size_t cap, const char *src) {
     }
 }
 
+static int64_t userproc_copy_user_cstr(uint64_t user_ptr, char *dst, uint64_t cap) {
+    if (user_ptr == 0 || dst == NULL || cap < 2) {
+        return -14; /* EFAULT */
+    }
+
+    const volatile char *src = (const volatile char *)(uintptr_t)user_ptr;
+    for (uint64_t i = 0; i + 1 < cap; ++i) {
+        char ch = src[i];
+        dst[i] = ch;
+        if (ch == '\0') {
+            return 0;
+        }
+    }
+
+    dst[cap - 1] = '\0';
+    return -7; /* E2BIG */
+}
+
+static int64_t userproc_collect_user_strv(uint64_t user_vec,
+                                          const char **out_vec,
+                                          char storage[][MINIOS_EXECVE_MAX_ARG_STR],
+                                          uint64_t max_count,
+                                          uint64_t *out_count) {
+    if (out_vec == NULL || storage == NULL || out_count == NULL) {
+        return -14; /* EFAULT */
+    }
+
+    *out_count = 0;
+    if (user_vec == 0) {
+        return 0;
+    }
+
+    const volatile uint64_t *entries = (const volatile uint64_t *)(uintptr_t)user_vec;
+    for (uint64_t i = 0; i < max_count; ++i) {
+        uint64_t ptr = entries[i];
+        if (ptr == 0) {
+            *out_count = i;
+            return 0;
+        }
+
+        int64_t rc = userproc_copy_user_cstr(ptr, storage[i], MINIOS_EXECVE_MAX_ARG_STR);
+        if (rc != 0) {
+            return rc;
+        }
+        out_vec[i] = storage[i];
+    }
+
+    return -7; /* E2BIG: too many argv/envp entries */
+}
+
 static void userproc_legacy_print(uint64_t channel) {
     const char *msg = "userapp";
     console_write_string("userapp #");
@@ -231,8 +287,8 @@ static uint64_t userproc_linux_uname(uint64_t user_buf) {
     volatile minios_utsname_t *u = (volatile minios_utsname_t *)(uintptr_t)user_buf;
     userproc_copy_cstr((char *)u->sysname, sizeof(u->sysname), "miniOS");
     userproc_copy_cstr((char *)u->nodename, sizeof(u->nodename), "miniOS-node");
-    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.40");
-    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Stage3 phase40 exec-stack+linux abi preview");
+    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.41");
+    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Stage3 phase41 execve scaffold preview");
     userproc_copy_cstr((char *)u->machine, sizeof(u->machine), "x86_64");
     userproc_copy_cstr((char *)u->domainname, sizeof(u->domainname), "miniOS.local");
     return 0;
@@ -261,6 +317,104 @@ static uint64_t userproc_linux_arch_prctl(uint64_t code, uint64_t arg) {
         default:
             return userproc_errno(-22); /* EINVAL */
     }
+}
+
+static int64_t userproc_linux_execve(uint64_t user_path,
+                                     uint64_t user_argv,
+                                     uint64_t user_envp,
+                                     mvos_userimg_report_t *out_report,
+                                     mvos_user_stack_layout_t *out_layout) {
+    if (out_report == NULL || out_layout == NULL) {
+        return -14; /* EFAULT */
+    }
+
+    char path_buf[MINIOS_EXECVE_MAX_PATH];
+    int64_t rc = userproc_copy_user_cstr(user_path, path_buf, sizeof(path_buf));
+    if (rc != 0) {
+        return rc;
+    }
+
+    if (!userproc_streq(path_buf, "hello_linux_tiny") &&
+        !userproc_streq(path_buf, "/bin/hello_linux_tiny") &&
+        !userproc_streq(path_buf, "/boot/init/hello_linux_tiny")) {
+        return -2; /* ENOENT */
+    }
+
+    const char *argv_vec[MINIOS_EXEC_STACK_MAX_ARGC];
+    const char *envp_vec[MINIOS_EXEC_STACK_MAX_ENVC];
+    char argv_storage[MINIOS_EXEC_STACK_MAX_ARGC][MINIOS_EXECVE_MAX_ARG_STR];
+    char envp_storage[MINIOS_EXEC_STACK_MAX_ENVC][MINIOS_EXECVE_MAX_ARG_STR];
+    uint64_t argc = 0;
+    uint64_t envc = 0;
+
+    rc = userproc_collect_user_strv(user_argv,
+                                    argv_vec,
+                                    argv_storage,
+                                    MINIOS_EXEC_STACK_MAX_ARGC,
+                                    &argc);
+    if (rc != 0) {
+        return rc;
+    }
+    rc = userproc_collect_user_strv(user_envp,
+                                    envp_vec,
+                                    envp_storage,
+                                    MINIOS_EXEC_STACK_MAX_ENVC,
+                                    &envc);
+    if (rc != 0) {
+        return rc;
+    }
+
+    const char *default_argv0[1];
+    int use_default_argv = 0;
+    if (argc == 0) {
+        default_argv0[0] = path_buf;
+        argc = 1;
+        use_default_argv = 1;
+    }
+    const char *const *argv_ptr = use_default_argv ? default_argv0 : argv_vec;
+    const char *const *envp_ptr = (envc == 0) ? NULL : envp_vec;
+
+    mvos_userimg_report_t report;
+    mvos_userimg_result_t img_rc = userimg_prepare_embedded_sample(&report);
+    if (img_rc != MVOS_USERIMG_OK) {
+        return -8; /* ENOEXEC */
+    }
+
+    if (userproc_handoff_dry_run(report.mapped_entry, report.stack_top) != 0) {
+        return -8; /* ENOEXEC */
+    }
+
+    if (report.stack_size > MINIOS_EXECVE_STACK_SCRATCH_SIZE) {
+        return -12; /* ENOMEM */
+    }
+
+    mvos_user_stack_layout_t layout;
+    int stack_rc = userproc_prepare_exec_stack(
+        g_userproc_execve_stack_scratch,
+        report.stack_size,
+        report.stack_base,
+        report.stack_top,
+        argv_ptr,
+        argc,
+        envp_ptr,
+        envc,
+        &layout);
+    if (stack_rc != 0) {
+        switch (stack_rc) {
+            case -1:
+            case -4:
+                return -14; /* EFAULT */
+            case -3:
+            case -5:
+                return -7; /* E2BIG */
+            default:
+                return -8; /* ENOEXEC */
+        }
+    }
+
+    *out_report = report;
+    *out_layout = layout;
+    return 0;
 }
 
 void userproc_set_return_context(uint64_t return_rip, uint64_t return_stack) {
@@ -501,6 +655,28 @@ uint64_t userproc_dispatch(uint64_t syscall, uint64_t arg1, uint64_t arg2, uint6
             return 1000 + g_userproc_current_app_id;
         case MINIOS_LINUX_SYSCALL_ARCH_PRCTL:
             return userproc_linux_arch_prctl(arg1, arg2);
+        case MINIOS_LINUX_SYSCALL_EXECVE: {
+            mvos_userimg_report_t report;
+            mvos_user_stack_layout_t layout;
+            int64_t exec_rc = userproc_linux_execve(arg1, arg2, arg3, &report, &layout);
+            if (exec_rc != 0) {
+                console_write_string("userapp execve scaffold failed errno=");
+                console_write_u64((uint64_t)exec_rc);
+                console_write_string("\n");
+                return userproc_errno(exec_rc);
+            }
+
+            console_write_string("userapp execve scaffold ok entry=");
+            console_write_u64(report.mapped_entry);
+            console_write_string(" rsp=");
+            console_write_u64(layout.initial_rsp);
+            console_write_string(" argc=");
+            console_write_u64(layout.argc);
+            console_write_string("\n");
+
+            g_userproc_running = false;
+            return 1;
+        }
         case MINIOS_LINUX_SYSCALL_EXIT:
         case MINIOS_LINUX_SYSCALL_EXIT_GROUP:
             g_userproc_running = false;
@@ -577,6 +753,15 @@ void userproc_linux_abi_probe(void) {
     ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_SET_TID_ADDRESS, (uint64_t)(uintptr_t)&tid_storage, 0, 0);
     userproc_probe_print_ret("set_tid_address.ret", ret);
     userproc_probe_print_ret("set_tid_address.ptr", g_userproc_tid_addr);
+
+    static const char exec_path[] = "/bin/hello_linux_tiny";
+    static const char *const exec_argv[] = {"hello_linux_tiny", "--probe", NULL};
+    static const char *const exec_envp[] = {"TERM=minios", NULL};
+    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_EXECVE,
+                            (uint64_t)(uintptr_t)exec_path,
+                            (uint64_t)(uintptr_t)exec_argv,
+                            (uint64_t)(uintptr_t)exec_envp);
+    userproc_probe_print_ret("execve.ret", ret);
 
     g_userproc_running = prev_running;
     g_userproc_current_app_id = prev_app_id;

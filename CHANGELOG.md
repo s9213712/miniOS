@@ -1,5 +1,30 @@
 # Changelog
 
+## Phase 41 – Execve Scaffold Syscall Path
+
+### Added
+- Added Linux syscall `execve` (`rax=59`) scaffold handling in `kernel/core/userproc.c`.
+- Added minimal `execve` flow:
+  - validate `path/argv/envp` pointers and bounded string copies
+  - route known path (`hello_linux_tiny`) to embedded ELF sample load
+  - run existing loader + handoff dry-run + exec stack preparation
+  - on success, emit diagnostic and return user-exit signal (`1`) to syscall trampoline
+- Extended Linux ABI probe to include an `execve` scaffold call.
+- Extended host regression `test_userimg_loader` to validate:
+  - successful `execve` scaffold dispatch path
+  - failure paths (`ENOENT`, `EFAULT`) and running-state behavior
+- Updated stage/version strings to Phase 41 (`shell version`, `uname.release`, `uname.version`).
+
+### Validation
+- `make test-userimg-loader`
+- `make test-vmm-basic`
+- `make test-scheduler-ctl`
+- `make test-vfs-rw`
+- `make test-elf-sample`
+- `make test-host-programs`
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 40 – Exec Stack Scaffold
 
 ### Added

@@ -197,7 +197,7 @@
   - `run ticks`
   - `run scheduler`
   - `run cpp`
-  - `run linux-abi`（Linux x86_64 syscall 子集合預覽：write/writev/brk/uname/getpid/gettid/set_tid_address/arch_prctl/exit_group）
+  - `run linux-abi`（Linux x86_64 syscall 子集合預覽：write/writev/brk/uname/getpid/gettid/set_tid_address/arch_prctl/execve/exit_group）
   - `run elf-inspect`（檢查內嵌 Linux ELF64 樣本 metadata）
   - `run elf-load`（把內嵌 Linux ELF64 的 `PT_LOAD` 佈局 + user stack 映射到 VMM metadata）
   - `run python`（目前僅回報 Python 尚未支援於 miniOS）
@@ -224,7 +224,7 @@
 - `run cpp` 為目前 C++ 使用者應用示範，仍以 kernel-mode fallback 路徑實作。
 - `run linux-abi` 為 Linux ABI 教學預覽，會輸出一組 fallback probe 結果；目前尚不支援 ELF loader、動態連結與 glibc userspace。
 - `run elf-inspect` 會輸出內嵌 Linux user ELF 的 entry、program header 數與 load/file range，供 loader 前置驗證。
-- `run elf-load` 會輸出 mapped entry/range、mapped region 統計、stack 規劃、handoff dry-run 與 exec stack prep 狀態；目前仍是 layout-only 骨架，尚未真的執行 Linux userspace ELF。
+- `run elf-load` 會輸出 mapped entry/range、mapped region 統計、stack 規劃、handoff dry-run 與 exec stack prep 狀態；目前為 scaffold-only 路徑，尚未真的進入 ring3 執行 Linux userspace ELF。
 - `make test-elf-sample` 會重新產生 blob 並檢查 ELF magic、必要符號與最小 byte 數，適合每次調整 loader/ELF 邏輯後回歸。
 - `make test-userimg-loader` 會檢查 loader 映射結果可重複載入、VMM tag/flags 正確、handoff dry-run 成功/失敗案例，以及 exec stack payload 正確性。
 - Linux 對齊目標文件：`docs/linux-parity-goals.md`
