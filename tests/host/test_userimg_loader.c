@@ -98,11 +98,17 @@ enum {
     TEST_LINUX_SYSCALL_READ = 0,
     TEST_LINUX_SYSCALL_CLOSE = 3,
     TEST_LINUX_SYSCALL_FSTAT = 5,
+    TEST_LINUX_SYSCALL_MMAP = 9,
+    TEST_LINUX_SYSCALL_MUNMAP = 11,
     TEST_LINUX_SYSCALL_EXECVE = 59,
     TEST_LINUX_SYSCALL_OPENAT = 257,
     TEST_LINUX_SYSCALL_NEWFSTATAT = 262,
     TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
     TEST_AT_FDCWD = -100,
+    TEST_PROT_READ = 0x1,
+    TEST_PROT_WRITE = 0x2,
+    TEST_MAP_PRIVATE = 0x02,
+    TEST_MAP_ANONYMOUS = 0x20,
 };
 
 typedef struct {
@@ -459,6 +465,49 @@ int main(void) {
                                 0);
     if ((int64_t)exec_rc != -2) {
         fprintf(stderr, "[test_userimg_loader] expected openat ENOENT (-2), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t mmap_addr = userproc_dispatch(TEST_LINUX_SYSCALL_MMAP,
+                                           0,
+                                           8192,
+                                           TEST_PROT_READ | TEST_PROT_WRITE,
+                                           TEST_MAP_PRIVATE | TEST_MAP_ANONYMOUS,
+                                           UINT64_MAX,
+                                           0);
+    if ((int64_t)mmap_addr < 0 || (mmap_addr & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected page-aligned mmap addr, got %lld\n", (long long)mmap_addr);
+        free(stack_mem);
+        return 1;
+    }
+    int found_mmap = 0;
+    for (uint32_t i = 0; i < vmm_region_count(); ++i) {
+        mvos_vmm_region_info_t info;
+        if (vmm_region_at(i, &info) == 0 && info.base == mmap_addr && strcmp(info.tag, "user-mmap") == 0) {
+            found_mmap = 1;
+        }
+    }
+    if (!found_mmap) {
+        fprintf(stderr, "[test_userimg_loader] expected user-mmap VMM region\n");
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MUNMAP, mmap_addr, 8192, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected munmap success, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MMAP,
+                                0,
+                                4096,
+                                TEST_PROT_READ,
+                                TEST_MAP_PRIVATE,
+                                UINT64_MAX,
+                                0);
+    if ((int64_t)exec_rc != -38) {
+        fprintf(stderr, "[test_userimg_loader] expected file-backed mmap ENOSYS (-38), got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

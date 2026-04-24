@@ -15,6 +15,8 @@ enum {
     MINIOS_LINUX_SYSCALL_WRITE = 1,
     MINIOS_LINUX_SYSCALL_CLOSE = 3,
     MINIOS_LINUX_SYSCALL_FSTAT = 5,
+    MINIOS_LINUX_SYSCALL_MMAP = 9,
+    MINIOS_LINUX_SYSCALL_MUNMAP = 11,
     MINIOS_LINUX_SYSCALL_BRK = 12,
     MINIOS_LINUX_SYSCALL_WRITEV = 20,
     MINIOS_LINUX_SYSCALL_UNAME = 63,
@@ -49,8 +51,16 @@ enum {
     MINIOS_AT_FDCWD = -100,
     MINIOS_O_ACCMODE = 0x3,
     MINIOS_O_DIRECTORY = 00200000,
+    MINIOS_PROT_READ = 0x1,
+    MINIOS_PROT_WRITE = 0x2,
+    MINIOS_PROT_EXEC = 0x4,
+    MINIOS_MAP_PRIVATE = 0x02,
+    MINIOS_MAP_FIXED = 0x10,
+    MINIOS_MAP_ANONYMOUS = 0x20,
     MINIOS_S_IFREG = 0100000,
     MINIOS_S_IFCHR = 0020000,
+    MINIOS_USERPROC_MMAP_BASE = 0x0000400001000000ULL,
+    MINIOS_USERPROC_MMAP_LIMIT = 0x0000400010000000ULL,
 };
 
 typedef struct {
@@ -98,6 +108,7 @@ uint64_t g_userproc_syscall_user_rsp;
 static uint64_t g_userproc_fs_base;
 static uint64_t g_userproc_gs_base;
 static uint64_t g_userproc_tid_addr;
+static uint64_t g_userproc_mmap_next = MINIOS_USERPROC_MMAP_BASE;
 static mvos_vfs_file_t g_userproc_files[MINIOS_USERPROC_MAX_FDS];
 static uint8_t g_userproc_execve_stack_scratch[MINIOS_EXECVE_STACK_SCRATCH_SIZE];
 static uint8_t g_userproc_execve_kernel_stack[MINIOS_EXECVE_KERNEL_STACK_SIZE] __attribute__((aligned(16)));
@@ -215,6 +226,27 @@ static void userproc_copy_cstr(char *dst, size_t cap, const char *src) {
     while (i < cap) {
         dst[i++] = '\0';
     }
+}
+
+static int userproc_checked_add_u64(uint64_t a, uint64_t b, uint64_t *out) {
+    if (a > UINT64_MAX - b) {
+        return -1;
+    }
+    *out = a + b;
+    return 0;
+}
+
+static int userproc_align_up_u64(uint64_t value, uint64_t align, uint64_t *out) {
+    if (align == 0) {
+        *out = value;
+        return 0;
+    }
+    uint64_t mask = align - 1ULL;
+    if (value > UINT64_MAX - mask) {
+        return -1;
+    }
+    *out = (value + mask) & ~mask;
+    return 0;
 }
 
 static int64_t userproc_copy_user_cstr(uint64_t user_ptr, char *dst, uint64_t cap) {
@@ -397,6 +429,110 @@ static uint64_t userproc_linux_writev(uint64_t fd, uint64_t user_iov, uint64_t i
         total += n;
     }
     return total;
+}
+
+static uint64_t userproc_mmap_flags_from_prot(uint64_t prot) {
+    uint64_t flags = MVOS_VMM_FLAG_USER;
+    if ((prot & MINIOS_PROT_READ) != 0) {
+        flags |= MVOS_VMM_FLAG_READ;
+    }
+    if ((prot & MINIOS_PROT_WRITE) != 0) {
+        flags |= MVOS_VMM_FLAG_WRITE;
+    }
+    if ((prot & MINIOS_PROT_EXEC) != 0) {
+        flags |= MVOS_VMM_FLAG_EXEC;
+    }
+    return flags;
+}
+
+static int userproc_back_user_pages(uint64_t base, uint64_t size, uint64_t flags) {
+    uint64_t end = 0;
+    if (userproc_checked_add_u64(base, size, &end) != 0) {
+        return -1;
+    }
+    for (uint64_t page = base; page < end; page += MVOS_VMM_PAGE_SIZE) {
+        void *backing = NULL;
+        if (vmm_map_user_backed_page(page, flags, &backing) != 0) {
+            (void)vmm_unmap_range(base, page - base);
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static uint64_t userproc_linux_mmap(uint64_t addr,
+                                    uint64_t length,
+                                    uint64_t prot,
+                                    uint64_t flags,
+                                    uint64_t fd,
+                                    uint64_t offset) {
+    if (length == 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    if ((flags & MINIOS_MAP_ANONYMOUS) == 0) {
+        return userproc_errno(-38); /* ENOSYS: file-backed mmap is a later milestone. */
+    }
+    if ((flags & MINIOS_MAP_PRIVATE) == 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    if (fd != (uint64_t)-1 && fd != UINT64_MAX) {
+        return userproc_errno(-9); /* EBADF */
+    }
+    if (offset != 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+
+    uint64_t map_len = 0;
+    if (userproc_align_up_u64(length, MVOS_VMM_PAGE_SIZE, &map_len) != 0 || map_len == 0) {
+        return userproc_errno(-12); /* ENOMEM */
+    }
+
+    uint64_t map_addr = 0;
+    if ((flags & MINIOS_MAP_FIXED) != 0) {
+        if (addr == 0 || (addr & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
+            return userproc_errno(-22); /* EINVAL */
+        }
+        map_addr = addr;
+    } else {
+        map_addr = g_userproc_mmap_next;
+        if (userproc_align_up_u64(map_addr, MVOS_VMM_PAGE_SIZE, &map_addr) != 0) {
+            return userproc_errno(-12); /* ENOMEM */
+        }
+    }
+
+    uint64_t map_end = 0;
+    if (userproc_checked_add_u64(map_addr, map_len, &map_end) != 0 ||
+        map_end > MINIOS_USERPROC_MMAP_LIMIT) {
+        return userproc_errno(-12); /* ENOMEM */
+    }
+
+    uint64_t vmm_flags = userproc_mmap_flags_from_prot(prot);
+    if (vmm_map_range(map_addr, map_len, vmm_flags, "user-mmap") != 0) {
+        return userproc_errno(-12); /* ENOMEM */
+    }
+    if (userproc_back_user_pages(map_addr, map_len, vmm_flags) != 0) {
+        (void)vmm_unmap_range(map_addr, map_len);
+        return userproc_errno(-12); /* ENOMEM */
+    }
+
+    if ((flags & MINIOS_MAP_FIXED) == 0) {
+        g_userproc_mmap_next = map_end;
+    }
+    return map_addr;
+}
+
+static uint64_t userproc_linux_munmap(uint64_t addr, uint64_t length) {
+    if (addr == 0 || (addr & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0 || length == 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    uint64_t map_len = 0;
+    if (userproc_align_up_u64(length, MVOS_VMM_PAGE_SIZE, &map_len) != 0 || map_len == 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    if (vmm_unmap_range(addr, map_len) != 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    return 0;
 }
 
 static uint64_t userproc_linux_close(uint64_t fd) {
@@ -905,6 +1041,10 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_close(arg1);
         case MINIOS_LINUX_SYSCALL_FSTAT:
             return userproc_linux_fstat(arg1, arg2);
+        case MINIOS_LINUX_SYSCALL_MMAP:
+            return userproc_linux_mmap(arg1, arg2, arg3, arg4, arg5, arg6);
+        case MINIOS_LINUX_SYSCALL_MUNMAP:
+            return userproc_linux_munmap(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_WRITEV:
             return userproc_linux_writev(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_BRK:
@@ -1086,6 +1226,19 @@ void userproc_linux_abi_probe(void) {
         }
         ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_CLOSE, fd, 0, 0, 0, 0, 0);
         userproc_probe_print_ret("close.readme_ret", ret);
+    }
+
+    uint64_t map_addr = userproc_dispatch(MINIOS_LINUX_SYSCALL_MMAP,
+                                          0,
+                                          8192,
+                                          MINIOS_PROT_READ | MINIOS_PROT_WRITE,
+                                          MINIOS_MAP_PRIVATE | MINIOS_MAP_ANONYMOUS,
+                                          UINT64_MAX,
+                                          0);
+    userproc_probe_print_ret("mmap.anon_addr", map_addr);
+    if (!userproc_is_errno(map_addr)) {
+        ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_MUNMAP, map_addr, 8192, 0, 0, 0, 0);
+        userproc_probe_print_ret("munmap.anon_ret", ret);
     }
 
     static const char exec_path[] = "/bin/hello_linux_tiny";
