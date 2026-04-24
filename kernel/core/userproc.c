@@ -46,6 +46,7 @@ enum {
     MINIOS_LINUX_SYSCALL_GETRLIMIT = 97,
     MINIOS_LINUX_SYSCALL_ARCH_PRCTL = 158,
     MINIOS_LINUX_SYSCALL_GETTID = 186,
+    MINIOS_LINUX_SYSCALL_FUTEX = 202,
     MINIOS_LINUX_SYSCALL_SCHED_GETAFFINITY = 204,
     MINIOS_LINUX_SYSCALL_GETDENTS64 = 217,
     MINIOS_LINUX_SYSCALL_SET_TID_ADDRESS = 218,
@@ -106,6 +107,11 @@ enum {
     MINIOS_RLIMIT_STACK = 3,
     MINIOS_RLIMIT_NOFILE = 7,
     MINIOS_RLIMIT_AS = 9,
+    MINIOS_FUTEX_WAIT = 0,
+    MINIOS_FUTEX_WAKE = 1,
+    MINIOS_FUTEX_PRIVATE_FLAG = 128,
+    MINIOS_FUTEX_CLOCK_REALTIME = 256,
+    MINIOS_FUTEX_CMD_MASK = ~(MINIOS_FUTEX_PRIVATE_FLAG | MINIOS_FUTEX_CLOCK_REALTIME),
     MINIOS_S_IFREG = 0100000,
     MINIOS_S_IFDIR = 0040000,
     MINIOS_S_IFCHR = 0020000,
@@ -1507,6 +1513,39 @@ static uint64_t userproc_linux_get_robust_list(uint64_t pid, uint64_t user_head,
     return 0;
 }
 
+static uint64_t userproc_linux_futex(uint64_t user_uaddr,
+                                     uint64_t op,
+                                     uint64_t val,
+                                     uint64_t user_timeout,
+                                     uint64_t user_uaddr2,
+                                     uint64_t val3) {
+    (void)user_timeout;
+    (void)user_uaddr2;
+    (void)val3;
+    if (user_uaddr == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+
+    uint64_t cmd = op & MINIOS_FUTEX_CMD_MASK;
+    switch (cmd) {
+        case MINIOS_FUTEX_WAKE:
+            return 0;
+        case MINIOS_FUTEX_WAIT: {
+            uint32_t current = 0;
+            int64_t rc = userproc_copy_from_user(&current, user_uaddr, sizeof(current));
+            if (rc != 0) {
+                return userproc_errno(rc);
+            }
+            if (current != (uint32_t)val) {
+                return userproc_errno(-11); /* EAGAIN */
+            }
+            return userproc_errno(-11); /* EAGAIN: miniOS cannot block a single userspace thread yet. */
+        }
+        default:
+            return userproc_errno(-38); /* ENOSYS */
+    }
+}
+
 static uint64_t userproc_linux_getrandom(uint64_t user_buf, uint64_t count, uint64_t flags) {
     (void)flags;
     if (count == 0) {
@@ -2274,6 +2313,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return 1000 + g_userproc_current_app_id;
         case MINIOS_LINUX_SYSCALL_ARCH_PRCTL:
             return userproc_linux_arch_prctl(arg1, arg2);
+        case MINIOS_LINUX_SYSCALL_FUTEX:
+            return userproc_linux_futex(arg1, arg2, arg3, arg4, arg5, arg6);
         case MINIOS_LINUX_SYSCALL_CLOCK_GETTIME:
             return userproc_linux_clock_gettime(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_GETTIMEOFDAY:

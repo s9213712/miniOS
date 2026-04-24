@@ -126,6 +126,7 @@ enum {
     TEST_LINUX_SYSCALL_GETEGID = 108,
     TEST_LINUX_SYSCALL_GETPPID = 110,
     TEST_LINUX_SYSCALL_GETRLIMIT = 97,
+    TEST_LINUX_SYSCALL_FUTEX = 202,
     TEST_LINUX_SYSCALL_CLOCK_GETTIME = 228,
     TEST_LINUX_SYSCALL_SCHED_GETAFFINITY = 204,
     TEST_LINUX_SYSCALL_OPENAT = 257,
@@ -150,6 +151,9 @@ enum {
     TEST_RT_SIGACTION_SIZE = 32,
     TEST_RLIMIT_STACK = 3,
     TEST_RLIMIT_NOFILE = 7,
+    TEST_FUTEX_WAIT = 0,
+    TEST_FUTEX_WAKE = 1,
+    TEST_FUTEX_PRIVATE_FLAG = 128,
     TEST_SEEK_SET = 0,
     TEST_SEEK_CUR = 1,
     TEST_PROT_READ = 0x1,
@@ -680,6 +684,46 @@ int main(void) {
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_SET_ROBUST_LIST, 0, sizeof(robust_head), 0, 0, 0, 0);
     if ((int64_t)exec_rc != -22) {
         fprintf(stderr, "[test_userimg_loader] expected set_robust_list EINVAL (-22), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint32_t futex_word = 7;
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FUTEX,
+                                (uint64_t)(uintptr_t)&futex_word,
+                                TEST_FUTEX_WAKE | TEST_FUTEX_PRIVATE_FLAG,
+                                1,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected futex wake no waiters, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FUTEX,
+                                (uint64_t)(uintptr_t)&futex_word,
+                                TEST_FUTEX_WAIT | TEST_FUTEX_PRIVATE_FLAG,
+                                8,
+                                0,
+                                0,
+                                0);
+    if ((int64_t)exec_rc != -11) {
+        fprintf(stderr, "[test_userimg_loader] expected futex wait mismatch EAGAIN (-11), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FUTEX,
+                                (uint64_t)(uintptr_t)&futex_word,
+                                TEST_FUTEX_WAIT | TEST_FUTEX_PRIVATE_FLAG,
+                                7,
+                                0,
+                                0,
+                                0);
+    if ((int64_t)exec_rc != -11) {
+        fprintf(stderr, "[test_userimg_loader] expected futex wait nonblocking EAGAIN (-11), got %lld\n",
                 (long long)exec_rc);
         free(stack_mem);
         return 1;
