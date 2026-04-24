@@ -1,5 +1,14 @@
 # Changelog
 
+## Phase 25 – Run Command Naming Consistency
+
+### Added
+- Added `run list` as an explicit alias for the default run listing behavior.
+- Clarified shell help text to list all `run` subcommand entry points consistently (`help run`, `run help`, `run --help`, `run list`).
+
+### Validation
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 24 – Shell Help Consistency
 
 ### Added

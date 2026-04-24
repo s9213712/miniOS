@@ -16,6 +16,7 @@
 - `Phase 20` `run hello` 路徑先走 kernel fallback，後續保留 ring3 切換開關。
 - `Phase 23` `run` 子命令已上線，加入 user/kernel 模式資訊與說明輸出。
 - 2026-04-24：`Phase 24` 完成，新增 `help run` 與 `run help` 快速查詢，並讓 `run --status` 顯示索引與摘要。
+- 2026-04-24：`Phase 25` 完成，加入 `run list` 作為命令別名與幫助路徑一致化補強。
 
 ## 檢查前提
 
@@ -166,3 +167,6 @@
   - 讓 `help run` 進入 run 專屬說明，提升指令發現性
   - `run help` 視為 `run --help` 別名，降低操作摩擦
   - `run --status` 新增 app 索引與 user/kernel 總覽摘要（`summary: user=... kernel=...`）
+- Phase 25：run 命令命名一致性（完成）
+  - 新增 `run list`，與 `run` 無參數行為一致。
+  - 保持 `help run` / `run help` / `run --help` 一致性，降低操作摩擦。

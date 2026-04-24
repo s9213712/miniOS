@@ -52,6 +52,8 @@
   - 增加 `help run` 快速查詢 `run` 用法。
   - `run help` 視為幫助別名，與 `run --help` 行為一致。
   - `run --status` 補上編號與 user/kernel 摘要，方便逐項比對。
+- Phase 25：run 快捷指令清晰化（完成）
+  - `run list` 明確列為命令別名，和預設行為一致，降低使用學習成本。
 
 ## 每階段目的與預期成效
 

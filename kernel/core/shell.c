@@ -122,6 +122,7 @@ static void shell_cmd_run_help(void) {
     console_write_string("run usage:\n");
     console_write_string("  run                 list available user apps\n");
     console_write_string("  run --help          show this message\n");
+    console_write_string("  run list            list available user apps\n");
     console_write_string("  run --status        show user apps and execution mode\n");
     console_write_string("  run help            same as run --help\n");
     console_write_string("  run <name>          execute app by name\n");
@@ -192,7 +193,7 @@ static void shell_print_help(void) {
     console_write_string("  app    - launch a tiny GUI app demo (requires graphics backend)\n");
     console_write_string("         usage: app [alt|status|list|launch <name>|info <name>]\n");
     console_write_string("  run    - list or run built-in user apps\n");
-    console_write_string("         usage: run [--help|status|<name>]\n");
+    console_write_string("         usage: run [list|status|help|--help|<name>]\n");
     console_write_string("  ls     - list virtual filesystem entries\n");
     console_write_string("         usage: ls [prefix]\n");
     console_write_string("  cat    - print a virtual file content\n");
@@ -364,14 +365,18 @@ static void shell_exec(const char *line) {
             shell_cmd_run_list();
             return;
         }
-        if (shell_streq(arg, "status") || shell_streq(arg, "--status")) {
-            shell_cmd_run_status();
-            return;
-        }
-        if (shell_streq(arg, "-h") || shell_streq(arg, "--help")) {
-            shell_cmd_run_help();
-            return;
-        }
+    if (shell_streq(arg, "status") || shell_streq(arg, "--status")) {
+        shell_cmd_run_status();
+        return;
+    }
+    if (shell_streq(arg, "list")) {
+        shell_cmd_run_list();
+        return;
+    }
+    if (shell_streq(arg, "-h") || shell_streq(arg, "--help")) {
+        shell_cmd_run_help();
+        return;
+    }
         if (shell_streq(arg, "help")) {
             shell_cmd_run_help();
             return;
