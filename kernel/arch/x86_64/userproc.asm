@@ -31,6 +31,8 @@ userproc_enter_asm:
 userapp_hello_syscall_loop:
     mov eax, 1
     mov edi, 1
+    xor esi, esi
+    xor edx, edx
     int 0x80
     mov eax, 60
     xor edi, edi
@@ -43,6 +45,8 @@ minios_userapp_hello:
 minios_userapp_ticks:
     mov eax, 1
     mov edi, 2
+    xor esi, esi
+    xor edx, edx
     int 0x80
     mov eax, 60
     xor edi, edi
@@ -51,6 +55,8 @@ minios_userapp_ticks:
 minios_userapp_scheduler:
     mov eax, 1
     mov edi, 3
+    xor esi, esi
+    xor edx, edx
     int 0x80
     mov eax, 60
     xor edi, edi
@@ -62,10 +68,25 @@ minios_userapp_linux_abi:
     lea rsi, [rel linux_abi_msg]
     mov edx, linux_abi_msg_len
     int 0x80
-    mov eax, 39
+    mov eax, 20
+    mov edi, 1
+    lea rsi, [rel linux_abi_iov]
+    mov edx, 2
     int 0x80
-    mov eax, 60
+    mov eax, 39
     xor edi, edi
+    xor esi, esi
+    xor edx, edx
+    int 0x80
+    mov eax, 186
+    xor edi, edi
+    xor esi, esi
+    xor edx, edx
+    int 0x80
+    mov eax, 231
+    xor edi, edi
+    xor esi, esi
+    xor edx, edx
     int 0x80
 
 isr_user_syscall:
@@ -137,5 +158,14 @@ isr_user_syscall:
     iretq
 
 section .rodata
-linux_abi_msg: db "linux abi preview: write/getpid/exit ok", 10
+linux_abi_msg: db "linux abi preview: write/getpid/gettid/exit_group", 10
 linux_abi_msg_len equ $ - linux_abi_msg
+linux_abi_msg2a: db "[linux-abi] writev part A "
+linux_abi_msg2a_len equ $ - linux_abi_msg2a
+linux_abi_msg2b: db "part B", 10
+linux_abi_msg2b_len equ $ - linux_abi_msg2b
+linux_abi_iov:
+    dq linux_abi_msg2a
+    dq linux_abi_msg2a_len
+    dq linux_abi_msg2b
+    dq linux_abi_msg2b_len

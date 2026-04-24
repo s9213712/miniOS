@@ -7,7 +7,7 @@
 > cd /home/s92137/miniOS
 > ```
 
-> 目前進度摘要：`smoke` 主線穩定後，新增 `run --help`、`run --status`，並支援 `run`、`ls`、`cat`、`app`、`tasks`、`run cpp`、`run linux-abi`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Python 尚未提供 miniOS 內部 runtime；Linux 應用（如 transmission/htop/nano）也尚未支援，`run linux-abi` 目前僅為 syscall ABI 預覽（非完整 userspace）。
+> 目前進度摘要：`smoke` 主線穩定後，新增 `run --help`、`run --status`，並支援 `run`、`ls`、`cat`、`app`、`tasks`、`run cpp`、`run linux-abi`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Python 尚未提供 miniOS 內部 runtime；Linux 應用（如 transmission/htop/nano）也尚未支援，`run linux-abi` 目前是擴展中的 syscall ABI 預覽（非完整 userspace）。
 
 ---
 
@@ -164,7 +164,7 @@
   - `run ticks`
   - `run scheduler`
   - `run cpp`
-  - `run linux-abi`（Linux x86_64 syscall 子集合預覽：write/getpid/exit）
+  - `run linux-abi`（Linux x86_64 syscall 子集合預覽：write/writev/brk/uname/getpid/gettid/set_tid_address/arch_prctl/exit_group）
   - `run python`（目前僅回報 Python 尚未支援於 miniOS）
   - `cap` / `capabilities`：列出 miniOS 當前能力矩陣與限制
   - `run --help` 列出 `run` 可用子選項
@@ -184,7 +184,7 @@
   python3 scripts/dev_status.py`
 - `ls` 與 `cat` 目前只支援 initfs 內建唯讀節點，無法建立或修改檔案。
 - `run cpp` 為目前 C++ 使用者應用示範，仍以 kernel-mode fallback 路徑實作。
-- `run linux-abi` 為 Linux ABI 教學預覽，只覆蓋最小 syscall 子集合，尚不支援動態連結與 glibc userspace。
+- `run linux-abi` 為 Linux ABI 教學預覽，會輸出一組 fallback probe 結果；目前尚不支援 ELF loader、動態連結與 glibc userspace。
 
 ---
 

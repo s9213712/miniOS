@@ -1,5 +1,25 @@
 # Changelog
 
+## Phase 31 – Linux ABI Syscall Expansion
+
+### Added
+- Expanded Linux ABI preview syscall coverage in `userproc_dispatch`:
+  - `write` (`rax=1`)
+  - `brk` (`rax=12`)
+  - `writev` (`rax=20`)
+  - `getpid` (`rax=39`)
+  - `uname` (`rax=63`)
+  - `arch_prctl` (`rax=158`)
+  - `gettid` (`rax=186`)
+  - `set_tid_address` (`rax=218`)
+  - `exit_group` (`rax=231`)
+- Added fallback probe output path for `run linux-abi` so syscall behavior is observable even when user mode is disabled by default.
+- Updated `minios_userapp_linux_abi` assembly demo path to exercise `writev/gettid/exit_group`.
+
+### Validation
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Issue Follow-ups – 2026-04-24
 
 ### Fixed

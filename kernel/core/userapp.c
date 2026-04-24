@@ -81,13 +81,14 @@ static void userapp_fallback_python(void) {
 
 static void userapp_fallback_linux_abi(void) {
     console_write_string("linux abi preview: user-mode path disabled, running fallback\n");
-    console_write_string("supported preview syscalls: write(1/2), getpid, exit\n");
+    console_write_string("supported preview syscalls: write/writev/brk/uname/getpid/gettid/set_tid_address/arch_prctl/exit_group\n");
+    userproc_linux_abi_probe();
 }
 
 static const mvos_userapp_t g_userapps[] = {
     {"hello", "print hello from user app (user mode)", userapp_fallback_hello, (uint64_t)minios_userapp_hello, true},
     {"ticks", "print current timer ticks via user syscall", userapp_fallback_ticks, (uint64_t)minios_userapp_ticks, true},
-    {"linux-abi", "preview Linux x86_64 syscall subset (write/getpid/exit)", userapp_fallback_linux_abi, (uint64_t)minios_userapp_linux_abi, true},
+    {"linux-abi", "preview Linux x86_64 syscall subset (stage 31 scaffold)", userapp_fallback_linux_abi, (uint64_t)minios_userapp_linux_abi, true},
     {"cpp", "print C++ demo result (kernel mode demo)", userapp_fallback_cpp, 0, false},
     {"scheduler", "print scheduler snapshot (kernel mode)", userapp_scheduler, 0, false},
     {"python", "print Python availability notice", userapp_fallback_python, 0, false},

@@ -22,6 +22,7 @@
 - 2026-04-24：`Phase 28` 補齊 host-side 編譯可追蹤輸出（`status`、`flags`、`sha256`、`request`）與調整腳本可診斷性。
 - 2026-04-24：`Phase 29` 加入主機端靜態連結模式（`MHOST_STATIC=1`）與 `link_mode` metadata，建立可重複建置報告。
 - 2026-04-24：`Phase 30` 新增 Linux ABI 預覽路徑，支援最小 syscall 子集合（`write/getpid/exit`）與 `run linux-abi` 驗證命令。
+- 2026-04-24：`Phase 31` 擴充 Linux ABI 預覽 syscall，新增 `writev/brk/uname/gettid/set_tid_address/arch_prctl/exit_group`，並讓 fallback 可直接跑 probe。
 
 ## 檢查前提
 
@@ -185,3 +186,6 @@
 - Phase 30：Linux ABI 預覽骨架（完成）
   - userproc 對齊第一批 Linux x86_64 syscall 編號（1, 39, 60）並保留教學輸出。
   - `run linux-abi` 提供最小 userspace 呼叫路徑驗證；目前僅示範 ABI，不含 ELF loader / libc 相容層。
+- Phase 31：Linux ABI 預覽擴展（完成）
+  - userproc 擴充到常見初始化 syscall 子集合（`writev/brk/uname/gettid/set_tid_address/arch_prctl/exit_group`）。
+  - 在 `MINIOS_PHASE20_USER_MODE=0` 的預設情境下，`run linux-abi` 也會透過 fallback 顯示 syscall probe 結果，避免只能停留在「不可驗證」狀態。
