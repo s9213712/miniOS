@@ -10,6 +10,7 @@
 - Added minimal Linux `mmap`/`munmap` support for anonymous private user mappings.
 - Added Linux `lseek` support for VFS-backed user file descriptors.
 - Added VMM-backed user range validation and routed syscall pointer reads/writes through checked copy helpers in strict userspace mode.
+- Added minimal runtime syscalls: `getcwd`, `access`, `faccessat`, `clock_gettime`, and `getrandom`.
 - Extended the tiny Linux ELF demo to open and read `/boot/init/readme.txt` through real user-mode syscalls.
 - Extended execve smoke checks to require the initfs read marker from userspace.
 - Added host regression coverage for shell command parsing and CI coverage for all host regressions.

@@ -555,7 +555,7 @@ static void shell_cmd_capabilities(void) {
     console_write_string("    - `make refresh-elf-sample` regenerates embedded Linux ELF sample blob\n");
     console_write_string("    - `make test-elf-sample` validates regenerated ELF sample contract\n");
     console_write_string("  linux abi preview:\n");
-    console_write_string("    - user syscall subset: read/write/writev/close/fstat/lseek/mmap/munmap/brk/uname/getpid/gettid/set_tid_address/arch_prctl/execve/exit_group/openat/newfstatat\n");
+    console_write_string("    - user syscall subset: read/write/writev/close/fstat/lseek/mmap/munmap/brk/access/getcwd/uname/getpid/gettid/set_tid_address/arch_prctl/clock_gettime/execve/exit_group/openat/newfstatat/faccessat/getrandom\n");
     console_write_string("    - try: run linux-abi\n");
     console_write_string("    - inspect sample ELF: run elf-inspect\n");
     console_write_string("  not yet supported in miniOS runtime:\n");

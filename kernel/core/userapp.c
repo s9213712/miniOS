@@ -85,7 +85,7 @@ static void userapp_fallback_python(void) {
 
 static void userapp_fallback_linux_abi(void) {
     console_write_string("linux abi preview: user-mode path disabled, running fallback\n");
-    console_write_string("supported preview syscalls: read/write/writev/close/fstat/lseek/mmap/munmap/brk/uname/getpid/gettid/set_tid_address/arch_prctl/execve/exit_group/openat/newfstatat\n");
+    console_write_string("supported preview syscalls: read/write/writev/close/fstat/lseek/mmap/munmap/brk/access/getcwd/uname/getpid/gettid/set_tid_address/arch_prctl/clock_gettime/execve/exit_group/openat/newfstatat/faccessat/getrandom\n");
     userproc_linux_abi_probe();
 }
 

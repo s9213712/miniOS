@@ -101,9 +101,14 @@ enum {
     TEST_LINUX_SYSCALL_LSEEK = 8,
     TEST_LINUX_SYSCALL_MMAP = 9,
     TEST_LINUX_SYSCALL_MUNMAP = 11,
+    TEST_LINUX_SYSCALL_ACCESS = 21,
+    TEST_LINUX_SYSCALL_GETCWD = 79,
     TEST_LINUX_SYSCALL_EXECVE = 59,
+    TEST_LINUX_SYSCALL_CLOCK_GETTIME = 228,
     TEST_LINUX_SYSCALL_OPENAT = 257,
     TEST_LINUX_SYSCALL_NEWFSTATAT = 262,
+    TEST_LINUX_SYSCALL_FACCESSAT = 269,
+    TEST_LINUX_SYSCALL_GETRANDOM = 318,
     TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
     TEST_AT_FDCWD = -100,
     TEST_SEEK_SET = 0,
@@ -134,6 +139,11 @@ typedef struct {
     uint64_t st_ctime_nsec;
     int64_t __unused[3];
 } test_linux_stat_t;
+
+typedef struct {
+    int64_t tv_sec;
+    int64_t tv_nsec;
+} test_timespec_t;
 
 static uint64_t read_u64(const uint8_t *stack_mem, uint64_t stack_base, uint64_t stack_top, uint64_t addr) {
     if (addr < stack_base || addr + sizeof(uint64_t) > stack_top) {
@@ -496,6 +506,55 @@ int main(void) {
                                 0);
     if ((int64_t)exec_rc != -2) {
         fprintf(stderr, "[test_userimg_loader] expected openat ENOENT (-2), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    char cwd[8];
+    memset(cwd, 0, sizeof(cwd));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETCWD, (uint64_t)(uintptr_t)cwd, sizeof(cwd), 0, 0, 0, 0);
+    if (exec_rc != (uint64_t)(uintptr_t)cwd || strcmp(cwd, "/") != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected getcwd '/', rc=%lld cwd=%s\n",
+                (long long)exec_rc,
+                cwd);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_ACCESS, (uint64_t)(uintptr_t)readme_path, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected access success, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FACCESSAT,
+                                (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                (uint64_t)(uintptr_t)readme_path,
+                                0,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected faccessat success, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    test_timespec_t ts;
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOCK_GETTIME, 1, (uint64_t)(uintptr_t)&ts, 0, 0, 0, 0);
+    if (exec_rc != 0 || ts.tv_sec < 0 || ts.tv_nsec < 0 || ts.tv_nsec >= 1000000000LL) {
+        fprintf(stderr, "[test_userimg_loader] expected clock_gettime success, rc=%lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint8_t random_buf[16];
+    memset(random_buf, 0, sizeof(random_buf));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETRANDOM,
+                                (uint64_t)(uintptr_t)random_buf,
+                                sizeof(random_buf),
+                                0,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != sizeof(random_buf)) {
+        fprintf(stderr, "[test_userimg_loader] expected getrandom byte count, got %lld\n", (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

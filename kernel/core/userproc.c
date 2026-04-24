@@ -19,17 +19,22 @@ enum {
     MINIOS_LINUX_SYSCALL_MMAP = 9,
     MINIOS_LINUX_SYSCALL_MUNMAP = 11,
     MINIOS_LINUX_SYSCALL_BRK = 12,
+    MINIOS_LINUX_SYSCALL_ACCESS = 21,
     MINIOS_LINUX_SYSCALL_WRITEV = 20,
     MINIOS_LINUX_SYSCALL_UNAME = 63,
+    MINIOS_LINUX_SYSCALL_GETCWD = 79,
     MINIOS_LINUX_SYSCALL_GETPID = 39,
     MINIOS_LINUX_SYSCALL_EXECVE = 59,
     MINIOS_LINUX_SYSCALL_EXIT = 60,
     MINIOS_LINUX_SYSCALL_ARCH_PRCTL = 158,
     MINIOS_LINUX_SYSCALL_GETTID = 186,
     MINIOS_LINUX_SYSCALL_SET_TID_ADDRESS = 218,
+    MINIOS_LINUX_SYSCALL_CLOCK_GETTIME = 228,
     MINIOS_LINUX_SYSCALL_EXIT_GROUP = 231,
     MINIOS_LINUX_SYSCALL_OPENAT = 257,
     MINIOS_LINUX_SYSCALL_NEWFSTATAT = 262,
+    MINIOS_LINUX_SYSCALL_FACCESSAT = 269,
+    MINIOS_LINUX_SYSCALL_GETRANDOM = 318,
     MINIOS_SYSCALL_USER_PRINT = 1
 };
 
@@ -61,6 +66,8 @@ enum {
     MINIOS_SEEK_SET = 0,
     MINIOS_SEEK_CUR = 1,
     MINIOS_SEEK_END = 2,
+    MINIOS_CLOCK_REALTIME = 0,
+    MINIOS_CLOCK_MONOTONIC = 1,
     MINIOS_S_IFREG = 0100000,
     MINIOS_S_IFCHR = 0020000,
     MINIOS_USERPROC_MMAP_BASE = 0x0000400001000000ULL,
@@ -101,6 +108,11 @@ typedef struct {
     char machine[65];
     char domainname[65];
 } minios_utsname_t;
+
+typedef struct {
+    int64_t tv_sec;
+    int64_t tv_nsec;
+} minios_timespec_t;
 
 uint64_t g_userproc_return_rip;
 uint64_t g_userproc_return_stack;
@@ -589,6 +601,85 @@ static uint64_t userproc_linux_munmap(uint64_t addr, uint64_t length) {
         return userproc_errno(-22); /* EINVAL */
     }
     return 0;
+}
+
+static uint64_t userproc_linux_getcwd(uint64_t user_buf, uint64_t size) {
+    static const char cwd[] = "/";
+    if (user_buf == 0 || size == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    if (size < sizeof(cwd)) {
+        return userproc_errno(-34); /* ERANGE */
+    }
+    int64_t rc = userproc_copy_to_user(user_buf, cwd, sizeof(cwd));
+    if (rc != 0) {
+        return userproc_errno(rc);
+    }
+    return user_buf;
+}
+
+static uint64_t userproc_linux_access_path(uint64_t user_path) {
+    char path_buf[MINIOS_EXECVE_MAX_PATH];
+    int64_t rc = userproc_copy_user_cstr(user_path, path_buf, sizeof(path_buf));
+    if (rc != 0) {
+        return userproc_errno(rc);
+    }
+
+    mvos_vfs_file_t file;
+    int open_rc = vfs_open(path_buf, &file);
+    if (open_rc != 0) {
+        return userproc_errno(-2); /* ENOENT */
+    }
+    vfs_close(&file);
+    return 0;
+}
+
+static uint64_t userproc_linux_clock_gettime(uint64_t clock_id, uint64_t user_tp) {
+    if (user_tp == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    if (clock_id != MINIOS_CLOCK_REALTIME && clock_id != MINIOS_CLOCK_MONOTONIC) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    uint64_t ticks = timer_ticks();
+    minios_timespec_t ts = {
+        .tv_sec = (int64_t)(ticks / 100ULL),
+        .tv_nsec = (int64_t)((ticks % 100ULL) * 10000000ULL),
+    };
+    return userproc_errno(userproc_copy_to_user(user_tp, &ts, sizeof(ts)));
+}
+
+static uint64_t userproc_linux_getrandom(uint64_t user_buf, uint64_t count, uint64_t flags) {
+    (void)flags;
+    if (count == 0) {
+        return 0;
+    }
+    if (user_buf == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+
+    uint64_t to_fill = (count > 256ULL) ? 256ULL : count;
+    uint64_t seed = 0x9e3779b97f4a7c15ULL ^ timer_ticks() ^ g_userproc_current_app_id;
+    uint8_t chunk[64];
+    uint64_t written = 0;
+    while (written < to_fill) {
+        uint64_t n = to_fill - written;
+        if (n > sizeof(chunk)) {
+            n = sizeof(chunk);
+        }
+        for (uint64_t i = 0; i < n; ++i) {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            chunk[i] = (uint8_t)(seed >> 8);
+        }
+        int64_t rc = userproc_copy_to_user(user_buf + written, chunk, n);
+        if (rc != 0) {
+            return (written > 0) ? written : userproc_errno(rc);
+        }
+        written += n;
+    }
+    return written;
 }
 
 static uint64_t userproc_linux_close(uint64_t fd) {
@@ -1122,8 +1213,12 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_writev(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_BRK:
             return userproc_linux_brk(arg1);
+        case MINIOS_LINUX_SYSCALL_ACCESS:
+            return userproc_linux_access_path(arg1);
         case MINIOS_LINUX_SYSCALL_UNAME:
             return userproc_linux_uname(arg1);
+        case MINIOS_LINUX_SYSCALL_GETCWD:
+            return userproc_linux_getcwd(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_GETPID:
             return 1000 + g_userproc_current_app_id;
         case MINIOS_LINUX_SYSCALL_GETTID:
@@ -1133,10 +1228,16 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return 1000 + g_userproc_current_app_id;
         case MINIOS_LINUX_SYSCALL_ARCH_PRCTL:
             return userproc_linux_arch_prctl(arg1, arg2);
+        case MINIOS_LINUX_SYSCALL_CLOCK_GETTIME:
+            return userproc_linux_clock_gettime(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_OPENAT:
             return userproc_linux_openat(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_NEWFSTATAT:
             return userproc_linux_newfstatat(arg1, arg2, arg3, arg4);
+        case MINIOS_LINUX_SYSCALL_FACCESSAT:
+            return userproc_linux_access_path(arg2);
+        case MINIOS_LINUX_SYSCALL_GETRANDOM:
+            return userproc_linux_getrandom(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_EXECVE: {
             mvos_userimg_report_t report;
             mvos_user_stack_layout_t layout;
@@ -1316,6 +1417,47 @@ void userproc_linux_abi_probe(void) {
         ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_MUNMAP, map_addr, 8192, 0, 0, 0, 0);
         userproc_probe_print_ret("munmap.anon_ret", ret);
     }
+
+    char cwd_buf[8];
+    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_GETCWD,
+                            (uint64_t)(uintptr_t)cwd_buf,
+                            sizeof(cwd_buf),
+                            0,
+                            0,
+                            0,
+                            0);
+    userproc_probe_print_ret("getcwd.ret", ret);
+    if (!userproc_is_errno(ret)) {
+        console_write_string("[linux-abi] getcwd.path=");
+        console_write_string(cwd_buf);
+        console_write_string("\n");
+    }
+    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_ACCESS,
+                            (uint64_t)(uintptr_t)readme_path,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0);
+    userproc_probe_print_ret("access.readme_ret", ret);
+    minios_timespec_t ts;
+    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_CLOCK_GETTIME,
+                            MINIOS_CLOCK_MONOTONIC,
+                            (uint64_t)(uintptr_t)&ts,
+                            0,
+                            0,
+                            0,
+                            0);
+    userproc_probe_print_ret("clock_gettime.ret", ret);
+    uint8_t random_buf[16];
+    ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_GETRANDOM,
+                            (uint64_t)(uintptr_t)random_buf,
+                            sizeof(random_buf),
+                            0,
+                            0,
+                            0,
+                            0);
+    userproc_probe_print_ret("getrandom.ret", ret);
 
     static const char exec_path[] = "/bin/hello_linux_tiny";
     static const char *const exec_argv[] = {"hello_linux_tiny", "--probe", NULL};
