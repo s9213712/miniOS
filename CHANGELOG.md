@@ -23,6 +23,7 @@
 - Added a bounded keyboard polling API for future non-blocking/scripted shell flows.
 - Marked legacy userapp stack scratch buffers with explicit 16-byte alignment.
 - Rejected ET_DYN images in the user image loader until relocation support exists.
+- Centralized internal ELF64 header and program-header definitions for inspect and load paths.
 - Extended the tiny Linux ELF demo to open and read `/boot/init/readme.txt` through real user-mode syscalls.
 - Extended execve smoke checks to require the initfs read marker from userspace.
 - Added host regression coverage for shell command parsing and CI coverage for all host regressions.

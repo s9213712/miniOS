@@ -1,53 +1,14 @@
 #include <mvos/userimg.h>
 #include <mvos/elf.h>
+#include <mvos/elf64_internal.h>
 #include <mvos/vmm.h>
 #include <stdint.h>
-
-enum {
-    ELF_MAGIC0 = 0x7f,
-    ELF_MAGIC1 = 'E',
-    ELF_MAGIC2 = 'L',
-    ELF_MAGIC3 = 'F',
-    ELF_TYPE_EXEC = 2,
-    ELF_PHDR_LOAD = 1,
-    ELF_PHDR_FLAG_EXEC = 1,
-    ELF_PHDR_FLAG_WRITE = 2,
-    ELF_PHDR_FLAG_READ = 4,
-};
 
 enum {
     USERIMG_MAX_LAYOUT_REGIONS = 16,
     USERIMG_STACK_GAP_BYTES = 0x100000,
     USERIMG_STACK_SIZE_BYTES = 0x10000,
 };
-
-typedef struct __attribute__((packed)) {
-    uint8_t e_ident[16];
-    uint16_t e_type;
-    uint16_t e_machine;
-    uint32_t e_version;
-    uint64_t e_entry;
-    uint64_t e_phoff;
-    uint64_t e_shoff;
-    uint32_t e_flags;
-    uint16_t e_ehsize;
-    uint16_t e_phentsize;
-    uint16_t e_phnum;
-    uint16_t e_shentsize;
-    uint16_t e_shnum;
-    uint16_t e_shstrndx;
-} elf64_ehdr_t;
-
-typedef struct __attribute__((packed)) {
-    uint32_t p_type;
-    uint32_t p_flags;
-    uint64_t p_offset;
-    uint64_t p_vaddr;
-    uint64_t p_paddr;
-    uint64_t p_filesz;
-    uint64_t p_memsz;
-    uint64_t p_align;
-} elf64_phdr_t;
 
 typedef struct {
     uint64_t base;
@@ -231,21 +192,21 @@ mvos_userimg_result_t userimg_prepare_image(const uint8_t *image, uint64_t image
         return MVOS_USERIMG_ERR_ELF;
     }
 
-    const elf64_ehdr_t *eh = (const elf64_ehdr_t *)image;
-    if (eh->e_ident[0] != ELF_MAGIC0 ||
-        eh->e_ident[1] != ELF_MAGIC1 ||
-        eh->e_ident[2] != ELF_MAGIC2 ||
-        eh->e_ident[3] != ELF_MAGIC3 ||
+    const mvos_elf64_ehdr_t *eh = (const mvos_elf64_ehdr_t *)image;
+    if (eh->e_ident[0] != MVOS_ELF64_MAGIC0 ||
+        eh->e_ident[1] != MVOS_ELF64_MAGIC1 ||
+        eh->e_ident[2] != MVOS_ELF64_MAGIC2 ||
+        eh->e_ident[3] != MVOS_ELF64_MAGIC3 ||
         eh->e_phnum == 0) {
         return MVOS_USERIMG_ERR_LAYOUT;
     }
-    if (eh->e_type != ELF_TYPE_EXEC) {
+    if (eh->e_type != MVOS_ELF64_TYPE_EXEC) {
         return MVOS_USERIMG_ERR_UNSUPPORTED_TYPE;
     }
 
     uint64_t ph_bytes = 0;
     uint64_t ph_end = 0;
-    ph_bytes = (uint64_t)eh->e_phnum * sizeof(elf64_phdr_t);
+    ph_bytes = (uint64_t)eh->e_phnum * sizeof(mvos_elf64_phdr_t);
     if (checked_add_u64(eh->e_phoff, ph_bytes, &ph_end) != 0 || ph_end > image_len) {
         return MVOS_USERIMG_ERR_LAYOUT;
     }
@@ -264,10 +225,10 @@ mvos_userimg_result_t userimg_prepare_image(const uint8_t *image, uint64_t image
 
     userimg_layout_region_t layout[USERIMG_MAX_LAYOUT_REGIONS];
     uint32_t layout_count = 0;
-    const elf64_phdr_t *ph = (const elf64_phdr_t *)(image + eh->e_phoff);
+    const mvos_elf64_phdr_t *ph = (const mvos_elf64_phdr_t *)(image + eh->e_phoff);
 
     for (uint64_t i = 0; i < eh->e_phnum; ++i) {
-        if (ph[i].p_type != ELF_PHDR_LOAD || ph[i].p_memsz == 0) {
+        if (ph[i].p_type != MVOS_ELF64_PHDR_LOAD || ph[i].p_memsz == 0) {
             continue;
         }
         uint64_t file_end = 0;
@@ -301,13 +262,13 @@ mvos_userimg_result_t userimg_prepare_image(const uint8_t *image, uint64_t image
         }
 
         uint64_t map_flags = MVOS_VMM_FLAG_USER;
-        if ((ph[i].p_flags & ELF_PHDR_FLAG_READ) != 0) {
+        if ((ph[i].p_flags & MVOS_ELF64_PHDR_FLAG_READ) != 0) {
             map_flags |= MVOS_VMM_FLAG_READ;
         }
-        if ((ph[i].p_flags & ELF_PHDR_FLAG_WRITE) != 0) {
+        if ((ph[i].p_flags & MVOS_ELF64_PHDR_FLAG_WRITE) != 0) {
             map_flags |= MVOS_VMM_FLAG_WRITE;
         }
-        if ((ph[i].p_flags & ELF_PHDR_FLAG_EXEC) != 0) {
+        if ((ph[i].p_flags & MVOS_ELF64_PHDR_FLAG_EXEC) != 0) {
             map_flags |= MVOS_VMM_FLAG_EXEC;
         }
         if ((map_flags & (MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_EXEC)) == 0) {
@@ -400,7 +361,7 @@ mvos_userimg_result_t userimg_prepare_image(const uint8_t *image, uint64_t image
     out->mapped_limit = mapped_limit;
 
     for (uint64_t i = 0; i < eh->e_phnum; ++i) {
-        if (ph[i].p_type != ELF_PHDR_LOAD || ph[i].p_filesz == 0) {
+        if (ph[i].p_type != MVOS_ELF64_PHDR_LOAD || ph[i].p_filesz == 0) {
             continue;
         }
         uint64_t segment_offset = ph[i].p_vaddr - src_floor;
