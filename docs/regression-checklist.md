@@ -22,6 +22,7 @@
 - `boot/limine.conf` 與 `build/iso_root/boot/limine.conf` 皆有 `PROTOCOL=limine` 與 `KERNEL_PATH=boot:///boot/mvos.bin`
 - `make test-host-programs` 通過（manifest `default_link_mode` / `link_mode` 回歸）
 - `make smoke-offline` 輸出 `Execve demo verified.`
+- execve smoke serial 包含 `[linux-abi] uname.sysname=miniOS release=0.43`
 
 ## 失敗診斷要點
 - 若 timeout：  

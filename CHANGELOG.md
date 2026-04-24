@@ -10,6 +10,7 @@
   - dispatches Linux x86-64 syscall numbers through `userproc_dispatch`
   - resumes the supervisor continuation on `exit`/`exit_group`
 - Extended `test-elf-sample` to reject `int $0x80` in the tiny Linux sample.
+- Extended execve smoke checks to require the Phase 43 uname release marker.
 
 ### Changed
 - Updated built-in userapp stubs and `samples/linux-user/hello_linux_tiny.S` to use the x86-64 `syscall` instruction.
