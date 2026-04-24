@@ -92,7 +92,9 @@ static uint64_t *ensure_next_table(uint64_t *table, uint64_t index) {
         if ((entry & MVOS_VMM_PTE_HUGE) != 0) {
             return 0;
         }
-        table[index] = entry | MVOS_VMM_PTE_WRITE | MVOS_VMM_PTE_USER;
+        if ((entry & MVOS_VMM_PTE_USER) == 0) {
+            return 0;
+        }
         return phys_to_kernel_virt(entry & MVOS_VMM_PTE_ADDR_MASK);
     }
 
@@ -121,6 +123,63 @@ static int range_overlaps(uint64_t base_a, uint64_t size_a, uint64_t base_b, uin
         return 1;
     }
     return !(end_a <= base_b || end_b <= base_a);
+}
+
+static void clear_user_backing_range(uint64_t vaddr, uint64_t size) {
+    if (g_hhdm_offset == 0 || size == 0) {
+        return;
+    }
+
+    uint64_t end = 0;
+    if (add_overflow_u64(vaddr, size, &end) != 0) {
+        return;
+    }
+
+    uint64_t *pml4 = phys_to_kernel_virt(read_cr3_phys());
+    for (uint64_t page = vaddr; page < end; page += MVOS_VMM_PAGE_SIZE) {
+        uint64_t pml4_i = (page >> 39) & 0x1FFULL;
+        uint64_t pdpt_i = (page >> 30) & 0x1FFULL;
+        uint64_t pd_i = (page >> 21) & 0x1FFULL;
+        uint64_t pt_i = (page >> 12) & 0x1FFULL;
+
+        uint64_t pml4e = pml4[pml4_i];
+        if ((pml4e & MVOS_VMM_PTE_PRESENT) == 0 || (pml4e & MVOS_VMM_PTE_HUGE) != 0) {
+            continue;
+        }
+        uint64_t *pdpt = phys_to_kernel_virt(pml4e & MVOS_VMM_PTE_ADDR_MASK);
+        uint64_t pdpte = pdpt[pdpt_i];
+        if ((pdpte & MVOS_VMM_PTE_PRESENT) == 0 || (pdpte & MVOS_VMM_PTE_HUGE) != 0) {
+            continue;
+        }
+        uint64_t *pd = phys_to_kernel_virt(pdpte & MVOS_VMM_PTE_ADDR_MASK);
+        uint64_t pde = pd[pd_i];
+        if ((pde & MVOS_VMM_PTE_PRESENT) == 0 || (pde & MVOS_VMM_PTE_HUGE) != 0) {
+            continue;
+        }
+        uint64_t *pt = phys_to_kernel_virt(pde & MVOS_VMM_PTE_ADDR_MASK);
+        if ((pt[pt_i] & MVOS_VMM_PTE_PRESENT) != 0) {
+            pt[pt_i] = 0;
+            flush_user_page(page);
+        }
+    }
+}
+
+static int map_user_backing_range(uint64_t base, uint64_t size, uint64_t flags) {
+    if (g_hhdm_offset == 0) {
+        return 0;
+    }
+    uint64_t end = 0;
+    if (add_overflow_u64(base, size, &end) != 0) {
+        return -1;
+    }
+    for (uint64_t page = base; page < end; page += MVOS_VMM_PAGE_SIZE) {
+        void *backing = 0;
+        if (vmm_map_user_backed_page(page, flags, &backing) != 0) {
+            clear_user_backing_range(base, page - base);
+            return -1;
+        }
+    }
+    return 0;
 }
 
 void vmm_init(uint64_t hhdm_offset) {
@@ -180,6 +239,7 @@ int vmm_unmap_range(uint64_t vaddr, uint64_t size) {
             continue;
         }
         if (g_regions[i].base == vaddr && g_regions[i].size == size) {
+            clear_user_backing_range(vaddr, size);
             g_regions[i].in_use = 0;
             g_regions[i].base = 0;
             g_regions[i].size = 0;
@@ -331,6 +391,12 @@ void vmm_user_heap_init(uint64_t base, uint64_t reserve_bytes, uint64_t max_byte
                       "user-brk") != 0) {
         return;
     }
+    if (map_user_backing_range(aligned_base,
+                               reserve,
+                               MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_USER) != 0) {
+        (void)vmm_unmap_range(aligned_base, reserve);
+        return;
+    }
 
     g_user_heap_base = aligned_base;
     g_user_heap_mapped_end = mapped_end;
@@ -373,6 +439,12 @@ uint64_t vmm_user_brk_set(uint64_t new_brk) {
                           chunk,
                           MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_USER,
                           "user-brk") != 0) {
+            return g_user_brk;
+        }
+        if (map_user_backing_range(g_user_heap_mapped_end,
+                                   chunk,
+                                   MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_USER) != 0) {
+            (void)vmm_unmap_range(g_user_heap_mapped_end, chunk);
             return g_user_brk;
         }
         g_user_heap_mapped_end += chunk;

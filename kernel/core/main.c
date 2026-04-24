@@ -251,7 +251,7 @@ void kmain(void) {
      * Linux ABI brk state consistent and testable.
      */
     vmm_init(hhdm_request.response->offset);
-    vmm_user_heap_init(0x0000000000400000ULL, 0x2000ULL, 0x400000ULL);
+    vmm_user_heap_init(0x0000400000200000ULL, 0x2000ULL, 0x400000ULL);
     klog("[vmm] regions=");
     klog_u64((uint64_t)vmm_region_count());
     klog(" user_brk=");

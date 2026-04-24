@@ -24,6 +24,8 @@
 - Honored `TEST_SMOKE_BASENAME` in smoke logs and kept ELF/Limine metadata checks active under `SKIP_SMOKE_RUN=1`.
 - Hardened PMM allocation bounds and selected the largest usable memory-map region.
 - Guarded VMM alignment overflow and made user image region rollback include the just-mapped region on backing failures.
+- Prevented VMM from promoting existing supervisor page-table branches to user/writable mappings.
+- Cleared user leaf PTEs during `vmm_unmap_range()` and backed runtime `brk` heap pages.
 
 ## Phase 43 – x86-64 `syscall` Userspace Entry
 
