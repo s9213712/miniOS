@@ -118,6 +118,11 @@ enum {
     TEST_LINUX_SYSCALL_FCNTL = 72,
     TEST_LINUX_SYSCALL_EXECVE = 59,
     TEST_LINUX_SYSCALL_READLINK = 89,
+    TEST_LINUX_SYSCALL_GETUID = 102,
+    TEST_LINUX_SYSCALL_GETGID = 104,
+    TEST_LINUX_SYSCALL_GETEUID = 107,
+    TEST_LINUX_SYSCALL_GETEGID = 108,
+    TEST_LINUX_SYSCALL_GETPPID = 110,
     TEST_LINUX_SYSCALL_CLOCK_GETTIME = 228,
     TEST_LINUX_SYSCALL_OPENAT = 257,
     TEST_LINUX_SYSCALL_NEWFSTATAT = 262,
@@ -538,6 +543,37 @@ int main(void) {
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_EXECVE, 0, 0, 0, 0, 0, 0);
     if ((int64_t)exec_rc != -14) {
         fprintf(stderr, "[test_userimg_loader] expected execve EFAULT (-14), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETUID, 0, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected getuid root id 0, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETGID, 0, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected getgid root id 0, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETEUID, 0, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected geteuid root id 0, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETEGID, 0, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected getegid root id 0, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETPPID, 0, 0, 0, 0, 0, 0);
+    if (exec_rc != 1) {
+        fprintf(stderr, "[test_userimg_loader] expected getppid 1, got %lld\n", (long long)exec_rc);
         free(stack_mem);
         return 1;
     }
