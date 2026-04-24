@@ -102,6 +102,7 @@ enum {
     TEST_LINUX_SYSCALL_MMAP = 9,
     TEST_LINUX_SYSCALL_MPROTECT = 10,
     TEST_LINUX_SYSCALL_MUNMAP = 11,
+    TEST_LINUX_SYSCALL_PREAD64 = 17,
     TEST_LINUX_SYSCALL_ACCESS = 21,
     TEST_LINUX_SYSCALL_GETCWD = 79,
     TEST_LINUX_SYSCALL_EXECVE = 59,
@@ -462,6 +463,36 @@ int main(void) {
     if (exec_rc != 5) {
         fprintf(stderr, "[test_userimg_loader] expected relative lseek to offset 5, got %lld\n",
                 (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    memset(read_buf, 0, sizeof(read_buf));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_PREAD64,
+                                fd,
+                                (uint64_t)(uintptr_t)read_buf,
+                                6,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 6 || strcmp(read_buf, "miniOS") != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected pread64 at offset 0, rc=%lld text=%s\n",
+                (long long)exec_rc,
+                read_buf);
+        free(stack_mem);
+        return 1;
+    }
+    memset(read_buf, 0, sizeof(read_buf));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READ,
+                                fd,
+                                (uint64_t)(uintptr_t)read_buf,
+                                1,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 1 || strcmp(read_buf, "S") != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected pread64 to preserve fd offset, rc=%lld text=%s\n",
+                (long long)exec_rc,
+                read_buf);
         free(stack_mem);
         return 1;
     }

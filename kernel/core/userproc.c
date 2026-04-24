@@ -20,6 +20,7 @@ enum {
     MINIOS_LINUX_SYSCALL_MPROTECT = 10,
     MINIOS_LINUX_SYSCALL_MUNMAP = 11,
     MINIOS_LINUX_SYSCALL_BRK = 12,
+    MINIOS_LINUX_SYSCALL_PREAD64 = 17,
     MINIOS_LINUX_SYSCALL_ACCESS = 21,
     MINIOS_LINUX_SYSCALL_WRITEV = 20,
     MINIOS_LINUX_SYSCALL_UNAME = 63,
@@ -439,6 +440,43 @@ static uint64_t userproc_linux_read(uint64_t fd, uint64_t user_buf, uint64_t cou
 
     uint64_t bytes = 0;
     int rc = vfs_read(&g_userproc_files[index], (void *)(uintptr_t)user_buf, count, &bytes);
+    if (rc != 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    return bytes;
+}
+
+static uint64_t userproc_linux_pread64(uint64_t fd, uint64_t user_buf, uint64_t count, uint64_t offset) {
+    if (count == 0) {
+        return 0;
+    }
+    if (user_buf == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    if (!userproc_user_range_ok(user_buf, count, MVOS_VMM_FLAG_WRITE)) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+
+    uint64_t index = 0;
+    if (userproc_fd_to_index(fd, &index) != 0) {
+        return userproc_errno(-9); /* EBADF */
+    }
+
+    mvos_vfs_file_t cursor = g_userproc_files[index];
+    if (offset >= cursor.size) {
+        return 0;
+    }
+    if (offset > (uint64_t)INT64_MAX) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    uint64_t new_offset = 0;
+    if (vfs_seek(&cursor, (int64_t)offset, MINIOS_SEEK_SET, &new_offset) != 0 ||
+        new_offset != offset) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+
+    uint64_t bytes = 0;
+    int rc = vfs_read(&cursor, (void *)(uintptr_t)user_buf, count, &bytes);
     if (rc != 0) {
         return userproc_errno(-14); /* EFAULT */
     }
@@ -1300,6 +1338,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_munmap(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_WRITEV:
             return userproc_linux_writev(arg1, arg2, arg3);
+        case MINIOS_LINUX_SYSCALL_PREAD64:
+            return userproc_linux_pread64(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_BRK:
             return userproc_linux_brk(arg1);
         case MINIOS_LINUX_SYSCALL_ACCESS:
@@ -1490,6 +1530,14 @@ void userproc_linux_abi_probe(void) {
         }
         ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_LSEEK, fd, 0, MINIOS_SEEK_SET, 0, 0, 0);
         userproc_probe_print_ret("lseek.readme_ret", ret);
+        ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_PREAD64,
+                                fd,
+                                (uint64_t)(uintptr_t)read_buf,
+                                6,
+                                0,
+                                0,
+                                0);
+        userproc_probe_print_ret("pread64.readme_ret", ret);
         uint64_t file_map = userproc_dispatch(MINIOS_LINUX_SYSCALL_MMAP,
                                               0,
                                               4096,
