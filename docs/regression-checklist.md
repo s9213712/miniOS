@@ -21,7 +21,7 @@
 - `readelf -S build/mvos.elf | grep ".requests"` 存在
 - `boot/limine.conf` 與 `build/iso_root/boot/limine.conf` 皆有 `PROTOCOL=limine` 與 `KERNEL_PATH=boot:///boot/mvos.bin`
 - `make test-host-programs` 通過（manifest `default_link_mode` / `link_mode` 回歸）
-- `make smoke-execve-demo` 輸出 `Execve demo verified.`
+- `make smoke-offline` 輸出 `Execve demo verified.`
 
 ## 失敗診斷要點
 - 若 timeout：  

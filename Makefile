@@ -73,7 +73,7 @@ OBJS := $(C_OBJS) $(CXX_OBJS) $(ASM_OBJS)
 
 FLAGS_MARK := $(OUTPUT_DIR)/.build-flags
 
-.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline smoke-execve-demo prefetch-limine host-programs build-host-programs clean-host-programs test-host-programs refresh-elf-sample test-elf-sample test-vfs-rw test-scheduler-ctl test-vmm-basic test-userimg-loader FORCE
+.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline smoke-offline-basic smoke-execve-demo prefetch-limine host-programs build-host-programs clean-host-programs test-host-programs refresh-elf-sample test-elf-sample test-vfs-rw test-scheduler-ctl test-vmm-basic test-userimg-loader FORCE
 
 HOST_PROGRAMS_SRC_DIR := samples/user-programs
 HOST_PROGRAMS_OUT_DIR := $(OUTPUT_DIR)/host-programs
@@ -134,10 +134,12 @@ smoke-full: test-smoke
 smoke-build: $(KERNEL_ELF)
 	EXECVE_DEMO="$(EXECVE_DEMO)" SKIP_SMOKE_RUN=1 bash scripts/test_smoke.sh
 
-smoke-offline: $(KERNEL_ELF)
+smoke-offline: smoke-execve-demo
+
+smoke-offline-basic: $(KERNEL_ELF)
 	@if [ -z "$(strip $(LIMINE_LOCAL_DIR)$(LIMINE_CACHE_DIR))" ]; then \
-	  echo "[make] smoke-offline requires LIMINE_LOCAL_DIR or LIMINE_CACHE_DIR"; \
-	  echo "Example: LIMINE_LOCAL_DIR=/path/to/Limine make smoke-offline"; \
+	  echo "[make] smoke-offline-basic requires LIMINE_LOCAL_DIR or LIMINE_CACHE_DIR"; \
+	  echo "Example: LIMINE_LOCAL_DIR=/path/to/Limine make smoke-offline-basic"; \
 	  exit 1; \
 	fi
 	@EXECVE_DEMO="$(EXECVE_DEMO)" SMOKE_OFFLINE=1 bash scripts/test_smoke.sh
@@ -148,7 +150,7 @@ smoke-execve-demo:
 	  echo "Example: LIMINE_LOCAL_DIR=/path/to/Limine make smoke-execve-demo"; \
 	  exit 1; \
 	fi
-	@$(MAKE) smoke-offline EXECVE_DEMO=1
+	@$(MAKE) smoke-offline-basic EXECVE_DEMO=1
 
 host-programs:
 	@if [ ! -d "$(HOST_PROGRAMS_SRC_DIR)" ]; then \

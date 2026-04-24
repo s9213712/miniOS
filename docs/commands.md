@@ -126,11 +126,15 @@
   ```bash
   make smoke
   ```
-- 離線 smoke（推薦，搭配本機 Limine）：
+- 離線 smoke（推薦，搭配本機 Limine；包含 execve demo 驗證）：
   ```bash
   LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
   ```
-- 最小 execve userspace demo（啟動時跑 `run linux-abi` probe，包含 tiny ELF 進入/退出）：
+- 僅跑基本開機 smoke（不啟用 execve demo）：
+  ```bash
+  LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline-basic
+  ```
+- 最小 execve userspace demo（與 `smoke-offline` 相同驗證，可讀性別名）：
   ```bash
   LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-execve-demo
   ```
