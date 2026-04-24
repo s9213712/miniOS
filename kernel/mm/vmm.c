@@ -205,12 +205,6 @@ int vmm_map_user_backed_page(uint64_t vaddr, uint64_t flags, void **out_kernel_p
         return 0;
     }
 
-    void *backing = pmm_allocate_pages(1);
-    if (backing == 0) {
-        return -4;
-    }
-    zero_page(backing);
-
     uint64_t *pml4 = phys_to_kernel_virt(read_cr3_phys());
     uint64_t pml4_i = (vaddr >> 39) & 0x1FFULL;
     uint64_t pdpt_i = (vaddr >> 30) & 0x1FFULL;
@@ -233,6 +227,23 @@ int vmm_map_user_backed_page(uint64_t vaddr, uint64_t flags, void **out_kernel_p
     if ((flags & MVOS_VMM_FLAG_WRITE) != 0) {
         pte_flags |= MVOS_VMM_PTE_WRITE;
     }
+
+    uint64_t existing = pt[pt_i];
+    if ((existing & MVOS_VMM_PTE_PRESENT) != 0) {
+        void *backing = phys_to_kernel_virt(existing & MVOS_VMM_PTE_ADDR_MASK);
+        zero_page(backing);
+        pt[pt_i] = (existing & MVOS_VMM_PTE_ADDR_MASK) | pte_flags;
+        flush_user_page(vaddr);
+        *out_kernel_page = backing;
+        return 0;
+    }
+
+    void *backing = pmm_allocate_pages(1);
+    if (backing == 0) {
+        return -4;
+    }
+    zero_page(backing);
+
     pt[pt_i] = kernel_virt_to_phys(backing) | pte_flags;
     flush_user_page(vaddr);
     *out_kernel_page = backing;
