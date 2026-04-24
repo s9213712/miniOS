@@ -139,6 +139,7 @@
 - `run cpp`
 - `run python`（目前僅回報 Python 尚未支援於 miniOS）
   - `run --help` 列出 `run` 可用子選項
+  - `run -h` 同 `run --help`
   - `run --status` 顯示可用 app 與執行模式（user/kernel）
   - `run` 無參數時會列出所有可用 app 與描述
 - `gui`

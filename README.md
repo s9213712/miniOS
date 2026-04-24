@@ -44,9 +44,10 @@
 - Phase 22：基礎 C++ 範例程式（完成）
   - 新增 `run cpp` 示範 app（C++ 函式已編入核心映像並可呼叫）。
   - `Python` 仍不支援直接於 miniOS 內部執行；先以 C/C++ kernel-mode fallback 為主。
-- Phase 23：互動指令可觀測性（進行中）
+- Phase 23：互動指令可觀測性（完成）
   - 改善 `run` 命令幫助與狀態檢視，支援 `run --help` 與 `run --status`。
   - `run --status` 會顯示每個 app 的執行模式（user/kernel），避免混淆未啟用 ring3 的情況。
+  - `run -h` 提供與 `run --help` 相同的命令說明。
 
 ## 每階段目的與預期成效
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## Phase 23 – Run Command Observability
+
+### Added
+- Added `run --help` and `run --status` in shell for explicit usage/status discovery.
+- Added `run -h` alias to the same help output.
+- Added user/kernel execution mode visibility for built-in user apps via `run --status`.
+- Documented updated `run` behavior in README, roadmap, and command handbook.
+
+### Validation
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 18 – Scheduler Observability
 
 ### Added

@@ -11,10 +11,10 @@
 ## 最近進度摘要
 
 - 2026-04-24：`Phase 22` 完成，已補齊 `run cpp` 演示命令，並同步更新 smoke/文件流程。
-- 2026-04-24：`Phase 23` 進行中，補齊 `run --help` 與 `run --status`，提升 userapp 可見性。
+- 2026-04-24：`Phase 23` 完成，`run --help` 與 `run --status` 已上線。
 - `Phase 21` 的 `ls`/`cat` 目前仍為唯讀 initfs 檢視能力。
 - `Phase 20` `run hello` 路徑先走 kernel fallback，後續保留 ring3 切換開關。
-- `Phase 23` 的 `run` 子命令已加入 user/kernel 模式資訊與說明輸出。
+- `Phase 23` `run` 子命令已上線，加入 user/kernel 模式資訊與說明輸出。
 
 ## 檢查前提
 
@@ -157,6 +157,7 @@
 - Phase 22：基本 C++ 示範（完成）
   - 在 `userapp` 管線加入 C++ 對應編譯路徑，提供 `run cpp` 範例 app
   - `Python` 仍停留在「未提供 runtime」狀態，現階段改以主機端 `python3 scripts/dev_status.py` 驗證環境
-- Phase 23：`run` 觀測性提升（進行中）
+- Phase 23：`run` 觀測性提升（完成）
   - `run` 新增 `--help` 與 `--status`，可輸出 app 列表與執行模式標記（user/kernel）
   - 維持既有 `run <name>` 行為與 smoke 路徑不變
+  - `run -h` 支援相同幫助行為，降低指令門檻
