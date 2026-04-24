@@ -31,6 +31,7 @@
 - 2026-04-24：`Phase 37` 新增 user image loader 骨架（`run elf-load`）與 `make test-userimg-loader`，提供 ELF `PT_LOAD` 到 VMM metadata 的最小接線。
 - 2026-04-24：`Phase 38` 擴充 user image 執行上下文（加入 `userimg-stack` 映射與 stack report），讓後續 user-mode handoff 有固定入口資料。
 - 2026-04-24：`Phase 39` 完成 `userproc_handoff_dry_run`，把 `run elf-load` 的 entry/stack 規劃接入可測試的 handoff 前置驗證。
+- 2026-04-24：`Phase 40` 新增 `execve` 風格 stack scaffold（`argc/argv/envp/auxv`），並將結果納入 `run elf-load` 與 `test-userimg-loader` 驗證。
 
 ## 檢查前提
 
@@ -227,3 +228,7 @@
   - 新增 `userproc_handoff_dry_run`，檢查 user entry 位於可執行 userimg 區域、stack top 對齊且位於可寫 user stack 區域。
   - `run elf-load` 直接輸出 handoff dry-run 狀態，讓載入結果可立即驗證是否可進一步 handoff。
   - `make test-userimg-loader` 新增 dry-run 成功與失敗案例，避免未來改動時退化。
+- Phase 40：exec stack 佈局骨架（完成）
+  - 新增 `userproc_prepare_exec_stack`，可建構 `argc/argv/envp/auxv` 的初始 userspace stack 內容（scaffold）。
+  - `run elf-load` 新增 exec stack prep 結果與 `rsp/argv/envp` 報告輸出。
+  - `make test-userimg-loader` 補驗 stack payload、auxv terminator 與失敗路徑。

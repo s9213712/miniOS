@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
 enum {
     MINIOS_LINUX_SYSCALL_WRITE = 1,
@@ -25,6 +26,11 @@ enum {
     MINIOS_ARCH_SET_FS = 0x1002,
     MINIOS_ARCH_GET_FS = 0x1003,
     MINIOS_ARCH_GET_GS = 0x1004
+};
+
+enum {
+    MINIOS_EXEC_STACK_MAX_ARGC = 32,
+    MINIOS_EXEC_STACK_MAX_ENVC = 32,
 };
 
 typedef struct {
@@ -94,6 +100,27 @@ static int userproc_find_region_for_addr(uint64_t addr,
         return 0;
     }
     return -1;
+}
+
+static uint64_t userproc_strlen(const char *s) {
+    uint64_t len = 0;
+    while (s[len] != '\0') {
+        ++len;
+    }
+    return len;
+}
+
+static int userproc_stack_write_u64(uint8_t *stack_mem,
+                                    uint64_t stack_base,
+                                    uint64_t stack_top,
+                                    uint64_t addr,
+                                    uint64_t value) {
+    if (addr < stack_base || addr + sizeof(uint64_t) > stack_top) {
+        return -1;
+    }
+    uint64_t offset = addr - stack_base;
+    memcpy(stack_mem + offset, &value, sizeof(value));
+    return 0;
 }
 
 static uint64_t userproc_errno(int64_t code) {
@@ -204,8 +231,8 @@ static uint64_t userproc_linux_uname(uint64_t user_buf) {
     volatile minios_utsname_t *u = (volatile minios_utsname_t *)(uintptr_t)user_buf;
     userproc_copy_cstr((char *)u->sysname, sizeof(u->sysname), "miniOS");
     userproc_copy_cstr((char *)u->nodename, sizeof(u->nodename), "miniOS-node");
-    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.39");
-    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Phase39 handoff-dryrun+linux abi preview");
+    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.40");
+    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Phase40 exec-stack+linux abi preview");
     userproc_copy_cstr((char *)u->machine, sizeof(u->machine), "x86_64");
     userproc_copy_cstr((char *)u->domainname, sizeof(u->domainname), "miniOS.local");
     return 0;
@@ -287,6 +314,158 @@ int userproc_handoff_dry_run(uint64_t entry, uint64_t user_stack_top) {
     if (user_stack_top <= stack_region.base) {
         return -4;
     }
+    return 0;
+}
+
+const char *userproc_stack_result_name(int rc) {
+    switch (rc) {
+        case 0:
+            return "ok";
+        case -1:
+            return "null-arg";
+        case -2:
+            return "invalid-stack-range";
+        case -3:
+            return "count-limit-exceeded";
+        case -4:
+            return "missing-argv-envp-entry";
+        case -5:
+            return "stack-overflow";
+        case -6:
+            return "unaligned-stack-top";
+        case -7:
+            return "stack-write-failed";
+        default:
+            return "unknown";
+    }
+}
+
+int userproc_prepare_exec_stack(uint8_t *stack_mem,
+                                uint64_t stack_size,
+                                uint64_t stack_base,
+                                uint64_t stack_top,
+                                const char *const *argv,
+                                uint64_t argc,
+                                const char *const *envp,
+                                uint64_t envc,
+                                mvos_user_stack_layout_t *out) {
+    if (stack_mem == NULL || out == NULL) {
+        return -1;
+    }
+    if (stack_top <= stack_base || stack_size == 0 || stack_top - stack_base != stack_size) {
+        return -2;
+    }
+    if ((stack_top & 0xFULL) != 0) {
+        return -6;
+    }
+    if (argc > MINIOS_EXEC_STACK_MAX_ARGC || envc > MINIOS_EXEC_STACK_MAX_ENVC) {
+        return -3;
+    }
+    if ((argc > 0 && argv == NULL) || (envc > 0 && envp == NULL)) {
+        return -4;
+    }
+
+    uint64_t argv_ptrs[MINIOS_EXEC_STACK_MAX_ARGC];
+    uint64_t env_ptrs[MINIOS_EXEC_STACK_MAX_ENVC];
+    uint64_t sp = stack_top;
+    uint64_t strings_bytes = 0;
+    memset(stack_mem, 0, (size_t)stack_size);
+
+    for (uint64_t i = argc; i > 0; --i) {
+        const char *s = argv[i - 1];
+        if (s == NULL) {
+            return -4;
+        }
+        uint64_t len = userproc_strlen(s) + 1ULL;
+        if (sp < stack_base + len) {
+            return -5;
+        }
+        sp -= len;
+        uint64_t off = sp - stack_base;
+        memcpy(stack_mem + off, s, (size_t)len);
+        argv_ptrs[i - 1] = sp;
+        strings_bytes += len;
+    }
+
+    for (uint64_t i = envc; i > 0; --i) {
+        const char *s = envp[i - 1];
+        if (s == NULL) {
+            return -4;
+        }
+        uint64_t len = userproc_strlen(s) + 1ULL;
+        if (sp < stack_base + len) {
+            return -5;
+        }
+        sp -= len;
+        uint64_t off = sp - stack_base;
+        memcpy(stack_mem + off, s, (size_t)len);
+        env_ptrs[i - 1] = sp;
+        strings_bytes += len;
+    }
+
+    sp &= ~0xFULL;
+
+    if (sp < stack_base + 16ULL) {
+        return -5;
+    }
+    sp -= 16ULL;
+    if (userproc_stack_write_u64(stack_mem, stack_base, stack_top, sp, 0) != 0 ||
+        userproc_stack_write_u64(stack_mem, stack_base, stack_top, sp + 8ULL, 0) != 0) {
+        return -7;
+    }
+    uint64_t auxv_user = sp;
+
+    if (sp < stack_base + 8ULL) {
+        return -5;
+    }
+    sp -= 8ULL;
+    if (userproc_stack_write_u64(stack_mem, stack_base, stack_top, sp, 0) != 0) {
+        return -7;
+    }
+    for (uint64_t i = envc; i > 0; --i) {
+        if (sp < stack_base + 8ULL) {
+            return -5;
+        }
+        sp -= 8ULL;
+        if (userproc_stack_write_u64(stack_mem, stack_base, stack_top, sp, env_ptrs[i - 1]) != 0) {
+            return -7;
+        }
+    }
+    uint64_t envp_user = sp;
+
+    if (sp < stack_base + 8ULL) {
+        return -5;
+    }
+    sp -= 8ULL;
+    if (userproc_stack_write_u64(stack_mem, stack_base, stack_top, sp, 0) != 0) {
+        return -7;
+    }
+    for (uint64_t i = argc; i > 0; --i) {
+        if (sp < stack_base + 8ULL) {
+            return -5;
+        }
+        sp -= 8ULL;
+        if (userproc_stack_write_u64(stack_mem, stack_base, stack_top, sp, argv_ptrs[i - 1]) != 0) {
+            return -7;
+        }
+    }
+    uint64_t argv_user = sp;
+
+    if (sp < stack_base + 8ULL) {
+        return -5;
+    }
+    sp -= 8ULL;
+    if (userproc_stack_write_u64(stack_mem, stack_base, stack_top, sp, argc) != 0) {
+        return -7;
+    }
+
+    out->initial_rsp = sp;
+    out->argc = argc;
+    out->argv_user = argv_user;
+    out->envp_user = envp_user;
+    out->auxv_user = auxv_user;
+    out->strings_bytes = strings_bytes;
+    out->used_bytes = stack_top - sp;
     return 0;
 }
 

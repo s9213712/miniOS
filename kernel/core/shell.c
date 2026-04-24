@@ -549,7 +549,7 @@ static void shell_cmd_capabilities(void) {
     console_write_string("    - `make test-vfs-rw` validates writable /tmp VFS behavior\n");
     console_write_string("    - `make test-scheduler-ctl` validates scheduler task controls\n");
     console_write_string("    - `make test-vmm-basic` validates VMM map/unmap and brk bounds\n");
-    console_write_string("    - `make test-userimg-loader` validates ELF load+stack mapping and handoff dry-run checks\n");
+    console_write_string("    - `make test-userimg-loader` validates ELF load+stack mapping, handoff checks, and exec stack prep\n");
     console_write_string("    - `python3 scripts/dev_status.py --build-programs` validates build chain\n");
     console_write_string("    - `make refresh-elf-sample` regenerates embedded Linux ELF sample blob\n");
     console_write_string("    - `make test-elf-sample` validates regenerated ELF sample contract\n");
@@ -908,7 +908,7 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 7 && shell_streq(trimmed_line, "version")) {
-        console_write_string("MiniOS Phase 39 (handoff dry-run scaffold)\n");
+        console_write_string("MiniOS Phase 40 (exec stack scaffold)\n");
         return;
     }
     if (cmd_len == 4 && shell_streq(trimmed_line, "echo")) {
@@ -937,7 +937,7 @@ static void shell_exec(const char *line) {
 
 void shell_run(void) {
     static char line[SHELL_BUFFER_LEN];
-    console_write_string("MiniOS shell (phase 39)\n");
+    console_write_string("MiniOS shell (phase 40)\n");
     shell_print_help();
     for (;;) {
         shell_print_prompt();

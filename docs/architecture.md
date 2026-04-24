@@ -39,6 +39,7 @@ MiniOS is a small x86_64 educational OS with incremental phases and readable bou
 - **Phase 37**: add user image loader skeleton (`run elf-load`) to map embedded ELF `PT_LOAD` layout into VMM metadata.
 - **Phase 38**: extend user image context with mapped user stack metadata (`stack_base/stack_top`) for next-step user-mode handoff scaffolding.
 - **Phase 39**: connect `run elf-load` output to `userproc_handoff_dry_run` so entry/stack validation is executable and testable.
+- **Phase 40**: add userspace initial stack scaffold (`argc/argv/envp/auxv`) via `userproc_prepare_exec_stack`.
 
 ## Core layout
 
@@ -75,13 +76,14 @@ Current user-visible runtime limit:
 - `make host-programs` compiles sample C/C++ sources (`samples/user-programs`) into `build/host-programs`; these are currently host-side artifacts and are not yet runnable inside miniOS.
 - `run linux-abi` verifies a Linux syscall-number-compatible preview path (currently 1/12/20/39/60/63/158/186/218/231), not full POSIX process compatibility.
 - `run elf-inspect` validates an embedded Linux user ELF sample and prints entry/program-header/load-range metadata.
-- `run elf-load` builds a layout-only mapped image plan in VMM metadata for the embedded ELF sample, reports mapped entry/range + stack plan, and runs handoff dry-run validation.
+- `run elf-load` builds a layout-only mapped image plan in VMM metadata for the embedded ELF sample, reports mapped entry/range + stack plan, runs handoff dry-run validation, and executes exec-stack scaffold checks.
 - `make refresh-elf-sample` regenerates `kernel/core/elf_sample_blob.c` from `samples/linux-user/hello_linux_tiny.S`.
 - `make test-elf-sample` re-runs sample generation and checks blob contract (ELF magic, symbols, minimum byte count).
 - `make test-vfs-rw` compiles and runs a host regression for writable VFS behavior (`/tmp` write/append/remove/list).
 - `make test-scheduler-ctl` compiles and runs a host regression for scheduler task state control and run-counter reset behavior.
 - `make test-vmm-basic` compiles and runs a host regression for VMM map/unmap validation and user-brk bounds.
-- `make test-userimg-loader` compiles and runs a host regression for loader layout mapping idempotence, `userimg-load`/`userimg-stack` tag coverage, and handoff dry-run pass/fail checks.
+- `make test-userimg-loader` compiles and runs a host regression for loader layout mapping idempotence, `userimg-load`/`userimg-stack` tag coverage, handoff dry-run checks, and exec-stack payload validation.
+- `docs/linux-parity-goals.md` tracks long-term gaps versus Linux and the milestone sequence toward userspace compatibility.
 - `cap` / `capabilities` shell command reports:
   - user app execution mode coverage (kernel vs user placeholder),
   - host-program build workflow status,

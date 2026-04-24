@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 40 – Exec Stack Scaffold
+
+### Added
+- Added `userproc_prepare_exec_stack()` and `userproc_stack_result_name()` in `kernel/core/userproc.c`.
+- Added initial userspace stack layout scaffold for `argc/argv/envp/auxv` (AT_NULL pair), writing into a stack buffer with user virtual addresses.
+- Wired `run elf-load` to execute and print exec stack preparation results using loader-generated stack range.
+- Extended `test_userimg_loader` to verify:
+  - exec stack success path
+  - argv/envp payload and null terminators
+  - auxv terminator pair
+  - expected failures (tiny stack overflow, null argv with argc>0)
+- Added long-term parity target document: `docs/linux-parity-goals.md`.
+
+### Validation
+- `make test-userimg-loader`
+- `make test-vmm-basic`
+- `make test-scheduler-ctl`
+- `make test-vfs-rw`
+- `make test-elf-sample`
+- `make test-host-programs`
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 39 – Handoff Dry-run Wiring
 
 ### Added

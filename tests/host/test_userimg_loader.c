@@ -1,6 +1,7 @@
 #include <mvos/userimg.h>
 #include <mvos/userproc.h>
 #include <mvos/vmm.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -25,6 +26,15 @@ uint64_t timer_ticks(void) {
 void userproc_enter_asm(uint64_t entry, uint64_t user_stack) {
     (void)entry;
     (void)user_stack;
+}
+
+static uint64_t read_u64(const uint8_t *stack_mem, uint64_t stack_base, uint64_t stack_top, uint64_t addr) {
+    if (addr < stack_base || addr + sizeof(uint64_t) > stack_top) {
+        return UINT64_MAX;
+    }
+    uint64_t value = 0;
+    memcpy(&value, stack_mem + (addr - stack_base), sizeof(value));
+    return value;
 }
 
 int main(void) {
@@ -70,6 +80,112 @@ int main(void) {
         fprintf(stderr, "[test_userimg_loader] expected handoff dry-run to reject invalid entry\n");
         return 1;
     }
+
+    const char *argv_demo[] = {"hello_linux_tiny", "--demo"};
+    const char *envp_demo[] = {"TERM=minios", "PATH=/usr/bin"};
+    uint8_t *stack_mem = calloc(1u, (size_t)report.stack_size);
+    if (stack_mem == NULL) {
+        fprintf(stderr, "[test_userimg_loader] failed to allocate stack scratch\n");
+        return 1;
+    }
+    mvos_user_stack_layout_t layout;
+    int stack_rc = userproc_prepare_exec_stack(
+        stack_mem,
+        report.stack_size,
+        report.stack_base,
+        report.stack_top,
+        argv_demo,
+        2,
+        envp_demo,
+        2,
+        &layout);
+    if (stack_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] exec stack prep failed: %s (%d)\n",
+                userproc_stack_result_name(stack_rc),
+                stack_rc);
+        free(stack_mem);
+        return 1;
+    }
+    if (layout.argc != 2 || layout.initial_rsp < report.stack_base || layout.initial_rsp >= report.stack_top) {
+        fprintf(stderr, "[test_userimg_loader] invalid stack layout header\n");
+        free(stack_mem);
+        return 1;
+    }
+    if (read_u64(stack_mem, report.stack_base, report.stack_top, layout.initial_rsp) != 2ULL) {
+        fprintf(stderr, "[test_userimg_loader] expected argc=2 at initial_rsp\n");
+        free(stack_mem);
+        return 1;
+    }
+
+    uint64_t arg0_ptr = read_u64(stack_mem, report.stack_base, report.stack_top, layout.argv_user);
+    uint64_t arg1_ptr = read_u64(stack_mem, report.stack_base, report.stack_top, layout.argv_user + 8ULL);
+    uint64_t argn_ptr = read_u64(stack_mem, report.stack_base, report.stack_top, layout.argv_user + 16ULL);
+    uint64_t env0_ptr = read_u64(stack_mem, report.stack_base, report.stack_top, layout.envp_user);
+    uint64_t env1_ptr = read_u64(stack_mem, report.stack_base, report.stack_top, layout.envp_user + 8ULL);
+    uint64_t envn_ptr = read_u64(stack_mem, report.stack_base, report.stack_top, layout.envp_user + 16ULL);
+    if (arg0_ptr == UINT64_MAX || arg1_ptr == UINT64_MAX || env0_ptr == UINT64_MAX || env1_ptr == UINT64_MAX) {
+        fprintf(stderr, "[test_userimg_loader] argv/envp pointer read out of range\n");
+        free(stack_mem);
+        return 1;
+    }
+    if (argn_ptr != 0 || envn_ptr != 0) {
+        fprintf(stderr, "[test_userimg_loader] argv/envp terminator mismatch\n");
+        free(stack_mem);
+        return 1;
+    }
+    if (strcmp((const char *)(stack_mem + (arg0_ptr - report.stack_base)), argv_demo[0]) != 0 ||
+        strcmp((const char *)(stack_mem + (arg1_ptr - report.stack_base)), argv_demo[1]) != 0 ||
+        strcmp((const char *)(stack_mem + (env0_ptr - report.stack_base)), envp_demo[0]) != 0 ||
+        strcmp((const char *)(stack_mem + (env1_ptr - report.stack_base)), envp_demo[1]) != 0) {
+        fprintf(stderr, "[test_userimg_loader] argv/envp string payload mismatch\n");
+        free(stack_mem);
+        return 1;
+    }
+    if (read_u64(stack_mem, report.stack_base, report.stack_top, layout.auxv_user) != 0ULL ||
+        read_u64(stack_mem, report.stack_base, report.stack_top, layout.auxv_user + 8ULL) != 0ULL) {
+        fprintf(stderr, "[test_userimg_loader] expected auxv terminator pair\n");
+        free(stack_mem);
+        return 1;
+    }
+    if (layout.used_bytes == 0 || layout.strings_bytes == 0 || layout.used_bytes < layout.strings_bytes) {
+        fprintf(stderr, "[test_userimg_loader] invalid used/strings byte counters\n");
+        free(stack_mem);
+        return 1;
+    }
+
+    uint8_t tiny_stack[64];
+    stack_rc = userproc_prepare_exec_stack(
+        tiny_stack,
+        sizeof(tiny_stack),
+        0x1000ULL,
+        0x1040ULL,
+        argv_demo,
+        2,
+        envp_demo,
+        2,
+        &layout);
+    if (stack_rc != -5) {
+        fprintf(stderr, "[test_userimg_loader] expected tiny stack overflow (-5), got %d\n", stack_rc);
+        free(stack_mem);
+        return 1;
+    }
+
+    stack_rc = userproc_prepare_exec_stack(
+        stack_mem,
+        report.stack_size,
+        report.stack_base,
+        report.stack_top,
+        NULL,
+        1,
+        envp_demo,
+        2,
+        &layout);
+    if (stack_rc != -4) {
+        fprintf(stderr, "[test_userimg_loader] expected null argv error (-4), got %d\n", stack_rc);
+        free(stack_mem);
+        return 1;
+    }
+    free(stack_mem);
 
     uint32_t regions_after_first = vmm_region_count();
     int found_userimg = 0;

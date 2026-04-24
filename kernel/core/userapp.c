@@ -17,6 +17,7 @@ extern void minios_userapp_linux_abi(void);
 extern uint64_t minios_userapp_cpp_magic(void);
 
 #define MINIOS_USERAPP_STACK_SIZE 4096
+#define MINIOS_USERIMG_STACK_SCRATCH_SIZE 65536
 
 /* Phase 20 guard:
  * Current teaching environment loads the kernel as supervisor-only pages.
@@ -28,6 +29,7 @@ extern uint64_t minios_userapp_cpp_magic(void);
 #endif
 
 static uint8_t g_userapp_user_stack[MINIOS_USERAPP_STACK_SIZE];
+static uint8_t g_userimg_stack_scratch[MINIOS_USERIMG_STACK_SCRATCH_SIZE];
 
 typedef struct {
     const char *name;
@@ -138,6 +140,41 @@ static void userapp_fallback_elf_load(void) {
     console_write_string(" (rc=");
     console_write_u64((uint64_t)(int64_t)handoff_rc);
     console_write_string(")\n");
+
+    if (report.stack_size > MINIOS_USERIMG_STACK_SCRATCH_SIZE) {
+        console_write_string("exec stack prep: scratch buffer too small\n");
+        return;
+    }
+
+    const char *argv[] = {"hello_linux_tiny", "--demo"};
+    const char *envp[] = {"TERM=minios", "PATH=/usr/bin"};
+    mvos_user_stack_layout_t stack_layout;
+    int stack_rc = userproc_prepare_exec_stack(
+        g_userimg_stack_scratch,
+        report.stack_size,
+        report.stack_base,
+        report.stack_top,
+        argv,
+        2,
+        envp,
+        2,
+        &stack_layout);
+    console_write_string("exec stack prep: ");
+    console_write_string(userproc_stack_result_name(stack_rc));
+    console_write_string(" (rc=");
+    console_write_u64((uint64_t)(int64_t)stack_rc);
+    console_write_string(")\n");
+    if (stack_rc == 0) {
+        console_write_string("rsp=");
+        console_write_u64(stack_layout.initial_rsp);
+        console_write_string(" argv=");
+        console_write_u64(stack_layout.argv_user);
+        console_write_string(" envp=");
+        console_write_u64(stack_layout.envp_user);
+        console_write_string(" used=");
+        console_write_u64(stack_layout.used_bytes);
+        console_write_string("\n");
+    }
 }
 
 static const mvos_userapp_t g_userapps[] = {
