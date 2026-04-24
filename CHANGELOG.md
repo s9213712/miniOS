@@ -8,6 +8,7 @@
 - Added a VFS-backed ELF load path via `userimg_prepare_image(image, len, ...)`.
 - Exposed the tiny Linux ELF as `/boot/init/hello_linux_tiny` in initfs.
 - Added minimal Linux `mmap`/`munmap` support for anonymous private user mappings.
+- Added Linux `lseek` support for VFS-backed user file descriptors.
 - Extended the tiny Linux ELF demo to open and read `/boot/init/readme.txt` through real user-mode syscalls.
 - Extended execve smoke checks to require the initfs read marker from userspace.
 - Added host regression coverage for shell command parsing and CI coverage for all host regressions.

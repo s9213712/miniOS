@@ -101,6 +101,17 @@ int main(void) {
         vfs_close(&elf_file);
         return 1;
     }
+    uint64_t seek_pos = 0;
+    if (vfs_seek(&elf_file, 1, 0, &seek_pos) != 0 || seek_pos != 1) {
+        fprintf(stderr, "[test_vfs_rw] static ELF seek failed\n");
+        vfs_close(&elf_file);
+        return 1;
+    }
+    if (vfs_seek(&elf_file, -1, 1, &seek_pos) != 0 || seek_pos != 0) {
+        fprintf(stderr, "[test_vfs_rw] static ELF relative seek failed\n");
+        vfs_close(&elf_file);
+        return 1;
+    }
     vfs_close(&elf_file);
 
     if (vfs_write_file("/tmp/note.txt", "hello", 5, 0) != 0) {

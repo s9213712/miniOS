@@ -50,6 +50,12 @@ static vfs_node_t g_nodes[] = {
 #define MAX_OPEN_FILES 4
 #define MAX_DYNAMIC_FILES 8
 
+enum {
+    VFS_SEEK_SET = 0,
+    VFS_SEEK_CUR = 1,
+    VFS_SEEK_END = 2,
+};
+
 static vfs_open_state_t g_open_files[MAX_OPEN_FILES];
 static vfs_dynamic_node_t g_dynamic_nodes[MAX_DYNAMIC_FILES];
 
@@ -263,6 +269,61 @@ int vfs_read(mvos_vfs_file_t *file, void *buffer, uint64_t max_len, uint64_t *by
     file->cursor += to_copy;
     if (bytes_read) {
         *bytes_read = to_copy;
+    }
+    return 0;
+}
+
+int vfs_seek(mvos_vfs_file_t *file, int64_t offset, int whence, uint64_t *new_offset) {
+    if (!file || !file->in_use) {
+        return -1;
+    }
+    if (file->dynamic) {
+        vfs_dynamic_node_t *node = find_dynamic_node(file->path);
+        if (node == NULL || node->generation != file->generation) {
+            return -1;
+        }
+        file->size = node->size;
+    }
+
+    uint64_t base = 0;
+    switch (whence) {
+        case VFS_SEEK_SET:
+            base = 0;
+            break;
+        case VFS_SEEK_CUR:
+            base = file->cursor;
+            break;
+        case VFS_SEEK_END:
+            base = file->size;
+            break;
+        default:
+            return -2;
+    }
+
+    uint64_t target = 0;
+    if (offset < 0) {
+        if (offset == INT64_MIN) {
+            return -3;
+        }
+        uint64_t delta = (uint64_t)(-offset);
+        if (delta > base) {
+            return -3;
+        }
+        target = base - delta;
+    } else {
+        uint64_t delta = (uint64_t)offset;
+        if (delta > UINT64_MAX - base) {
+            return -3;
+        }
+        target = base + delta;
+    }
+    if (target > file->size) {
+        return -3;
+    }
+
+    file->cursor = target;
+    if (new_offset != NULL) {
+        *new_offset = target;
     }
     return 0;
 }

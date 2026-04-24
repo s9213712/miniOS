@@ -98,6 +98,7 @@ enum {
     TEST_LINUX_SYSCALL_READ = 0,
     TEST_LINUX_SYSCALL_CLOSE = 3,
     TEST_LINUX_SYSCALL_FSTAT = 5,
+    TEST_LINUX_SYSCALL_LSEEK = 8,
     TEST_LINUX_SYSCALL_MMAP = 9,
     TEST_LINUX_SYSCALL_MUNMAP = 11,
     TEST_LINUX_SYSCALL_EXECVE = 59,
@@ -105,6 +106,8 @@ enum {
     TEST_LINUX_SYSCALL_NEWFSTATAT = 262,
     TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
     TEST_AT_FDCWD = -100,
+    TEST_SEEK_SET = 0,
+    TEST_SEEK_CUR = 1,
     TEST_PROT_READ = 0x1,
     TEST_PROT_WRITE = 0x2,
     TEST_MAP_PRIVATE = 0x02,
@@ -420,6 +423,34 @@ int main(void) {
         fprintf(stderr, "[test_userimg_loader] expected VFS read content, rc=%lld text=%s\n",
                 (long long)exec_rc,
                 read_buf);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_LSEEK, fd, 0, TEST_SEEK_SET, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected lseek rewind success, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    memset(read_buf, 0, sizeof(read_buf));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READ,
+                                fd,
+                                (uint64_t)(uintptr_t)read_buf,
+                                6,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 6 || strcmp(read_buf, "miniOS") != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected read after lseek, rc=%lld text=%s\n",
+                (long long)exec_rc,
+                read_buf);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_LSEEK, fd, (uint64_t)(int64_t)-1, TEST_SEEK_CUR, 0, 0, 0);
+    if (exec_rc != 5) {
+        fprintf(stderr, "[test_userimg_loader] expected relative lseek to offset 5, got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

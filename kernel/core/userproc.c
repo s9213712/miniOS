@@ -15,6 +15,7 @@ enum {
     MINIOS_LINUX_SYSCALL_WRITE = 1,
     MINIOS_LINUX_SYSCALL_CLOSE = 3,
     MINIOS_LINUX_SYSCALL_FSTAT = 5,
+    MINIOS_LINUX_SYSCALL_LSEEK = 8,
     MINIOS_LINUX_SYSCALL_MMAP = 9,
     MINIOS_LINUX_SYSCALL_MUNMAP = 11,
     MINIOS_LINUX_SYSCALL_BRK = 12,
@@ -57,6 +58,9 @@ enum {
     MINIOS_MAP_PRIVATE = 0x02,
     MINIOS_MAP_FIXED = 0x10,
     MINIOS_MAP_ANONYMOUS = 0x20,
+    MINIOS_SEEK_SET = 0,
+    MINIOS_SEEK_CUR = 1,
+    MINIOS_SEEK_END = 2,
     MINIOS_S_IFREG = 0100000,
     MINIOS_S_IFCHR = 0020000,
     MINIOS_USERPROC_MMAP_BASE = 0x0000400001000000ULL,
@@ -573,6 +577,22 @@ static uint64_t userproc_linux_fstat(uint64_t fd, uint64_t user_stat) {
     return 0;
 }
 
+static uint64_t userproc_linux_lseek(uint64_t fd, uint64_t offset, uint64_t whence) {
+    uint64_t index = 0;
+    if (userproc_fd_to_index(fd, &index) != 0) {
+        return userproc_errno(-9); /* EBADF */
+    }
+    if (whence > MINIOS_SEEK_END) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    uint64_t new_offset = 0;
+    int rc = vfs_seek(&g_userproc_files[index], (int64_t)offset, (int)whence, &new_offset);
+    if (rc != 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    return new_offset;
+}
+
 static uint64_t userproc_linux_openat(uint64_t dirfd, uint64_t user_path, uint64_t flags, uint64_t mode) {
     (void)mode;
     if (user_path == 0) {
@@ -1041,6 +1061,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_close(arg1);
         case MINIOS_LINUX_SYSCALL_FSTAT:
             return userproc_linux_fstat(arg1, arg2);
+        case MINIOS_LINUX_SYSCALL_LSEEK:
+            return userproc_linux_lseek(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_MMAP:
             return userproc_linux_mmap(arg1, arg2, arg3, arg4, arg5, arg6);
         case MINIOS_LINUX_SYSCALL_MUNMAP:
@@ -1224,6 +1246,8 @@ void userproc_linux_abi_probe(void) {
                 console_write_string("\n");
             }
         }
+        ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_LSEEK, fd, 0, MINIOS_SEEK_SET, 0, 0, 0);
+        userproc_probe_print_ret("lseek.readme_ret", ret);
         ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_CLOSE, fd, 0, 0, 0, 0, 0);
         userproc_probe_print_ret("close.readme_ret", ret);
     }
