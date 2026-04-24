@@ -113,6 +113,7 @@ static uint64_t g_userproc_fs_base;
 static uint64_t g_userproc_gs_base;
 static uint64_t g_userproc_tid_addr;
 static uint64_t g_userproc_mmap_next = MINIOS_USERPROC_MMAP_BASE;
+static bool g_userproc_strict_user_memory;
 static mvos_vfs_file_t g_userproc_files[MINIOS_USERPROC_MAX_FDS];
 static uint8_t g_userproc_execve_stack_scratch[MINIOS_EXECVE_STACK_SCRATCH_SIZE];
 static uint8_t g_userproc_execve_kernel_stack[MINIOS_EXECVE_KERNEL_STACK_SIZE] __attribute__((aligned(16)));
@@ -253,6 +254,37 @@ static int userproc_align_up_u64(uint64_t value, uint64_t align, uint64_t *out) 
     return 0;
 }
 
+static int userproc_user_range_ok(uint64_t user_ptr, uint64_t len, uint64_t required_flags) {
+    if (!g_userproc_strict_user_memory) {
+        return 1;
+    }
+    return vmm_user_range_check(user_ptr, len, required_flags) == 0;
+}
+
+static int64_t userproc_copy_from_user(void *dst, uint64_t user_src, uint64_t len) {
+    if (len == 0) {
+        return 0;
+    }
+    if (dst == NULL || user_src == 0 ||
+        !userproc_user_range_ok(user_src, len, MVOS_VMM_FLAG_READ)) {
+        return -14; /* EFAULT */
+    }
+    memcpy(dst, (const void *)(uintptr_t)user_src, (size_t)len);
+    return 0;
+}
+
+static int64_t userproc_copy_to_user(uint64_t user_dst, const void *src, uint64_t len) {
+    if (len == 0) {
+        return 0;
+    }
+    if (src == NULL || user_dst == 0 ||
+        !userproc_user_range_ok(user_dst, len, MVOS_VMM_FLAG_WRITE)) {
+        return -14; /* EFAULT */
+    }
+    memcpy((void *)(uintptr_t)user_dst, src, (size_t)len);
+    return 0;
+}
+
 static int64_t userproc_copy_user_cstr(uint64_t user_ptr, char *dst, uint64_t cap) {
     if (user_ptr == 0 || dst == NULL || cap < 2) {
         return -14; /* EFAULT */
@@ -260,6 +292,11 @@ static int64_t userproc_copy_user_cstr(uint64_t user_ptr, char *dst, uint64_t ca
 
     const volatile char *src = (const volatile char *)(uintptr_t)user_ptr;
     for (uint64_t i = 0; i + 1 < cap; ++i) {
+        uint64_t addr = 0;
+        if (userproc_checked_add_u64(user_ptr, i, &addr) != 0 ||
+            !userproc_user_range_ok(addr, 1, MVOS_VMM_FLAG_READ)) {
+            return -14; /* EFAULT */
+        }
         char ch = src[i];
         dst[i] = ch;
         if (ch == '\0') {
@@ -285,9 +322,12 @@ static int64_t userproc_collect_user_strv(uint64_t user_vec,
         return 0;
     }
 
-    const volatile uint64_t *entries = (const volatile uint64_t *)(uintptr_t)user_vec;
     for (uint64_t i = 0; i < max_count; ++i) {
-        uint64_t ptr = entries[i];
+        uint64_t ptr = 0;
+        int64_t read_rc = userproc_copy_from_user(&ptr, user_vec + i * sizeof(uint64_t), sizeof(ptr));
+        if (read_rc != 0) {
+            return read_rc;
+        }
         if (ptr == 0) {
             *out_count = i;
             return 0;
@@ -375,6 +415,9 @@ static uint64_t userproc_linux_read(uint64_t fd, uint64_t user_buf, uint64_t cou
     if (user_buf == 0) {
         return userproc_errno(-14); /* EFAULT */
     }
+    if (!userproc_user_range_ok(user_buf, count, MVOS_VMM_FLAG_WRITE)) {
+        return userproc_errno(-14); /* EFAULT */
+    }
 
     uint64_t index = 0;
     if (userproc_fd_to_index(fd, &index) != 0) {
@@ -397,6 +440,9 @@ static uint64_t userproc_linux_write(uint64_t fd, uint64_t user_buf, uint64_t co
         return 0;
     }
     if (user_buf == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    if (!userproc_user_range_ok(user_buf, count, MVOS_VMM_FLAG_READ)) {
         return userproc_errno(-14); /* EFAULT */
     }
 
@@ -423,10 +469,16 @@ static uint64_t userproc_linux_writev(uint64_t fd, uint64_t user_iov, uint64_t i
         return userproc_errno(-22); /* EINVAL */
     }
 
-    const volatile minios_iovec_t *iov = (const volatile minios_iovec_t *)(uintptr_t)user_iov;
     uint64_t total = 0;
     for (uint64_t i = 0; i < iovcnt; ++i) {
-        uint64_t n = userproc_linux_write(fd, iov[i].iov_base, iov[i].iov_len);
+        minios_iovec_t iov;
+        int64_t read_rc = userproc_copy_from_user(&iov,
+                                                  user_iov + i * sizeof(minios_iovec_t),
+                                                  sizeof(iov));
+        if (read_rc != 0) {
+            return (total > 0) ? total : userproc_errno(read_rc);
+        }
+        uint64_t n = userproc_linux_write(fd, iov.iov_base, iov.iov_len);
         if (userproc_is_errno(n)) {
             return (total > 0) ? total : n;
         }
@@ -558,23 +610,23 @@ static uint64_t userproc_linux_fstat(uint64_t fd, uint64_t user_stat) {
         return userproc_errno(-14); /* EFAULT */
     }
 
-    minios_linux_stat_t *st = (minios_linux_stat_t *)(uintptr_t)user_stat;
+    minios_linux_stat_t st;
     if (fd < MINIOS_USERPROC_FD_BASE) {
         mvos_vfs_file_t stream = {
             .size = 0,
             .path = "(stdio)",
             .in_use = 1,
         };
-        userproc_fill_stat(st, &stream, MINIOS_S_IFCHR | 0600);
-        return 0;
+        userproc_fill_stat(&st, &stream, MINIOS_S_IFCHR | 0600);
+        return userproc_errno(userproc_copy_to_user(user_stat, &st, sizeof(st)));
     }
 
     uint64_t index = 0;
     if (userproc_fd_to_index(fd, &index) != 0) {
         return userproc_errno(-9); /* EBADF */
     }
-    userproc_fill_stat(st, &g_userproc_files[index], MINIOS_S_IFREG | 0444);
-    return 0;
+    userproc_fill_stat(&st, &g_userproc_files[index], MINIOS_S_IFREG | 0444);
+    return userproc_errno(userproc_copy_to_user(user_stat, &st, sizeof(st)));
 }
 
 static uint64_t userproc_linux_lseek(uint64_t fd, uint64_t offset, uint64_t whence) {
@@ -653,9 +705,10 @@ static uint64_t userproc_linux_newfstatat(uint64_t dirfd, uint64_t user_path, ui
         return userproc_errno(-22); /* EINVAL */
     }
 
-    userproc_fill_stat((minios_linux_stat_t *)(uintptr_t)user_stat, &file, MINIOS_S_IFREG | 0444);
+    minios_linux_stat_t st;
+    userproc_fill_stat(&st, &file, MINIOS_S_IFREG | 0444);
     vfs_close(&file);
-    return 0;
+    return userproc_errno(userproc_copy_to_user(user_stat, &st, sizeof(st)));
 }
 
 static uint64_t userproc_linux_brk(uint64_t new_brk) {
@@ -667,14 +720,14 @@ static uint64_t userproc_linux_uname(uint64_t user_buf) {
         return userproc_errno(-14); /* EFAULT */
     }
 
-    volatile minios_utsname_t *u = (volatile minios_utsname_t *)(uintptr_t)user_buf;
-    userproc_copy_cstr((char *)u->sysname, sizeof(u->sysname), "miniOS");
-    userproc_copy_cstr((char *)u->nodename, sizeof(u->nodename), "miniOS-node");
-    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.43");
-    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Stage3 phase43 x86-64 syscall entry");
-    userproc_copy_cstr((char *)u->machine, sizeof(u->machine), "x86_64");
-    userproc_copy_cstr((char *)u->domainname, sizeof(u->domainname), "miniOS.local");
-    return 0;
+    minios_utsname_t u;
+    userproc_copy_cstr(u.sysname, sizeof(u.sysname), "miniOS");
+    userproc_copy_cstr(u.nodename, sizeof(u.nodename), "miniOS-node");
+    userproc_copy_cstr(u.release, sizeof(u.release), "0.43");
+    userproc_copy_cstr(u.version, sizeof(u.version), "Stage3 phase43 x86-64 syscall entry");
+    userproc_copy_cstr(u.machine, sizeof(u.machine), "x86_64");
+    userproc_copy_cstr(u.domainname, sizeof(u.domainname), "miniOS.local");
+    return userproc_errno(userproc_copy_to_user(user_buf, &u, sizeof(u)));
 }
 
 static uint64_t userproc_linux_arch_prctl(uint64_t code, uint64_t arg) {
@@ -689,14 +742,12 @@ static uint64_t userproc_linux_arch_prctl(uint64_t code, uint64_t arg) {
             if (arg == 0) {
                 return userproc_errno(-14); /* EFAULT */
             }
-            *(volatile uint64_t *)(uintptr_t)arg = g_userproc_fs_base;
-            return 0;
+            return userproc_errno(userproc_copy_to_user(arg, &g_userproc_fs_base, sizeof(g_userproc_fs_base)));
         case MINIOS_ARCH_GET_GS:
             if (arg == 0) {
                 return userproc_errno(-14); /* EFAULT */
             }
-            *(volatile uint64_t *)(uintptr_t)arg = g_userproc_gs_base;
-            return 0;
+            return userproc_errno(userproc_copy_to_user(arg, &g_userproc_gs_base, sizeof(g_userproc_gs_base)));
         default:
             return userproc_errno(-22); /* EINVAL */
     }
@@ -1116,6 +1167,7 @@ uint64_t userproc_dispatch(uint64_t syscall,
         case MINIOS_LINUX_SYSCALL_EXIT:
         case MINIOS_LINUX_SYSCALL_EXIT_GROUP:
             g_userproc_running = false;
+            g_userproc_strict_user_memory = false;
             console_write_string("userapp exit requested code=");
             console_write_u64(arg1);
             console_write_string("\n");
@@ -1298,9 +1350,11 @@ extern uint64_t userproc_execve_trampoline_asm(uint64_t entry,
 
 void userproc_enter(uint64_t entry, uint64_t user_stack_top, uint64_t return_rip, uint64_t return_stack) {
     g_userproc_running = true;
+    g_userproc_strict_user_memory = true;
     userproc_set_return_context(return_rip, return_stack);
     g_userproc_current_app_id = 0;
     userproc_enter_asm(entry, user_stack_top);
+    g_userproc_strict_user_memory = false;
 }
 
 void userproc_enter_execve(uint64_t entry,
@@ -1311,8 +1365,10 @@ void userproc_enter_execve(uint64_t entry,
                            uint64_t return_rip,
                            uint64_t return_stack) {
     g_userproc_running = true;
+    g_userproc_strict_user_memory = true;
     userproc_set_return_context(return_rip, return_stack);
     userproc_enter_execve_asm(entry, user_stack_top, argc, argv_user, envp_user);
+    g_userproc_strict_user_memory = false;
 }
 
 uint64_t userproc_enter_execve_and_wait(uint64_t entry,
@@ -1324,9 +1380,11 @@ uint64_t userproc_enter_execve_and_wait(uint64_t entry,
     uint64_t execve_rsp0 = (uint64_t)(uintptr_t)(g_userproc_execve_kernel_stack +
                                                 MINIOS_EXECVE_KERNEL_STACK_SIZE);
     g_userproc_running = true;
+    g_userproc_strict_user_memory = true;
     g_userproc_syscall_stack_top = execve_rsp0;
     gdt_set_rsp0(execve_rsp0);
     uint64_t rc = userproc_execve_trampoline_asm(entry, user_stack_top, argc, argv_user, envp_user);
+    g_userproc_strict_user_memory = false;
     gdt_set_rsp0(previous_rsp0);
     return rc;
 }

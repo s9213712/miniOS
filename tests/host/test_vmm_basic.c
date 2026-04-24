@@ -10,6 +10,10 @@ int main(void) {
         fprintf(stderr, "[test_vmm_basic] initial map failed\n");
         return 1;
     }
+    if (vmm_user_range_check(0x1000ULL, 16, MVOS_VMM_FLAG_READ) == 0) {
+        fprintf(stderr, "[test_vmm_basic] kernel-only region passed user range check\n");
+        return 1;
+    }
     if (vmm_region_count() != 1) {
         fprintf(stderr, "[test_vmm_basic] expected 1 region after first map\n");
         return 1;
@@ -70,6 +74,14 @@ int main(void) {
     }
     if (!saw_user_brk) {
         fprintf(stderr, "[test_vmm_basic] expected user-brk tagged region\n");
+        return 1;
+    }
+    if (vmm_user_range_check(0x400000ULL, 0x1000ULL, MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE) != 0) {
+        fprintf(stderr, "[test_vmm_basic] expected user-brk range check success\n");
+        return 1;
+    }
+    if (vmm_user_range_check(0x400000ULL, 0x6000ULL, MVOS_VMM_FLAG_READ) == 0) {
+        fprintf(stderr, "[test_vmm_basic] over-limit user range unexpectedly passed\n");
         return 1;
     }
 

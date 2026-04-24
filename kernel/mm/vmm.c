@@ -313,12 +313,63 @@ int vmm_map_user_backed_page(uint64_t vaddr, uint64_t flags, void **out_kernel_p
     return 0;
 }
 
+int vmm_user_range_check(uint64_t vaddr, uint64_t size, uint64_t required_flags) {
+    if (size == 0) {
+        return 0;
+    }
+    if (vaddr == 0) {
+        return -1;
+    }
+
+    uint64_t end = 0;
+    if (add_overflow_u64(vaddr, size, &end) != 0 || end <= vaddr) {
+        return -2;
+    }
+
+    uint64_t cursor = vaddr;
+    while (cursor < end) {
+        const mvos_vmm_region_t *match = 0;
+        for (uint32_t i = 0; i < MVOS_VMM_MAX_REGIONS; ++i) {
+            if (!g_regions[i].in_use) {
+                continue;
+            }
+            if ((g_regions[i].flags & MVOS_VMM_FLAG_USER) == 0) {
+                continue;
+            }
+            if ((g_regions[i].flags & required_flags) != required_flags) {
+                continue;
+            }
+            uint64_t region_end = 0;
+            if (add_overflow_u64(g_regions[i].base, g_regions[i].size, &region_end) != 0) {
+                continue;
+            }
+            if (cursor < g_regions[i].base || cursor >= region_end) {
+                continue;
+            }
+            match = &g_regions[i];
+            break;
+        }
+        if (match == 0) {
+            return -3;
+        }
+        uint64_t match_end = match->base + match->size;
+        if (match_end < match->base) {
+            return -4;
+        }
+        cursor = (match_end < end) ? match_end : end;
+    }
+    return 0;
+}
+
 int vmm_copy_to_user(uint64_t vaddr, const void *src, uint64_t size) {
     if (size == 0) {
         return 0;
     }
     if (vaddr == 0 || src == 0) {
         return -1;
+    }
+    if (vmm_user_range_check(vaddr, size, 0) != 0) {
+        return -2;
     }
 
     /* Host-side tests keep only metadata and validate layout contracts. */
