@@ -170,6 +170,16 @@ static void rollback_mapped_layout(void) {
     }
 }
 
+static int record_mapped_region(uint64_t base, uint64_t size) {
+    if (g_last_mapped_count >= USERIMG_MAX_LAYOUT_REGIONS) {
+        return -1;
+    }
+    g_last_mapped[g_last_mapped_count].base = base;
+    g_last_mapped[g_last_mapped_count].size = size;
+    ++g_last_mapped_count;
+    return 0;
+}
+
 static int map_user_backing_range(uint64_t base, uint64_t size, uint64_t flags) {
     if ((base & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0 || (size & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
         return -1;
@@ -317,17 +327,14 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
             rollback_mapped_layout();
             return MVOS_USERIMG_ERR_MAP;
         }
+        if (record_mapped_region(layout[i].base, region_size) != 0) {
+            rollback_mapped_layout();
+            return MVOS_USERIMG_ERR_LAYOUT;
+        }
         if (map_user_backing_range(layout[i].base, region_size, layout[i].flags) != 0) {
             rollback_mapped_layout();
             return MVOS_USERIMG_ERR_MAP;
         }
-        if (g_last_mapped_count >= USERIMG_MAX_LAYOUT_REGIONS) {
-            rollback_mapped_layout();
-            return MVOS_USERIMG_ERR_LAYOUT;
-        }
-        g_last_mapped[g_last_mapped_count].base = layout[i].base;
-        g_last_mapped[g_last_mapped_count].size = region_size;
-        ++g_last_mapped_count;
         mapped_bytes += region_size;
     }
 
@@ -349,19 +356,16 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
         rollback_mapped_layout();
         return MVOS_USERIMG_ERR_MAP;
     }
+    if (record_mapped_region(stack_base, USERIMG_STACK_SIZE_BYTES) != 0) {
+        rollback_mapped_layout();
+        return MVOS_USERIMG_ERR_LAYOUT;
+    }
     if (map_user_backing_range(stack_base,
                                USERIMG_STACK_SIZE_BYTES,
                                MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_USER) != 0) {
         rollback_mapped_layout();
         return MVOS_USERIMG_ERR_MAP;
     }
-    if (g_last_mapped_count >= USERIMG_MAX_LAYOUT_REGIONS) {
-        rollback_mapped_layout();
-        return MVOS_USERIMG_ERR_LAYOUT;
-    }
-    g_last_mapped[g_last_mapped_count].base = stack_base;
-    g_last_mapped[g_last_mapped_count].size = USERIMG_STACK_SIZE_BYTES;
-    ++g_last_mapped_count;
     mapped_bytes += USERIMG_STACK_SIZE_BYTES;
 
     if (elf_report.entry < src_floor || elf_report.entry >= src_ceil) {

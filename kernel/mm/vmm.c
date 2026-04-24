@@ -32,6 +32,9 @@ static uint64_t align_up_u64(uint64_t value, uint64_t align) {
     if (align == 0) {
         return value;
     }
+    if (value > UINT64_MAX - (align - 1ULL)) {
+        return UINT64_MAX;
+    }
     return (value + align - 1ULL) & ~(align - 1ULL);
 }
 
@@ -306,6 +309,9 @@ void vmm_user_heap_init(uint64_t base, uint64_t reserve_bytes, uint64_t max_byte
     uint64_t aligned_base = align_up_u64(base, MVOS_VMM_PAGE_SIZE);
     uint64_t reserve = align_up_u64(reserve_bytes == 0 ? MVOS_VMM_PAGE_SIZE : reserve_bytes, MVOS_VMM_PAGE_SIZE);
     uint64_t max = align_up_u64(max_bytes == 0 ? reserve : max_bytes, MVOS_VMM_PAGE_SIZE);
+    if (aligned_base == UINT64_MAX || reserve == UINT64_MAX || max == UINT64_MAX) {
+        return;
+    }
     if (max < reserve) {
         max = reserve;
     }
@@ -349,6 +355,9 @@ uint64_t vmm_user_brk_set(uint64_t new_brk) {
     }
 
     uint64_t needed_end = align_up_u64(new_brk, MVOS_VMM_PAGE_SIZE);
+    if (needed_end == UINT64_MAX) {
+        return g_user_brk;
+    }
     while (needed_end > g_user_heap_mapped_end) {
         if (g_user_heap_mapped_end >= g_user_heap_limit) {
             return g_user_brk;

@@ -22,6 +22,8 @@
 - Preserved callee-saved registers across the execve trampoline so user programs cannot corrupt the kernel C continuation.
 - Restored interrupts before syscall exit continuations and cleared the long-mode L bit from GDT data descriptors.
 - Honored `TEST_SMOKE_BASENAME` in smoke logs and kept ELF/Limine metadata checks active under `SKIP_SMOKE_RUN=1`.
+- Hardened PMM allocation bounds and selected the largest usable memory-map region.
+- Guarded VMM alignment overflow and made user image region rollback include the just-mapped region on backing failures.
 
 ## Phase 43 – x86-64 `syscall` Userspace Entry
 

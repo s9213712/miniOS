@@ -52,6 +52,7 @@ void pmm_init(const struct limine_memmap_response *response, uint64_t hhdm_offse
     uint64_t usable_regions = 0;
     uint64_t best_base = 0;
     uint64_t best_limit = 0;
+    uint64_t best_size = 0;
 
     if (response == NULL || response->entries == NULL || response->entry_count == 0) {
         panic("PMM init failed: no memory map");
@@ -89,9 +90,11 @@ void pmm_init(const struct limine_memmap_response *response, uint64_t hhdm_offse
         }
 
         usable_regions += 1;
-        if (aligned_end > best_limit) {
+        uint64_t usable_size = aligned_end - aligned_base;
+        if (usable_size > best_size) {
             best_base = aligned_base;
             best_limit = aligned_end;
+            best_size = usable_size;
         }
     }
 
@@ -148,7 +151,7 @@ void *pmm_allocate_pages(uint64_t page_count) {
     if (start == UINT64_MAX || start < g_cursor) {
         return NULL;
     }
-    if (needed > (g_limit - start)) {
+    if (start >= g_limit || needed > (g_limit - start)) {
         return NULL;
     }
 
@@ -178,7 +181,7 @@ void *pmm_alloc(size_t bytes) {
     if (start == UINT64_MAX || start < g_cursor) {
         return NULL;
     }
-    if (needed > (g_limit - start)) {
+    if (start >= g_limit || needed > (g_limit - start)) {
         return NULL;
     }
 
