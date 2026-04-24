@@ -55,7 +55,16 @@ static void graphics_plot(uint64_t x, uint64_t y, uint8_t red, uint8_t green, ui
         return;
     }
 
-    uint64_t offset = y * graphics_pitch + (x * ((uint64_t)graphics_bpp >> 3u));
+    uint64_t bytes_per_pixel = (uint64_t)graphics_bpp >> 3u;
+    if (bytes_per_pixel == 0u ||
+        (graphics_pitch != 0u && y > UINT64_MAX / graphics_pitch)) {
+        return;
+    }
+    uint64_t row_offset = y * graphics_pitch;
+    if (x > (UINT64_MAX - row_offset) / bytes_per_pixel) {
+        return;
+    }
+    uint64_t offset = row_offset + (x * bytes_per_pixel);
     volatile uint8_t *px = graphics_fb + offset;
     uint32_t value =
         color_channel_to_masked_value(red, graphics_red_mask_size, graphics_red_mask_shift) |
@@ -77,6 +86,26 @@ static void graphics_plot(uint64_t x, uint64_t y, uint8_t red, uint8_t green, ui
     }
 }
 
+static int graphics_clip_rect(uint64_t *x, uint64_t *y, uint64_t *width, uint64_t *height) {
+    if (!graphics_enabled || x == NULL || y == NULL || width == NULL || height == NULL ||
+        *width == 0u || *height == 0u) {
+        return 0;
+    }
+    if (*x >= graphics_width || *y >= graphics_height) {
+        return 0;
+    }
+
+    uint64_t max_width = graphics_width - *x;
+    uint64_t max_height = graphics_height - *y;
+    if (*width > max_width) {
+        *width = max_width;
+    }
+    if (*height > max_height) {
+        *height = max_height;
+    }
+    return *width != 0u && *height != 0u;
+}
+
 static void graphics_fill_rect(
     uint64_t x,
     uint64_t y,
@@ -86,20 +115,14 @@ static void graphics_fill_rect(
     uint8_t green,
     uint8_t blue
 ) {
-    if (!graphics_enabled) {
+    if (!graphics_clip_rect(&x, &y, &width, &height)) {
         return;
     }
 
     for (uint64_t row = 0; row < height; ++row) {
         uint64_t yy = y + row;
-        if (yy >= graphics_height) {
-            break;
-        }
         for (uint64_t col = 0; col < width; ++col) {
             uint64_t xx = x + col;
-            if (xx >= graphics_width) {
-                break;
-            }
             graphics_plot(xx, yy, red, green, blue);
         }
     }
@@ -114,29 +137,20 @@ static void graphics_draw_rect_border(
     uint8_t green,
     uint8_t blue
 ) {
-    if (width < 2u || height < 2u) {
+    if (!graphics_clip_rect(&x, &y, &width, &height) || width < 2u || height < 2u) {
         return;
     }
 
-    for (uint64_t col = x; col < x + width; ++col) {
-        if (col < graphics_width) {
-            graphics_plot(col, y, red, green, blue);
-            if (height > 1u && y + (height - 1u) < graphics_height) {
-                graphics_plot(col, y + (height - 1u), red, green, blue);
-            }
-        }
+    uint64_t right = x + width - 1u;
+    uint64_t bottom = y + height - 1u;
+    for (uint64_t col = x; col <= right; ++col) {
+        graphics_plot(col, y, red, green, blue);
+        graphics_plot(col, bottom, red, green, blue);
     }
 
-    for (uint64_t row = y + 1u; row < y + height - 1u; ++row) {
-        if (row >= graphics_height) {
-            break;
-        }
-        if (x < graphics_width) {
-            graphics_plot(x, row, red, green, blue);
-        }
-        if (x + (width - 1u) < graphics_width) {
-            graphics_plot(x + (width - 1u), row, red, green, blue);
-        }
+    for (uint64_t row = y + 1u; row < bottom; ++row) {
+        graphics_plot(x, row, red, green, blue);
+        graphics_plot(right, row, red, green, blue);
     }
 }
 
@@ -302,7 +316,7 @@ void console_enable_graphics_framebuffer(
     if (memory_model != 1u) {
         klog("[graphics] unsupported memory model=");
         klog_u64((uint64_t)memory_model);
-        klogln(" (expected indexed color model=1)");
+        klogln(" (expected RGB memory model=1)");
         return;
     }
 
@@ -546,7 +560,7 @@ void console_write_char(char c) {
     if (console_ops && console_ops->write_char) {
         console_ops->write_char(c);
     }
-    if (framebuffer_text_enabled) {
+    if (framebuffer_text_enabled && current_target != MVOS_CONSOLE_TARGET_FRAMEBUFFER) {
         framebuffer_write_char(c);
     }
 }
@@ -555,7 +569,7 @@ void console_write_string(const char *str) {
     if (console_ops && console_ops->write_string) {
         console_ops->write_string(str);
     }
-    if (framebuffer_text_enabled) {
+    if (framebuffer_text_enabled && current_target != MVOS_CONSOLE_TARGET_FRAMEBUFFER) {
         framebuffer_write_string(str);
     }
 }
@@ -564,7 +578,7 @@ void console_write_u64(uint64_t value) {
     if (console_ops && console_ops->write_u64) {
         console_ops->write_u64(value);
     }
-    if (framebuffer_text_enabled) {
+    if (framebuffer_text_enabled && current_target != MVOS_CONSOLE_TARGET_FRAMEBUFFER) {
         framebuffer_write_u64(value);
     }
 }
