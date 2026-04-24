@@ -40,6 +40,14 @@
   ```bash
   make
   ```
+- 主機端編譯範例（C/C++）：
+  ```bash
+  make host-programs
+  ```
+- 主機端編譯腳本（可用來驗證輸出）：
+  ```bash
+  python3 scripts/build_user_programs.py --source-dir samples/user-programs --out-dir build/host-programs
+  ```
 - 清除 `build/` 再建置：
   ```bash
   make clean
@@ -60,6 +68,10 @@
 - 完整檢查並重建：
   ```bash
   python3 scripts/dev_status.py --build
+  ```
+- 也可檢查並編譯 host 程式範例：
+  ```bash
+  python3 scripts/dev_status.py --build-programs
   ```
 
 ---

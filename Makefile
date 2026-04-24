@@ -26,6 +26,7 @@ CXXFLAGS := -std=c++17 -ffreestanding -fno-pic -fno-pie -fno-exceptions -fno-rtt
             -fno-builtin -fno-asynchronous-unwind-tables -m64 -mno-red-zone -mcmodel=large -O2 -g \
             -mgeneral-regs-only -Wall -Wextra -Wno-unused-parameter $(INCLUDES)
 LDFLAGS := -T linker/x86_64.ld -z max-page-size=0x1000 -nostdlib
+PYTHON := $(shell command -v python3 2>/dev/null || echo python3)
 
 ifeq ($(PANIC_TEST),1)
   CFLAGS += -DMINIOS_PANIC_TEST=1
@@ -69,7 +70,11 @@ OBJS := $(C_OBJS) $(CXX_OBJS) $(ASM_OBJS)
 
 FLAGS_MARK := $(OUTPUT_DIR)/.build-flags
 
-.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline prefetch-limine
+.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline prefetch-limine host-programs clean-host-programs
+
+HOST_PROGRAMS_SRC_DIR := samples/user-programs
+HOST_PROGRAMS_OUT_DIR := $(OUTPUT_DIR)/host-programs
+HOST_PROGRAMS_MANIFEST := $(HOST_PROGRAMS_OUT_DIR)/manifest.json
 
 all: $(KERNEL_ELF)
 
@@ -125,6 +130,19 @@ smoke-offline: $(KERNEL_ELF)
 	  exit 1; \
 	fi
 	@SMOKE_OFFLINE=1 bash scripts/test_smoke.sh
+
+host-programs:
+	@if [ ! -d "$(HOST_PROGRAMS_SRC_DIR)" ]; then \
+	  echo "[build-host-programs] source directory missing: $(HOST_PROGRAMS_SRC_DIR)"; \
+	  exit 1; \
+	fi
+	@$(PYTHON) scripts/build_user_programs.py \
+	  --source-dir "$(HOST_PROGRAMS_SRC_DIR)" \
+	  --out-dir "$(HOST_PROGRAMS_OUT_DIR)" \
+	  --manifest "$(HOST_PROGRAMS_MANIFEST)"
+
+clean-host-programs:
+	rm -rf "$(HOST_PROGRAMS_OUT_DIR)"
 
 prefetch-limine: $(KERNEL_ELF)
 	@echo "[make] prefetching Limine artifacts into cache"

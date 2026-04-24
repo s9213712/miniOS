@@ -348,6 +348,13 @@ static void shell_exec(const char *line) {
         console_write_string("hello from shell\n");
         return;
     }
+    if (cmd_len == 5 && shell_streq(trimmed_line, "build")) {
+        console_write_string("host build (outside miniOS):\n");
+        console_write_string("  make host-programs\n");
+        console_write_string("  python3 scripts/dev_status.py --build-programs\n");
+        console_write_string("  python3 scripts/build_user_programs.py --source-dir samples/user-programs --out-dir build/host-programs\n");
+        return;
+    }
     if (cmd_len == 3 && shell_streq(trimmed_line, "gui")) {
         if (console_graphics_enabled()) {
             console_draw_gui_boot_window();

@@ -27,6 +27,7 @@ MiniOS is a small x86_64 educational OS with incremental phases and readable bou
 - **Phase 18**: add `tasks` shell command to expose scheduler task names and run counters without changing core boot or smoke behavior.
 - **Phase 21**: add shell command visibility for initfs content (`ls` + `cat`) to support user-level file-system introspection.
 - **Phase 22**: add a C++-compiled userapp path demonstration (`run cpp`) as a minimum non-Python basic program sample. (Completed; executed as kernel-mode fallback in this stage.)
+- **Phase 26**: add a host-side `make host-programs` build path for `.c/.cpp` samples so users can compile C/C++ program outputs from the repository immediately.
 
 ## Core layout
 
@@ -60,6 +61,7 @@ Current architecture keeps serial as primary boot diagnostics, with framebuffer 
 
 Current user-visible runtime limit:
 - `run cpp` demonstrates C++ build flow, while miniOS still does not include a Python interpreter for executing `.py` programs inside the VM.
+- `make host-programs` compiles sample C/C++ sources (`samples/user-programs`) into `build/host-programs`; these are currently host-side artifacts and are not yet runnable inside miniOS.
 
 Quick check:
 ```bash

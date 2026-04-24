@@ -54,6 +54,10 @@
   - `run --status` 補上編號與 user/kernel 摘要，方便逐項比對。
 - Phase 25：run 快捷指令清晰化（完成）
   - `run list` 明確列為命令別名，和預設行為一致，降低使用學習成本。
+- Phase 26：主機端程式編譯（進行中）
+  - 新增 `samples/user-programs` C/C++ 範例
+  - 新增 `scripts/build_user_programs.py` 與 `make host-programs`
+  - 建構 `build/host-programs`，輸出 `manifest.json` 供下一步 loader 導入做準備
 
 ## 每階段目的與預期成效
 
@@ -158,6 +162,7 @@ sudo apt-get install -y build-essential binutils gcc make nasm qemu-system-x86 q
 
 ```bash
 make
+make host-programs
 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
 LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 ```
@@ -166,7 +171,9 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 
 - `SKIP_SMOKE_RUN=1 make test-smoke`：只做建置階段驗證
 - `QEMU_GUI=1 make run`：開啟 QEMU VGA 視窗並同步顯示 framebuffer 文字輸出
+- `make host-programs`：只編譯主機端 C/C++ 範例（不影響 kernel）
 - `python3 scripts/dev_status.py --build`：環境 + 建置健康檢查（建議每次大改後）
+- `python3 scripts/dev_status.py --build-programs`：主機端範例程式建置檢查
 - `python3 scripts/dev_status.py`：只做環境檢查，不會重建
 
 啟用互動 shell（預設關閉）：

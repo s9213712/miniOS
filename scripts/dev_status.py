@@ -13,7 +13,15 @@ def _check_tool(name: str) -> bool:
 
 
 def show_tools() -> int:
-    tools = ["make", "python3", "qemu-system-x86_64", "nasm", "xorriso"]
+    tools = [
+        "make",
+        "python3",
+        "gcc",
+        "g++",
+        "qemu-system-x86_64",
+        "nasm",
+        "xorriso",
+    ]
     all_ok = True
     print("[dev-status] tool check:")
     for t in tools:
@@ -34,12 +42,22 @@ def run(cmd: list[str], env: dict[str, str] | None = None) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--build", action="store_true", help="run make")
+    parser.add_argument(
+        "--build-programs",
+        action="store_true",
+        help="run make build-host-programs",
+    )
     args = parser.parse_args()
 
     status = show_tools()
     if args.build:
         print("[dev-status] running: make -B")
         status = run(["make", "-B"])
+    if args.build_programs:
+        print("[dev-status] running: make build-host-programs")
+        programs_status = run(["make", "host-programs"])
+        if programs_status != 0:
+            status = programs_status
     return status
 
 

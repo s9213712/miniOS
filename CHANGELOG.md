@@ -9,6 +9,20 @@
 ### Validation
 - `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
 
+## Phase 26 – Host Program Compile Path
+
+### Added
+- Added `samples/user-programs/` 示例原始碼（`hello.c`, `hello.cpp`）做為主機端程式編譯起點。
+- 新增 `scripts/build_user_programs.py`，支援一次編譯所有 `.c`/`.cpp` 範例，並輸出 `build/host-programs/manifest.json`。
+- 新增 Make 目標：
+  - `make host-programs`：編譯主機端示例程式
+  - `make clean-host-programs`：清除 `build/host-programs`
+- 擴充 `python3 scripts/dev_status.py --build-programs` 檢查與執行上述 pipeline。
+
+### Validation
+- `python3 scripts/build_user_programs.py --source-dir samples/user-programs --out-dir build/host-programs`
+- `python3 scripts/dev_status.py --build-programs`
+
 ## Phase 24 – Shell Help Consistency
 
 ### Added
