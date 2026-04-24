@@ -19,6 +19,7 @@
 - Added bootstrap runtime handling for `madvise`, `rt_sigaction`, and `rt_sigprocmask`.
 - Pinned default Limine bootstrap downloads to a fixed ref and keyed the default cache path by that ref.
 - Hardened framebuffer console drawing against mirror double-writes and rectangle arithmetic overflow.
+- Added defensive null handling for kernel console, serial, and string helper paths.
 - Extended the tiny Linux ELF demo to open and read `/boot/init/readme.txt` through real user-mode syscalls.
 - Extended execve smoke checks to require the initfs read marker from userspace.
 - Added host regression coverage for shell command parsing and CI coverage for all host regressions.

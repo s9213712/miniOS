@@ -218,6 +218,9 @@ static int userproc_find_region_for_addr(uint64_t addr,
 }
 
 static uint64_t userproc_strlen(const char *s) {
+    if (s == NULL) {
+        return 0;
+    }
     uint64_t len = 0;
     while (s[len] != '\0') {
         ++len;
@@ -249,6 +252,9 @@ static int userproc_is_errno(uint64_t value) {
 static void userproc_copy_cstr(char *dst, size_t cap, const char *src) {
     if (cap == 0) {
         return;
+    }
+    if (src == NULL) {
+        src = "";
     }
     size_t i = 0;
     while (i + 1 < cap && src[i] != '\0') {

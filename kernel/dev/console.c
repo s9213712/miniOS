@@ -566,6 +566,9 @@ void console_write_char(char c) {
 }
 
 void console_write_string(const char *str) {
+    if (str == NULL) {
+        str = "(null)";
+    }
     if (console_ops && console_ops->write_string) {
         console_ops->write_string(str);
     }
