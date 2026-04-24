@@ -170,6 +170,24 @@ static void rollback_mapped_layout(void) {
     }
 }
 
+static int map_user_backing_range(uint64_t base, uint64_t size, uint64_t flags) {
+    if ((base & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0 || (size & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
+        return -1;
+    }
+    uint64_t end = 0;
+    if (checked_add_u64(base, size, &end) != 0) {
+        return -1;
+    }
+    for (uint64_t page = base; page < end; page += MVOS_VMM_PAGE_SIZE) {
+        void *backing = 0;
+        uint64_t loader_flags = flags | MVOS_VMM_FLAG_WRITE;
+        if (vmm_map_user_backed_page(page, loader_flags, &backing) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
 const char *userimg_result_name(mvos_userimg_result_t rc) {
     switch (rc) {
         case MVOS_USERIMG_OK:
@@ -222,7 +240,7 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
         return MVOS_USERIMG_ERR_LAYOUT;
     }
 
-    const uint64_t mapped_base = 0x0000000000800000ULL;
+    const uint64_t mapped_base = 0x0000400000000000ULL;
     uint64_t mapped_limit = 0;
     if (checked_add_u64(mapped_base, src_ceil - src_floor, &mapped_limit) != 0) {
         return MVOS_USERIMG_ERR_LAYOUT;
@@ -235,6 +253,12 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
     for (uint64_t i = 0; i < eh->e_phnum; ++i) {
         if (ph[i].p_type != ELF_PHDR_LOAD || ph[i].p_memsz == 0) {
             continue;
+        }
+        uint64_t file_end = 0;
+        if (ph[i].p_filesz > ph[i].p_memsz ||
+            checked_add_u64(ph[i].p_offset, ph[i].p_filesz, &file_end) != 0 ||
+            file_end > g_linux_user_elf_sample_len) {
+            return MVOS_USERIMG_ERR_LAYOUT;
         }
 
         uint64_t seg_end = 0;
@@ -293,6 +317,10 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
             rollback_mapped_layout();
             return MVOS_USERIMG_ERR_MAP;
         }
+        if (map_user_backing_range(layout[i].base, region_size, layout[i].flags) != 0) {
+            rollback_mapped_layout();
+            return MVOS_USERIMG_ERR_MAP;
+        }
         if (g_last_mapped_count >= USERIMG_MAX_LAYOUT_REGIONS) {
             rollback_mapped_layout();
             return MVOS_USERIMG_ERR_LAYOUT;
@@ -318,6 +346,12 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
                       USERIMG_STACK_SIZE_BYTES,
                       MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_USER,
                       "userimg-stack") != 0) {
+        rollback_mapped_layout();
+        return MVOS_USERIMG_ERR_MAP;
+    }
+    if (map_user_backing_range(stack_base,
+                               USERIMG_STACK_SIZE_BYTES,
+                               MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_USER) != 0) {
         rollback_mapped_layout();
         return MVOS_USERIMG_ERR_MAP;
     }
@@ -354,5 +388,19 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
     out->max_vaddr = elf_report.max_vaddr;
     out->mapped_base = mapped_base;
     out->mapped_limit = mapped_limit;
+
+    for (uint64_t i = 0; i < eh->e_phnum; ++i) {
+        if (ph[i].p_type != ELF_PHDR_LOAD || ph[i].p_filesz == 0) {
+            continue;
+        }
+        uint64_t segment_offset = ph[i].p_vaddr - src_floor;
+        uint64_t mapped_segment = 0;
+        if (checked_add_u64(mapped_base, segment_offset, &mapped_segment) != 0 ||
+            vmm_copy_to_user(mapped_segment, g_linux_user_elf_sample + ph[i].p_offset, ph[i].p_filesz) != 0) {
+            rollback_mapped_layout();
+            *out = (mvos_userimg_report_t){0};
+            return MVOS_USERIMG_ERR_MAP;
+        }
+    }
     return MVOS_USERIMG_OK;
 }

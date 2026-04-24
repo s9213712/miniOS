@@ -93,3 +93,11 @@ void gdt_init(void) {
         :
         : : "ax");
 }
+
+uint64_t gdt_get_rsp0(void) {
+    return gdt_tss.rsp0;
+}
+
+void gdt_set_rsp0(uint64_t rsp0) {
+    gdt_tss.rsp0 = rsp0;
+}

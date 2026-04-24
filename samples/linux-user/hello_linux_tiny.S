@@ -5,11 +5,11 @@ _start:
     mov $1, %rdi
     lea msg(%rip), %rsi
     mov $msg_len, %rdx
-    syscall
+    int $0x80
 
     mov $60, %rax
     xor %rdi, %rdi
-    syscall
+    int $0x80
 
 .section .rodata
 msg:

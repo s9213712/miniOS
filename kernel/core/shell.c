@@ -561,7 +561,7 @@ static void shell_cmd_capabilities(void) {
     console_write_string("    - Python interpreter\n");
     console_write_string("    - Linux native executables (transmission/htop/nano)\n");
     console_write_string("    - full user page-table mapping + real ring3 isolation\n");
-    console_write_string("    - full ELF userspace execution path (currently scaffold-only, no real ring3 handoff)\n");
+    console_write_string("    - general ELF userspace execution beyond the built-in tiny static sample\n");
     console_write_string("    - persistent disk filesystem\n");
 }
 
@@ -908,7 +908,7 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 7 && shell_streq(trimmed_line, "version")) {
-        console_write_string("MiniOS Stage 3 (Phase 41: execve scaffold path)\n");
+        console_write_string("MiniOS Stage 3 (Phase 42: minimal execve userspace)\n");
         return;
     }
     if (cmd_len == 4 && shell_streq(trimmed_line, "echo")) {
@@ -937,7 +937,7 @@ static void shell_exec(const char *line) {
 
 void shell_run(void) {
     static char line[SHELL_BUFFER_LEN];
-    console_write_string("MiniOS shell (stage 3, phase 41)\n");
+    console_write_string("MiniOS shell (stage 3, phase 42)\n");
     shell_print_help();
     for (;;) {
         shell_print_prompt();

@@ -29,19 +29,20 @@ Phase 仍保留在 git history 與 `CHANGELOG.md`，但日常規劃以 Stage 為
 
 ## Stage 3：Linux ABI + Minimal Exec Bring-up
 
-- 範圍：Phase 35-41（持續中）
+- 範圍：Phase 35-42（持續中）
 - 已完成：
   - Linux ABI 預覽 syscall 子集合
   - `run elf-inspect`
   - `run elf-load`（load+stack mapping、handoff dry-run、exec stack scaffold）
   - `execve` syscall scaffold（路徑驗證 + 內嵌 ELF 載入 + stack prep）
+  - `execve("/bin/hello_linux_tiny", ...)` 最小實執行鏈路（ring3 entry、tiny ELF output、`exit_group` return）
   - `make test-userimg-loader`
-- 狀態：進行中（scaffold 已完成，正在補齊真正 `execve`）
+- 狀態：進行中（最小 `execve` 實執行已完成，下一步補齊一般化與隔離）
 
 ## Stage 4：System Completeness
 
 - 目標：
-  - 完成最小可執行 userspace runtime 與 `execve` 鏈路
+  - 一般化 userspace runtime 與 `execve` 鏈路
   - persistent FS
   - network stack
   - 權限與安全模型

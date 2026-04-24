@@ -3,6 +3,7 @@ default rel
 
 global userproc_enter_asm
 global userproc_enter_execve_asm
+global userproc_execve_trampoline_asm
 global isr_user_syscall
 global minios_userapp_hello
 global minios_userapp_ticks
@@ -50,6 +51,34 @@ userproc_enter_execve_asm:
     mov rsi, rcx             ; argv
     mov rdx, r8              ; envp
     iretq
+
+userproc_execve_trampoline_asm:
+    ; Arguments:
+    ; rdi = entry function pointer (RIP in user mode)
+    ; rsi = initial userspace RSP
+    ; rdx = argc
+    ; rcx = argv pointer
+    ; r8  = envp pointer
+    lea rax, [rel .return]
+    mov [rel g_userproc_return_rip], rax
+    mov [rel g_userproc_return_stack], rsp
+    mov r9, rdi
+    mov r10, rsi
+    push qword 0x23          ; user data segment selector
+    push r10                 ; user stack pointer
+    pushfq
+    pop rax
+    or eax, 0x200
+    push rax
+    push qword 0x1B          ; user code selector (RPL=3)
+    push r9                  ; user RIP
+    mov rdi, rdx             ; argc
+    mov rsi, rcx             ; argv
+    mov rdx, r8              ; envp
+    iretq
+.return:
+    mov eax, 1
+    ret
 
 userapp_hello_syscall_loop:
     mov eax, 1
@@ -144,7 +173,9 @@ isr_user_syscall:
     mov rdx, r10
     mov rcx, r11
     call userproc_dispatch
-    mov rbx, rax
+    cmp rax, 1
+    je .user_syscall_exit
+    mov [rsp + 112], rax
 
     pop r15
     pop r14
@@ -160,25 +191,16 @@ isr_user_syscall:
     pop rdx
     pop rcx
     pop rbx
-
-    cmp rbx, 1
-    jne .user_syscall_continue
-
-    ; User exit requested: rebuild kernel return frame.
-    mov rax, [rel g_userproc_return_rip]
-    mov [rsp], rax
-    mov qword [rsp + 8], 0x08
-    mov rbx, [rel g_userproc_return_stack]
-    mov qword [rsp + 24], rbx
-    mov qword [rsp + 32], 0x10
-    mov qword [rsp + 16], 0x202
     pop rax
     iretq
 
-.user_syscall_continue:
-    add rsp, 8
-    mov rax, rbx
-    iretq
+.user_syscall_exit:
+    ; User exit requested: resume the saved supervisor continuation.
+    ; Returning to CPL0 with iretq would not pop RSP/SS, so switch stacks directly.
+    add rsp, 120
+    mov rsp, [rel g_userproc_return_stack]
+    mov rax, [rel g_userproc_return_rip]
+    jmp rax
 
 section .rodata
 linux_abi_msg: db "linux abi preview: write/getpid/gettid/exit_group", 10

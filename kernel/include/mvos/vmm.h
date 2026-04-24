@@ -21,6 +21,8 @@ typedef struct {
 void vmm_init(uint64_t hhdm_offset);
 int vmm_map_range(uint64_t vaddr, uint64_t size, uint64_t flags, const char *tag);
 int vmm_unmap_range(uint64_t vaddr, uint64_t size);
+int vmm_map_user_backed_page(uint64_t vaddr, uint64_t flags, void **out_kernel_page);
+int vmm_copy_to_user(uint64_t vaddr, const void *src, uint64_t size);
 uint32_t vmm_region_count(void);
 int vmm_region_at(uint32_t index, mvos_vmm_region_info_t *out);
 

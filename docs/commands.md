@@ -7,7 +7,7 @@
 > cd /home/s92137/miniOS
 > ```
 
-> 目前進度摘要：專案已重整為 Stage 管理，當前位於 `Stage 3`。`smoke` 主線穩定，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`、`run elf-load`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Linux 應用（如 transmission/htop/nano）尚未支援；`run elf-load` 目前提供 handoff dry-run + exec stack scaffold 驗證。
+> 目前進度摘要：專案已重整為 Stage 管理，當前位於 `Stage 3`。`smoke` 主線穩定，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`、`run elf-load`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Linux 應用（如 transmission/htop/nano）尚未支援；`EXECVE_DEMO=1` 可跑內嵌 tiny static ELF 的最小 execve userspace demo。
 
 ---
 
@@ -130,6 +130,10 @@
   ```bash
   LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
   ```
+- 最小 execve userspace demo（啟動時跑 `run linux-abi` probe，包含 tiny ELF 進入/退出）：
+  ```bash
+  EXECVE_DEMO=1 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
+  ```
 - 僅建置 smoke，不跑 QEMU：
   ```bash
   SKIP_SMOKE_RUN=1 make smoke-offline
@@ -222,9 +226,9 @@
 - `task start/stop/reset/list` 可直接控制 scheduler 任務狀態與 run counter；`tasks` 會顯示 active/stopped。
 - `vmm` 可檢視目前 VMM region 與 user brk/limit（目前為教學型 metadata 骨架，尚未是完整 ring3 分頁切換）。
 - `run cpp` 為目前 C++ 使用者應用示範，仍以 kernel-mode fallback 路徑實作。
-- `run linux-abi` 為 Linux ABI 教學預覽，會輸出一組 fallback probe 結果；目前尚不支援 ELF loader、動態連結與 glibc userspace。
+- `run linux-abi` 為 Linux ABI 教學預覽，會輸出一組 fallback probe 結果；probe 內的 `execve("/bin/hello_linux_tiny", ...)` 可載入內嵌 tiny static ELF、進入 ring3 並經 `exit_group` 返回。尚不支援動態連結與 glibc userspace。
 - `run elf-inspect` 會輸出內嵌 Linux user ELF 的 entry、program header 數與 load/file range，供 loader 前置驗證。
-- `run elf-load` 會輸出 mapped entry/range、mapped region 統計、stack 規劃、handoff dry-run 與 exec stack prep 狀態；目前為 scaffold-only 路徑，尚未真的進入 ring3 執行 Linux userspace ELF。
+- `run elf-load` 會輸出 mapped entry/range、mapped region 統計、stack 規劃、handoff dry-run 與 exec stack prep 狀態；它仍是診斷路徑，真正執行由 `run linux-abi` probe 的 `execve` 路徑驗證。
 - `make test-elf-sample` 會重新產生 blob 並檢查 ELF magic、必要符號與最小 byte 數，適合每次調整 loader/ELF 邏輯後回歸。
 - `make test-userimg-loader` 會檢查 loader 映射結果可重複載入、VMM tag/flags 正確、handoff dry-run 成功/失敗案例，以及 exec stack payload 正確性。
 - Linux 對齊目標文件：`docs/linux-parity-goals.md`

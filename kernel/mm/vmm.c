@@ -2,6 +2,14 @@
 #include <stdint.h>
 
 #define MVOS_VMM_MAX_REGIONS 32
+#define MVOS_VMM_PTE_COUNT 512
+#define MVOS_VMM_PTE_PRESENT 0x001ULL
+#define MVOS_VMM_PTE_WRITE 0x002ULL
+#define MVOS_VMM_PTE_USER 0x004ULL
+#define MVOS_VMM_PTE_HUGE 0x080ULL
+#define MVOS_VMM_PTE_ADDR_MASK 0x000FFFFFFFFFF000ULL
+
+extern void *pmm_allocate_pages(uint64_t page_count) __attribute__((weak));
 
 typedef struct {
     int in_use;
@@ -48,6 +56,56 @@ static void copy_tag(char *dst, uint64_t cap, const char *src) {
         ++i;
     }
     dst[i] = '\0';
+}
+
+static void zero_page(void *page) {
+    uint8_t *p = (uint8_t *)page;
+    for (uint64_t i = 0; i < MVOS_VMM_PAGE_SIZE; ++i) {
+        p[i] = 0;
+    }
+}
+
+static uint64_t kernel_virt_to_phys(const void *ptr) {
+    return (uint64_t)(uintptr_t)ptr - g_hhdm_offset;
+}
+
+static uint64_t *phys_to_kernel_virt(uint64_t phys) {
+    return (uint64_t *)(uintptr_t)(phys + g_hhdm_offset);
+}
+
+static uint64_t read_cr3_phys(void) {
+    uint64_t cr3 = 0;
+    __asm__ volatile("mov %%cr3, %0" : "=r"(cr3));
+    return cr3 & MVOS_VMM_PTE_ADDR_MASK;
+}
+
+static void flush_user_page(uint64_t vaddr) {
+    __asm__ volatile("invlpg (%0)" : : "r"(vaddr) : "memory");
+}
+
+static uint64_t *ensure_next_table(uint64_t *table, uint64_t index) {
+    uint64_t entry = table[index];
+    if ((entry & MVOS_VMM_PTE_PRESENT) != 0) {
+        if ((entry & MVOS_VMM_PTE_HUGE) != 0) {
+            return 0;
+        }
+        table[index] = entry | MVOS_VMM_PTE_WRITE | MVOS_VMM_PTE_USER;
+        return phys_to_kernel_virt(entry & MVOS_VMM_PTE_ADDR_MASK);
+    }
+
+    if (pmm_allocate_pages == 0) {
+        return 0;
+    }
+    void *page = pmm_allocate_pages(1);
+    if (page == 0) {
+        return 0;
+    }
+    zero_page(page);
+    table[index] = kernel_virt_to_phys(page) |
+                   MVOS_VMM_PTE_PRESENT |
+                   MVOS_VMM_PTE_WRITE |
+                   MVOS_VMM_PTE_USER;
+    return (uint64_t *)page;
 }
 
 static int range_overlaps(uint64_t base_a, uint64_t size_a, uint64_t base_b, uint64_t size_b) {
@@ -128,6 +186,78 @@ int vmm_unmap_range(uint64_t vaddr, uint64_t size) {
         }
     }
     return -2;
+}
+
+int vmm_map_user_backed_page(uint64_t vaddr, uint64_t flags, void **out_kernel_page) {
+    if (out_kernel_page == 0) {
+        return -1;
+    }
+    *out_kernel_page = 0;
+    if (vaddr == 0 || (vaddr & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
+        return -2;
+    }
+    if ((flags & MVOS_VMM_FLAG_USER) == 0) {
+        return -3;
+    }
+
+    /* Host-side tests run VMM as metadata only, without PMM/HHDM/CR3 access. */
+    if (g_hhdm_offset == 0 || pmm_allocate_pages == 0) {
+        return 0;
+    }
+
+    void *backing = pmm_allocate_pages(1);
+    if (backing == 0) {
+        return -4;
+    }
+    zero_page(backing);
+
+    uint64_t *pml4 = phys_to_kernel_virt(read_cr3_phys());
+    uint64_t pml4_i = (vaddr >> 39) & 0x1FFULL;
+    uint64_t pdpt_i = (vaddr >> 30) & 0x1FFULL;
+    uint64_t pd_i = (vaddr >> 21) & 0x1FFULL;
+    uint64_t pt_i = (vaddr >> 12) & 0x1FFULL;
+
+    uint64_t *pdpt = ensure_next_table(pml4, pml4_i);
+    if (pdpt == 0) {
+        return -5;
+    }
+    uint64_t *pd = ensure_next_table(pdpt, pdpt_i);
+    if (pd == 0) {
+        return -6;
+    }
+    uint64_t *pt = ensure_next_table(pd, pd_i);
+    if (pt == 0) {
+        return -7;
+    }
+    uint64_t pte_flags = MVOS_VMM_PTE_PRESENT | MVOS_VMM_PTE_USER;
+    if ((flags & MVOS_VMM_FLAG_WRITE) != 0) {
+        pte_flags |= MVOS_VMM_PTE_WRITE;
+    }
+    pt[pt_i] = kernel_virt_to_phys(backing) | pte_flags;
+    flush_user_page(vaddr);
+    *out_kernel_page = backing;
+    return 0;
+}
+
+int vmm_copy_to_user(uint64_t vaddr, const void *src, uint64_t size) {
+    if (size == 0) {
+        return 0;
+    }
+    if (vaddr == 0 || src == 0) {
+        return -1;
+    }
+
+    /* Host-side tests keep only metadata and validate layout contracts. */
+    if (g_hhdm_offset == 0) {
+        return 0;
+    }
+
+    uint8_t *dst = (uint8_t *)(uintptr_t)vaddr;
+    const uint8_t *in = (const uint8_t *)src;
+    for (uint64_t i = 0; i < size; ++i) {
+        dst[i] = in[i];
+    }
+    return 0;
 }
 
 uint32_t vmm_region_count(void) {

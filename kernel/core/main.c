@@ -283,6 +283,15 @@ void kmain(void) {
     }
 #endif
 
+#ifdef MINIOS_EXECVE_DEMO
+    klogln("[execve-demo] running linux-abi probe");
+    if (userapp_run("linux-abi") != 0) {
+        klogln("[execve-demo] linux-abi probe failed");
+    } else {
+        klogln("[execve-demo] linux-abi probe done");
+    }
+#endif
+
 #ifdef MINIOS_ENABLE_SHELL
     /* Optional interactive phase for manual verification.
      * Kept off by default to avoid changing CI smoke timeline.

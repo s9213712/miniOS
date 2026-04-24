@@ -33,6 +33,14 @@ uint64_t timer_ticks(void) {
     return 0;
 }
 
+uint64_t gdt_get_rsp0(void) {
+    return 0;
+}
+
+void gdt_set_rsp0(uint64_t rsp0) {
+    (void)rsp0;
+}
+
 void userproc_enter_asm(uint64_t entry, uint64_t user_stack) {
     (void)entry;
     (void)user_stack;
@@ -49,6 +57,20 @@ void userproc_enter_execve_asm(uint64_t entry,
     g_enter_execve_argv = argv_user;
     g_enter_execve_envp = envp_user;
     g_enter_execve_count++;
+}
+
+uint64_t userproc_execve_trampoline_asm(uint64_t entry,
+                                        uint64_t user_stack,
+                                        uint64_t argc,
+                                        uint64_t argv_user,
+                                        uint64_t envp_user) {
+    g_enter_execve_entry = entry;
+    g_enter_execve_stack = user_stack;
+    g_enter_execve_argc = argc;
+    g_enter_execve_argv = argv_user;
+    g_enter_execve_envp = envp_user;
+    g_enter_execve_count++;
+    return 1;
 }
 
 extern uint64_t g_userproc_running;
@@ -249,6 +271,7 @@ int main(void) {
     const char *exec_envp[] = {"TERM=minios", NULL};
     g_userproc_running = 1;
     g_userproc_current_app_id = 41;
+    uint32_t enter_count_before_execve = g_enter_execve_count;
     uint64_t exec_rc = userproc_dispatch(
         TEST_LINUX_SYSCALL_EXECVE,
         (uint64_t)(uintptr_t)exec_path,
@@ -260,8 +283,8 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
-    if (g_userproc_running != 0) {
-        fprintf(stderr, "[test_userimg_loader] expected execve scaffold to stop current app context\n");
+    if (g_enter_execve_count != enter_count_before_execve + 1) {
+        fprintf(stderr, "[test_userimg_loader] expected execve to enter userspace handoff\n");
         free(stack_mem);
         return 1;
     }

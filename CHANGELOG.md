@@ -1,5 +1,30 @@
 # Changelog
 
+## Phase 42 – Minimal Execve Userspace Run
+
+### Added
+- Added a real tiny static ELF `execve` execution path:
+  - maps embedded ELF segments and user stack to backed user pages
+  - copies load segments and prepared `argc/argv/envp/auxv` stack into user memory
+  - enters ring3 with Linux-style initial registers
+  - returns to kernel after `exit_group`
+- Added an assembly execve trampoline that owns the kernel continuation return address.
+- Added a dedicated execve syscall kernel stack by temporarily switching TSS `rsp0`, avoiding live C stack corruption on nested user syscalls.
+- Added `EXECVE_DEMO=1` boot probe wiring for serial-smoke verification.
+
+### Changed
+- Updated the embedded Linux tiny sample to use the miniOS-supported `int 0x80` path.
+- Updated Stage 3 docs and version strings to Phase 42.
+
+### Validation
+- `make test-userimg-loader`
+- `make test-elf-sample`
+- `make smoke-build`
+- `make host-programs`
+- `make test-host-programs`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+- `EXECVE_DEMO=1 LIMINE_LOCAL_DIR=/tmp/limine-bin make -B smoke-offline`
+
 ## Phase 41 – Execve Scaffold Syscall Path
 
 ### Added
