@@ -1,5 +1,29 @@
 # Changelog
 
+## Phase 34 – Writable /tmp VFS Overlay
+
+### Added
+- Added writable overlay support in `kernel/core/vfs.c`:
+  - new APIs: `vfs_write_file`, `vfs_remove_file`
+  - writable path scope: `/tmp/*`
+  - fixed-size in-memory file slots for deterministic behavior
+- Added shell commands for file mutation:
+  - `write <path> <text>`
+  - `append <path> <text>`
+  - `touch <path>`
+  - `rm <path>`
+- Added host regression coverage:
+  - `tests/host/test_vfs_rw.c`
+  - `scripts/test_vfs_rw.sh`
+  - `make test-vfs-rw`
+
+### Validation
+- `make test-vfs-rw`
+- `make test-elf-sample`
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+- `make test-host-programs`
+
 ## Phase 33 – ELF Sample Regression Coverage
 
 ### Added

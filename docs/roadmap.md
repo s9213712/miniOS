@@ -25,6 +25,7 @@
 - 2026-04-24：`Phase 31` 擴充 Linux ABI 預覽 syscall，新增 `writev/brk/uname/gettid/set_tid_address/arch_prctl/exit_group`，並讓 fallback 可直接跑 probe。
 - 2026-04-24：`Phase 32` 新增 `run elf-inspect` 與可重生的 ELF 樣本更新流程（`make refresh-elf-sample`）。
 - 2026-04-24：`Phase 33` 新增 `make test-elf-sample`，將 ELF 樣本重生流程納入回歸測試。
+- 2026-04-24：`Phase 34` 新增 `/tmp` 可寫 overlay VFS 與 shell `write/append/touch/rm` 指令，並加入 `make test-vfs-rw`。
 
 ## 檢查前提
 
@@ -197,3 +198,7 @@
 - Phase 33：ELF 樣本回歸化（完成）
   - 新增 `scripts/test_elf_sample.sh` 與 `make test-elf-sample`，檢查 ELF magic、symbol 與 blob byte count 下限。
   - 讓 ELF 樣本刷新路徑可在每次修改後快速驗證，不需要手動比對 blob 內容。
+- Phase 34：可寫入檔案系統最小路徑（完成）
+  - VFS 在保留 `/boot/init` 唯讀節點外，新增 `/tmp` 可寫 overlay（建立、覆寫、附加、刪除）。
+  - shell 新增 `write/append/touch/rm` 命令，讓使用者可直接做檔案內容變更。
+  - 新增 `scripts/test_vfs_rw.sh` 與 `make test-vfs-rw`，補齊 host-side 行為回歸。
