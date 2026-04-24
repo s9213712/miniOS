@@ -52,6 +52,10 @@
   ```bash
   make refresh-elf-sample
   ```
+- 驗證 ELF 樣本重生契約：
+  ```bash
+  make test-elf-sample
+  ```
 - 主機端編譯腳本（可用來驗證輸出）：
   ```bash
   python3 scripts/build_user_programs.py --source-dir samples/user-programs --out-dir build/host-programs
@@ -191,6 +195,7 @@
 - `run cpp` 為目前 C++ 使用者應用示範，仍以 kernel-mode fallback 路徑實作。
 - `run linux-abi` 為 Linux ABI 教學預覽，會輸出一組 fallback probe 結果；目前尚不支援 ELF loader、動態連結與 glibc userspace。
 - `run elf-inspect` 會輸出內嵌 Linux user ELF 的 entry、program header 數與 load/file range，供 loader 前置驗證。
+- `make test-elf-sample` 會重新產生 blob 並檢查 ELF magic、必要符號與最小 byte 數，適合每次調整 loader/ELF 邏輯後回歸。
 
 ---
 

@@ -221,6 +221,7 @@ static void shell_cmd_capabilities(void) {
     console_write_string("    - `make host-programs` compiles host C/C++ demos\n");
     console_write_string("    - `python3 scripts/dev_status.py --build-programs` validates build chain\n");
     console_write_string("    - `make refresh-elf-sample` regenerates embedded Linux ELF sample blob\n");
+    console_write_string("    - `make test-elf-sample` validates regenerated ELF sample contract\n");
     console_write_string("  linux abi preview:\n");
     console_write_string("    - user syscall subset: write/writev/brk/uname/getpid/gettid/set_tid_address/arch_prctl/exit_group\n");
     console_write_string("    - try: run linux-abi\n");
@@ -412,6 +413,7 @@ static void shell_exec(const char *line) {
     if (cmd_len == 5 && shell_streq(trimmed_line, "build")) {
         console_write_string("host build (outside miniOS):\n");
         console_write_string("  make host-programs\n");
+        console_write_string("  make test-elf-sample\n");
         console_write_string("  python3 scripts/dev_status.py --build-programs\n");
         console_write_string("  python3 scripts/build_user_programs.py --source-dir samples/user-programs --out-dir build/host-programs\n");
         return;
@@ -539,7 +541,7 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 7 && shell_streq(trimmed_line, "version")) {
-        console_write_string("MiniOS Phase 32 (linux abi + elf inspect groundwork)\n");
+        console_write_string("MiniOS Phase 33 (elf sample regression coverage)\n");
         return;
     }
     if (cmd_len == 4 && shell_streq(trimmed_line, "echo")) {
@@ -568,7 +570,7 @@ static void shell_exec(const char *line) {
 
 void shell_run(void) {
     static char line[SHELL_BUFFER_LEN];
-    console_write_string("MiniOS shell (phase 32)\n");
+    console_write_string("MiniOS shell (phase 33)\n");
     shell_print_help();
     for (;;) {
         shell_print_prompt();

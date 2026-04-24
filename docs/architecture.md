@@ -32,6 +32,7 @@ MiniOS is a small x86_64 educational OS with incremental phases and readable bou
 - **Phase 30**: add Linux ABI preview syscall path (`write/getpid/exit`) for user-mode teaching experiments.
 - **Phase 31**: expand Linux ABI preview syscall coverage (`writev/brk/uname/gettid/set_tid_address/arch_prctl/exit_group`) and add fallback probe output.
 - **Phase 32**: add ELF64 metadata inspection path (`run elf-inspect`) plus reproducible sample refresh (`make refresh-elf-sample`).
+- **Phase 33**: add ELF sample regression test path (`make test-elf-sample`) to keep refresh output verifiable.
 
 ## Core layout
 
@@ -69,6 +70,7 @@ Current user-visible runtime limit:
 - `run linux-abi` verifies a Linux syscall-number-compatible preview path (currently 1/12/20/39/60/63/158/186/218/231), not full POSIX process compatibility.
 - `run elf-inspect` validates an embedded Linux user ELF sample and prints entry/program-header/load-range metadata.
 - `make refresh-elf-sample` regenerates `kernel/core/elf_sample_blob.c` from `samples/linux-user/hello_linux_tiny.S`.
+- `make test-elf-sample` re-runs sample generation and checks blob contract (ELF magic, symbols, minimum byte count).
 - `cap` / `capabilities` shell command reports:
   - user app execution mode coverage (kernel vs user placeholder),
   - host-program build workflow status,

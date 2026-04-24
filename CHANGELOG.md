@@ -1,5 +1,22 @@
 # Changelog
 
+## Phase 33 – ELF Sample Regression Coverage
+
+### Added
+- Added `scripts/test_elf_sample.sh` and `make test-elf-sample` target.
+- `test-elf-sample` now validates:
+  - `refresh-elf-sample` completes successfully
+  - ELF magic bytes appear in `kernel/core/elf_sample_blob.c`
+  - required blob symbols exist
+  - blob contains at least a minimum byte count
+- Updated shell capability/build hints to include the new regression command.
+
+### Validation
+- `make test-elf-sample`
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+- `make test-host-programs`
+
 ## Phase 32 – ELF Inspect Groundwork
 
 ### Added

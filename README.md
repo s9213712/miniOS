@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 32, 教學型專案)
+# MinimalOS v1 (Phase 33, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -24,6 +24,7 @@
 - 2026-04-24：`Phase 30` 新增 Linux ABI 預覽路徑（`run linux-abi`），打通最小 `write/getpid/exit` syscall 骨架。
 - 2026-04-24：`Phase 31` 擴充 Linux ABI 預覽 syscall 子集合（`writev/brk/uname/gettid/set_tid_address/arch_prctl/exit_group`），並讓 `run linux-abi` 在 fallback 也可做 probe。
 - 2026-04-24：`Phase 32` 新增 `run elf-inspect` 與 ELF64 檢查器，並補齊 `make refresh-elf-sample` 讓 embedded Linux ELF 樣本可重生。
+- 2026-04-24：`Phase 33` 新增 `make test-elf-sample`，將 ELF 樣本重生流程納入可回歸檢查。
 
 ## 分支策略
 
@@ -82,6 +83,9 @@
 - Phase 32：ELF 檢查與樣本更新流程（完成）
   - 新增 `run elf-inspect`，可檢查 embedded Linux user ELF 的 entry/program header/load segment 範圍。
   - 新增 `samples/linux-user/hello_linux_tiny.S` 與 `make refresh-elf-sample`，可重生 `kernel/core/elf_sample_blob.c`。
+- Phase 33：ELF 樣本回歸測試（完成）
+  - 新增 `make test-elf-sample`（`scripts/test_elf_sample.sh`），檢查 ELF magic、符號與 blob 大小下限。
+  - 將 `refresh-elf-sample` 從「一次性工具」提升為可重複驗證的測試入口。
 
 ## 每階段目的與預期成效
 
@@ -188,6 +192,7 @@ sudo apt-get install -y build-essential binutils gcc make nasm qemu-system-x86 q
 make
 make host-programs
 make refresh-elf-sample
+make test-elf-sample
 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
 LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 ```
@@ -198,6 +203,7 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 - `QEMU_GUI=1 make run`：開啟 QEMU VGA 視窗並同步顯示 framebuffer 文字輸出
 - `make host-programs`：只編譯主機端 C/C++ 範例（不影響 kernel）
 - `make refresh-elf-sample`：重生內嵌 Linux ELF 樣本 blob（供 `run elf-inspect` 診斷）
+- `make test-elf-sample`：驗證 ELF 樣本重生輸出契約（magic/符號/大小）
 - `python3 scripts/dev_status.py --build`：環境 + 建置健康檢查（建議每次大改後）
 - `python3 scripts/dev_status.py --build-programs`：主機端範例程式建置檢查
 - `python3 scripts/dev_status.py`：只做環境檢查，不會重建

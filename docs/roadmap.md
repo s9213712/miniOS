@@ -24,6 +24,7 @@
 - 2026-04-24：`Phase 30` 新增 Linux ABI 預覽路徑，支援最小 syscall 子集合（`write/getpid/exit`）與 `run linux-abi` 驗證命令。
 - 2026-04-24：`Phase 31` 擴充 Linux ABI 預覽 syscall，新增 `writev/brk/uname/gettid/set_tid_address/arch_prctl/exit_group`，並讓 fallback 可直接跑 probe。
 - 2026-04-24：`Phase 32` 新增 `run elf-inspect` 與可重生的 ELF 樣本更新流程（`make refresh-elf-sample`）。
+- 2026-04-24：`Phase 33` 新增 `make test-elf-sample`，將 ELF 樣本重生流程納入回歸測試。
 
 ## 檢查前提
 
@@ -193,3 +194,6 @@
 - Phase 32：ELF64 檢查與樣本重生（完成）
   - 新增 `run elf-inspect`，直接在 miniOS 內核路徑檢查 embedded Linux ELF metadata。
   - 新增 `samples/linux-user/hello_linux_tiny.S` 與 `make refresh-elf-sample`，讓 `kernel/core/elf_sample_blob.c` 可重現更新。
+- Phase 33：ELF 樣本回歸化（完成）
+  - 新增 `scripts/test_elf_sample.sh` 與 `make test-elf-sample`，檢查 ELF magic、symbol 與 blob byte count 下限。
+  - 讓 ELF 樣本刷新路徑可在每次修改後快速驗證，不需要手動比對 blob 內容。
