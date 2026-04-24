@@ -19,3 +19,4 @@ linux-7.0.tar.xz
 
 # Editor/system files
 .DS_Store
+*:Zone.Identifier
