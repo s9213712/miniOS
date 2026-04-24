@@ -4,6 +4,7 @@
 #include <mvos/log.h>
 #include <mvos/scheduler.h>
 #include <mvos/interrupt.h>
+#include <mvos/elf.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -85,10 +86,16 @@ static void userapp_fallback_linux_abi(void) {
     userproc_linux_abi_probe();
 }
 
+static void userapp_fallback_elf_inspect(void) {
+    console_write_string("elf inspect: embedded linux-user sample\n");
+    elf_sample_diagnostic();
+}
+
 static const mvos_userapp_t g_userapps[] = {
     {"hello", "print hello from user app (user mode)", userapp_fallback_hello, (uint64_t)minios_userapp_hello, true},
     {"ticks", "print current timer ticks via user syscall", userapp_fallback_ticks, (uint64_t)minios_userapp_ticks, true},
-    {"linux-abi", "preview Linux x86_64 syscall subset (stage 31 scaffold)", userapp_fallback_linux_abi, (uint64_t)minios_userapp_linux_abi, true},
+    {"linux-abi", "preview Linux x86_64 syscall subset (stage 32 scaffold)", userapp_fallback_linux_abi, (uint64_t)minios_userapp_linux_abi, true},
+    {"elf-inspect", "inspect embedded linux-user ELF metadata (kernel mode)", userapp_fallback_elf_inspect, 0, false},
     {"cpp", "print C++ demo result (kernel mode demo)", userapp_fallback_cpp, 0, false},
     {"scheduler", "print scheduler snapshot (kernel mode)", userapp_scheduler, 0, false},
     {"python", "print Python availability notice", userapp_fallback_python, 0, false},

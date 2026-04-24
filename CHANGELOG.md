@@ -1,5 +1,22 @@
 # Changelog
 
+## Phase 32 – ELF Inspect Groundwork
+
+### Added
+- Added `kernel/core/elf.c` and `kernel/include/mvos/elf.h` for ELF64 metadata inspection (`entry`, program-header counts, load segment ranges, file offset ranges).
+- Added `run elf-inspect` app path in `userapp` so the embedded Linux ELF sample can be inspected directly from miniOS shell.
+- Added reproducible sample refresh pipeline:
+  - `samples/linux-user/hello_linux_tiny.S`
+  - `scripts/update_elf_sample_blob.sh`
+  - `make refresh-elf-sample` target in `Makefile`
+- Added embedded sample blob source `kernel/core/elf_sample_blob.c` generated from the tiny Linux ELF sample.
+
+### Validation
+- `make refresh-elf-sample`
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+- `make test-host-programs`
+
 ## Phase 31 – Linux ABI Syscall Expansion
 
 ### Added

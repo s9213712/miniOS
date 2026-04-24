@@ -70,7 +70,7 @@ OBJS := $(C_OBJS) $(CXX_OBJS) $(ASM_OBJS)
 
 FLAGS_MARK := $(OUTPUT_DIR)/.build-flags
 
-.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline prefetch-limine host-programs build-host-programs clean-host-programs test-host-programs
+.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline prefetch-limine host-programs build-host-programs clean-host-programs test-host-programs refresh-elf-sample
 
 HOST_PROGRAMS_SRC_DIR := samples/user-programs
 HOST_PROGRAMS_OUT_DIR := $(OUTPUT_DIR)/host-programs
@@ -146,6 +146,9 @@ build-host-programs: host-programs
 
 test-host-programs:
 	@bash scripts/test_host_programs.sh
+
+refresh-elf-sample:
+	@bash scripts/update_elf_sample_blob.sh
 
 clean-host-programs:
 	rm -rf "$(HOST_PROGRAMS_OUT_DIR)"
