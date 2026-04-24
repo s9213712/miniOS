@@ -127,6 +127,7 @@ enum {
     TEST_LINUX_SYSCALL_GETPPID = 110,
     TEST_LINUX_SYSCALL_GETRLIMIT = 97,
     TEST_LINUX_SYSCALL_CLOCK_GETTIME = 228,
+    TEST_LINUX_SYSCALL_SCHED_GETAFFINITY = 204,
     TEST_LINUX_SYSCALL_OPENAT = 257,
     TEST_LINUX_SYSCALL_NEWFSTATAT = 262,
     TEST_LINUX_SYSCALL_READLINKAT = 267,
@@ -611,6 +612,34 @@ int main(void) {
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETPPID, 0, 0, 0, 0, 0, 0);
     if (exec_rc != 1) {
         fprintf(stderr, "[test_userimg_loader] expected getppid 1, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t cpu_mask = 0;
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_SCHED_GETAFFINITY,
+                                0,
+                                sizeof(cpu_mask),
+                                (uint64_t)(uintptr_t)&cpu_mask,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != sizeof(cpu_mask) || cpu_mask != 1) {
+        fprintf(stderr, "[test_userimg_loader] expected sched_getaffinity CPU0 mask, rc=%lld mask=%llu\n",
+                (long long)exec_rc,
+                (unsigned long long)cpu_mask);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_SCHED_GETAFFINITY,
+                                0,
+                                1,
+                                (uint64_t)(uintptr_t)&cpu_mask,
+                                0,
+                                0,
+                                0);
+    if ((int64_t)exec_rc != -22) {
+        fprintf(stderr, "[test_userimg_loader] expected sched_getaffinity EINVAL (-22), got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

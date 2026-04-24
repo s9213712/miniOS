@@ -46,6 +46,7 @@ enum {
     MINIOS_LINUX_SYSCALL_GETRLIMIT = 97,
     MINIOS_LINUX_SYSCALL_ARCH_PRCTL = 158,
     MINIOS_LINUX_SYSCALL_GETTID = 186,
+    MINIOS_LINUX_SYSCALL_SCHED_GETAFFINITY = 204,
     MINIOS_LINUX_SYSCALL_GETDENTS64 = 217,
     MINIOS_LINUX_SYSCALL_SET_TID_ADDRESS = 218,
     MINIOS_LINUX_SYSCALL_CLOCK_GETTIME = 228,
@@ -1457,6 +1458,24 @@ static uint64_t userproc_linux_sysinfo(uint64_t user_info) {
     return userproc_errno(userproc_copy_to_user(user_info, &info, sizeof(info)));
 }
 
+static uint64_t userproc_linux_sched_getaffinity(uint64_t pid, uint64_t cpusetsize, uint64_t user_mask) {
+    if (pid != 0 && pid != 1000 + g_userproc_current_app_id) {
+        return userproc_errno(-3); /* ESRCH */
+    }
+    if (user_mask == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    if (cpusetsize < sizeof(uint64_t)) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    uint64_t mask = 1;
+    int64_t rc = userproc_copy_to_user(user_mask, &mask, sizeof(mask));
+    if (rc != 0) {
+        return userproc_errno(rc);
+    }
+    return sizeof(mask);
+}
+
 static uint64_t userproc_linux_getrandom(uint64_t user_buf, uint64_t count, uint64_t flags) {
     (void)flags;
     if (count == 0) {
@@ -2208,6 +2227,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return 1000 + g_userproc_current_app_id;
         case MINIOS_LINUX_SYSCALL_GETTID:
             return 1000 + g_userproc_current_app_id;
+        case MINIOS_LINUX_SYSCALL_SCHED_GETAFFINITY:
+            return userproc_linux_sched_getaffinity(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_GETPPID:
             return 1;
         case MINIOS_LINUX_SYSCALL_GETUID:
