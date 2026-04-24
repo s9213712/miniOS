@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 38, 教學型專案)
+# MinimalOS v1 (Phase 39, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -30,6 +30,7 @@
 - 2026-04-24：`Phase 36` 新增 VMM 基礎層（map/unmap + region metadata）並將 `linux-abi brk` 接入，補上 `make test-vmm-basic`。
 - 2026-04-24：`Phase 37` 新增 user image loader 骨架（`run elf-load`），可將 embedded ELF 的 load layout 映射到 VMM metadata，並補上 `make test-userimg-loader`。
 - 2026-04-24：`Phase 38` 擴充 user image 執行上下文骨架，`run elf-load` 新增 user stack 佈局輸出，並在 loader 測試驗證 stack 映射。
+- 2026-04-24：`Phase 39` 新增 handoff dry-run 接線：`run elf-load` 會驗證 `mapped_entry + stack_top` 是否符合 user handoff 前置條件。
 
 ## 分支策略
 
@@ -111,6 +112,10 @@
   - 在 `userimg` 載入流程加入固定大小 user stack 映射規劃與輸出（`stack_base/stack_top/stack_size`）。
   - `run elf-load` 現在會輸出 image + stack 兩段上下文資訊，作為後續真實 user-mode 進入點前置資料。
   - `make test-userimg-loader` 擴充驗證 `userimg-stack` tag、可寫權限與報告一致性。
+- Phase 39：handoff dry-run 驗證接線（完成）
+  - 新增 `userproc_handoff_dry_run(entry, stack_top)`，在真正進入 user mode 前做最小合法性檢查。
+  - `run elf-load` 現在會輸出 handoff dry-run 結果（`ok` 或具體失敗原因）。
+  - `make test-userimg-loader` 新增 handoff 成功/失敗案例驗證。
 
 ## 每階段目的與預期成效
 
@@ -236,7 +241,7 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 - `make test-vfs-rw`：驗證 `/tmp` 可寫 overlay 的 host 端回歸測試
 - `make test-scheduler-ctl`：驗證 scheduler 任務啟停與 reset 控制
 - `make test-vmm-basic`：驗證 VMM map/unmap 與 `brk` 邊界行為
-- `make test-userimg-loader`：驗證 `run elf-load` 對應的 ELF load + user stack 映射骨架
+- `make test-userimg-loader`：驗證 `run elf-load` 對應的 ELF load + user stack + handoff dry-run 骨架
 - `python3 scripts/dev_status.py --build`：環境 + 建置健康檢查（建議每次大改後）
 - `python3 scripts/dev_status.py --build-programs`：主機端範例程式建置檢查
 - `python3 scripts/dev_status.py`：只做環境檢查，不會重建

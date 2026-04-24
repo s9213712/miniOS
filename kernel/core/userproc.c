@@ -50,6 +50,52 @@ static uint64_t g_userproc_fs_base;
 static uint64_t g_userproc_gs_base;
 static uint64_t g_userproc_tid_addr;
 
+static int userproc_streq(const char *a, const char *b) {
+    uint64_t i = 0;
+    while (a[i] != '\0' && b[i] != '\0' && a[i] == b[i]) {
+        ++i;
+    }
+    return a[i] == '\0' && b[i] == '\0';
+}
+
+static int userproc_region_contains(const mvos_vmm_region_info_t *region, uint64_t addr) {
+    if (region->size == 0 || addr < region->base) {
+        return 0;
+    }
+    uint64_t end = region->base + region->size;
+    if (end < region->base) {
+        return 0;
+    }
+    return addr < end;
+}
+
+static int userproc_find_region_for_addr(uint64_t addr,
+                                         const char *tag,
+                                         uint64_t required_flags,
+                                         mvos_vmm_region_info_t *out) {
+    uint32_t count = vmm_region_count();
+    for (uint32_t i = 0; i < count; ++i) {
+        mvos_vmm_region_info_t info;
+        if (vmm_region_at(i, &info) != 0) {
+            continue;
+        }
+        if (tag != NULL && !userproc_streq(info.tag, tag)) {
+            continue;
+        }
+        if ((info.flags & required_flags) != required_flags) {
+            continue;
+        }
+        if (!userproc_region_contains(&info, addr)) {
+            continue;
+        }
+        if (out != NULL) {
+            *out = info;
+        }
+        return 0;
+    }
+    return -1;
+}
+
 static uint64_t userproc_errno(int64_t code) {
     return (uint64_t)code;
 }
@@ -158,8 +204,8 @@ static uint64_t userproc_linux_uname(uint64_t user_buf) {
     volatile minios_utsname_t *u = (volatile minios_utsname_t *)(uintptr_t)user_buf;
     userproc_copy_cstr((char *)u->sysname, sizeof(u->sysname), "miniOS");
     userproc_copy_cstr((char *)u->nodename, sizeof(u->nodename), "miniOS-node");
-    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.38");
-    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Phase38 userimg-context+linux abi preview");
+    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.39");
+    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Phase39 handoff-dryrun+linux abi preview");
     userproc_copy_cstr((char *)u->machine, sizeof(u->machine), "x86_64");
     userproc_copy_cstr((char *)u->domainname, sizeof(u->domainname), "miniOS.local");
     return 0;
@@ -197,6 +243,51 @@ void userproc_set_return_context(uint64_t return_rip, uint64_t return_stack) {
 
 void userproc_set_current_app_id(uint64_t app_id) {
     g_userproc_current_app_id = app_id;
+}
+
+const char *userproc_handoff_result_name(int rc) {
+    switch (rc) {
+        case 0:
+            return "ok";
+        case -1:
+            return "null-entry-or-stack";
+        case -2:
+            return "stack-not-page-aligned";
+        case -3:
+            return "entry-region-missing-or-not-exec";
+        case -4:
+            return "stack-region-missing-or-not-writable";
+        default:
+            return "unknown";
+    }
+}
+
+int userproc_handoff_dry_run(uint64_t entry, uint64_t user_stack_top) {
+    if (entry == 0 || user_stack_top == 0) {
+        return -1;
+    }
+    if ((user_stack_top & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
+        return -2;
+    }
+
+    if (userproc_find_region_for_addr(entry,
+                                      "userimg-load",
+                                      MVOS_VMM_FLAG_USER | MVOS_VMM_FLAG_EXEC,
+                                      NULL) != 0) {
+        return -3;
+    }
+
+    mvos_vmm_region_info_t stack_region;
+    if (userproc_find_region_for_addr(user_stack_top - 1ULL,
+                                      "userimg-stack",
+                                      MVOS_VMM_FLAG_USER | MVOS_VMM_FLAG_WRITE,
+                                      &stack_region) != 0) {
+        return -4;
+    }
+    if (user_stack_top <= stack_region.base) {
+        return -4;
+    }
+    return 0;
 }
 
 uint64_t userproc_dispatch(uint64_t syscall, uint64_t arg1, uint64_t arg2, uint64_t arg3) {

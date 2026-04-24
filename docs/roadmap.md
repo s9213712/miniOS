@@ -30,6 +30,7 @@
 - 2026-04-24：`Phase 36` 新增 VMM 骨架（map/unmap + region metadata）與 `brk` 狀態接線，並加入 `make test-vmm-basic`。
 - 2026-04-24：`Phase 37` 新增 user image loader 骨架（`run elf-load`）與 `make test-userimg-loader`，提供 ELF `PT_LOAD` 到 VMM metadata 的最小接線。
 - 2026-04-24：`Phase 38` 擴充 user image 執行上下文（加入 `userimg-stack` 映射與 stack report），讓後續 user-mode handoff 有固定入口資料。
+- 2026-04-24：`Phase 39` 完成 `userproc_handoff_dry_run`，把 `run elf-load` 的 entry/stack 規劃接入可測試的 handoff 前置驗證。
 
 ## 檢查前提
 
@@ -222,3 +223,7 @@
   - `userimg` 佈局新增 user stack 映射（`userimg-stack`），並輸出 `stack_base/stack_top/stack_size`。
   - `run elf-load` 可同時觀察 image 及 stack 佈局，提供後續切換到真實 userspace 前置資訊。
   - `make test-userimg-loader` 補驗 stack region tag、flags 與 report 一致性。
+- Phase 39：handoff dry-run 驗證（完成）
+  - 新增 `userproc_handoff_dry_run`，檢查 user entry 位於可執行 userimg 區域、stack top 對齊且位於可寫 user stack 區域。
+  - `run elf-load` 直接輸出 handoff dry-run 狀態，讓載入結果可立即驗證是否可進一步 handoff。
+  - `make test-userimg-loader` 新增 dry-run 成功與失敗案例，避免未來改動時退化。

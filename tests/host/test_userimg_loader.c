@@ -1,4 +1,5 @@
 #include <mvos/userimg.h>
+#include <mvos/userproc.h>
 #include <mvos/vmm.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,6 +12,19 @@ void console_write_string(const char *str) {
 
 void console_write_u64(uint64_t value) {
     (void)value;
+}
+
+void console_write_char(char ch) {
+    (void)ch;
+}
+
+uint64_t timer_ticks(void) {
+    return 0;
+}
+
+void userproc_enter_asm(uint64_t entry, uint64_t user_stack) {
+    (void)entry;
+    (void)user_stack;
 }
 
 int main(void) {
@@ -42,6 +56,18 @@ int main(void) {
     }
     if (report.stack_base >= report.stack_top || report.stack_size == 0 || report.stack_top - report.stack_base != report.stack_size) {
         fprintf(stderr, "[test_userimg_loader] invalid stack report\n");
+        return 1;
+    }
+    if (userproc_handoff_dry_run(report.mapped_entry, report.stack_top) != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected handoff dry-run success\n");
+        return 1;
+    }
+    if (userproc_handoff_dry_run(report.mapped_entry, report.stack_top - 1ULL) == 0) {
+        fprintf(stderr, "[test_userimg_loader] expected handoff dry-run to reject unaligned stack top\n");
+        return 1;
+    }
+    if (userproc_handoff_dry_run(report.mapped_limit + 0x1000ULL, report.stack_top) == 0) {
+        fprintf(stderr, "[test_userimg_loader] expected handoff dry-run to reject invalid entry\n");
         return 1;
     }
 

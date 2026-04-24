@@ -102,7 +102,7 @@ static void userapp_fallback_elf_load(void) {
         return;
     }
 
-    console_write_string("elf load prepared (layout-only)\n");
+    console_write_string("elf load prepared (layout + dry-run)\n");
     console_write_string("entry=");
     console_write_u64(report.entry);
     console_write_string(" mapped_entry=");
@@ -131,6 +131,13 @@ static void userapp_fallback_elf_load(void) {
     console_write_string(") size=");
     console_write_u64(report.stack_size);
     console_write_string("\n");
+
+    int handoff_rc = userproc_handoff_dry_run(report.mapped_entry, report.stack_top);
+    console_write_string("handoff dry-run: ");
+    console_write_string(userproc_handoff_result_name(handoff_rc));
+    console_write_string(" (rc=");
+    console_write_u64((uint64_t)(int64_t)handoff_rc);
+    console_write_string(")\n");
 }
 
 static const mvos_userapp_t g_userapps[] = {

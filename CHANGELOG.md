@@ -1,5 +1,26 @@
 # Changelog
 
+## Phase 39 – Handoff Dry-run Wiring
+
+### Added
+- Added `userproc_handoff_dry_run(entry, stack_top)` and `userproc_handoff_result_name()` in `kernel/core/userproc.c`.
+- Wired `run elf-load` to execute handoff dry-run using loader-generated `mapped_entry` and `stack_top`.
+- Extended host regression `test_userimg_loader`:
+  - links `kernel/core/userproc.c`
+  - validates dry-run success path
+  - validates dry-run rejection for unaligned stack and invalid entry
+- Updated shell and Linux ABI version strings to Phase 39.
+
+### Validation
+- `make test-userimg-loader`
+- `make test-vmm-basic`
+- `make test-scheduler-ctl`
+- `make test-vfs-rw`
+- `make test-elf-sample`
+- `make test-host-programs`
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 38 – User Image Execution Context Scaffold
 
 ### Added
