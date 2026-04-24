@@ -19,6 +19,8 @@
 - 2026-04-24：`Phase 25` 完成，加入 `run list` 作為命令別名與幫助路徑一致化補強。
 - 2026-04-24：`Phase 26` 啟動完成，新增主機端 `C/C++` 編譯流程，建立可重複 `make host-programs` 驗證路徑。
 - 2026-04-24：`Phase 27` 加入 `cap` / `capabilities`，提供能力矩陣與目前不支援項目（Linux 應用、Python 內部 runtime）查詢。
+- 2026-04-24：`Phase 28` 補齊 host-side 編譯可追蹤輸出（`status`、`flags`、`sha256`、`request`）與調整腳本可診斷性。
+- 2026-04-24：`Phase 29` 加入主機端靜態連結模式（`MHOST_STATIC=1`）與 `link_mode` metadata，建立可重複建置報告。
 
 ## 檢查前提
 

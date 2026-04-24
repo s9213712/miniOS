@@ -95,6 +95,9 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
     )
 
     common_flags = ["-Wall", "-Wextra", "-O2", "-fno-omit-frame-pointer"]
+    if os.environ.get("MHOST_STATIC", "0") in ("1", "true", "yes", "on"):
+        common_flags.append("-static")
+    link_mode = "static" if "-static" in common_flags else "dynamic"
     c_flags = common_flags + ["-std=c11"]
     cpp_flags = common_flags + ["-std=c++17"]
     extra_c_flags = _split_flags(os.environ.get("MHOST_CFLAGS"))
@@ -132,6 +135,7 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
                     "flags": c_flags,
                     "status": "ok",
                     "built_at": built_at,
+                    "link_mode": link_mode,
                     "size": out.stat().st_size,
                     "sha256": file_sha256(out),
                 }
@@ -147,6 +151,7 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
                     "compiler": c_compiler,
                     "flags": c_flags,
                     "status": "error",
+                    "link_mode": link_mode,
                     "error": msg,
                 }
             )
@@ -168,6 +173,7 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
                     "flags": cpp_flags,
                     "status": "ok",
                     "built_at": built_at,
+                    "link_mode": link_mode,
                     "size": out.stat().st_size,
                     "sha256": file_sha256(out),
                 }
@@ -183,6 +189,7 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
                     "compiler": cpp_compiler,
                     "flags": cpp_flags,
                     "status": "error",
+                    "link_mode": link_mode,
                     "error": msg,
                 }
             )
@@ -193,6 +200,7 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
         "output_dir": str(out_dir),
         "c_compiler": c_compiler,
         "cpp_compiler": cpp_compiler,
+        "default_link_mode": link_mode,
         "generated_at": built_at,
         "programs": entries,
         "count": len(entries),

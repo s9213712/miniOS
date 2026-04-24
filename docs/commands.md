@@ -51,6 +51,7 @@
   建議用法（偵錯/旗標）：
   ```bash
   MHOST_VERBOSE=1 make host-programs
+  MHOST_STATIC=1 make host-programs
   MHOST_COMMON_FLAGS="-fno-pie -fstack-protector-strong" make host-programs
   MHOST_CFLAGS="-DDEMO_HOST=1 -g" make host-programs
   MHOST_CXXFLAGS="-O0 -g" make host-programs
@@ -113,6 +114,7 @@
 - `TEST_SMOKE_LOG_DIR=/tmp`：測試日誌存放目錄。
 - `TEST_SMOKE_BASENAME=xxx`：測試 log 名稱。
 - `MHOST_VERBOSE=1`：在 `make host-programs` 時輸出每個編譯命令。
+- `MHOST_STATIC=1`：加上 `-static` 連結（適合離線/單機執行）。
 - `MHOST_COMMON_FLAGS` / `MHOST_CFLAGS` / `MHOST_CXXFLAGS`：補充 host 編譯旗標。
 
 ---

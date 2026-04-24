@@ -534,7 +534,7 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 7 && shell_streq(trimmed_line, "version")) {
-        console_write_string("MiniOS Phase 27 (host build + capability roadmap)\n");
+        console_write_string("MiniOS Phase 29 (host build pipeline hardening)\n");
         return;
     }
     if (cmd_len == 4 && shell_streq(trimmed_line, "echo")) {

@@ -1,5 +1,6 @@
 # Build artifacts
 build/
+boot/iso_root/
 *.o
 *.obj
 *.a
