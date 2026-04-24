@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <string.h>
 
+extern const uint8_t g_linux_user_elf_sample[];
+extern const uint64_t g_linux_user_elf_sample_len;
+
 static uint64_t g_console_last_u64;
 static uint32_t g_console_u64_count;
 static uint64_t g_enter_execve_entry;
@@ -194,6 +197,23 @@ int main(void) {
     vfs_close(&elf_file);
     if (vfs_report.mapped_entry == 0 || vfs_report.image_size != report.image_size) {
         fprintf(stderr, "[test_userimg_loader] VFS image report mismatch\n");
+        return 1;
+    }
+    uint8_t *dyn_image = malloc((size_t)g_linux_user_elf_sample_len);
+    if (dyn_image == NULL) {
+        fprintf(stderr, "[test_userimg_loader] failed to allocate ET_DYN test image\n");
+        return 1;
+    }
+    memcpy(dyn_image, g_linux_user_elf_sample, (size_t)g_linux_user_elf_sample_len);
+    dyn_image[16] = 3u; /* e_type = ET_DYN, little-endian */
+    dyn_image[17] = 0u;
+    mvos_userimg_report_t dyn_report;
+    mvos_userimg_result_t dyn_rc = userimg_prepare_image(dyn_image, g_linux_user_elf_sample_len, &dyn_report);
+    free(dyn_image);
+    if (dyn_rc != MVOS_USERIMG_ERR_UNSUPPORTED_TYPE) {
+        fprintf(stderr, "[test_userimg_loader] expected ET_DYN loader rejection, got %s (%d)\n",
+                userimg_result_name(dyn_rc),
+                (int)dyn_rc);
         return 1;
     }
     if (report.entry == 0 || report.mapped_entry == 0) {

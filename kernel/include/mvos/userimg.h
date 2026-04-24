@@ -8,6 +8,7 @@ typedef enum {
     MVOS_USERIMG_ERR_ELF = -2,
     MVOS_USERIMG_ERR_LAYOUT = -3,
     MVOS_USERIMG_ERR_MAP = -4,
+    MVOS_USERIMG_ERR_UNSUPPORTED_TYPE = -5,
 } mvos_userimg_result_t;
 
 typedef struct {

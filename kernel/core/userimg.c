@@ -8,6 +8,7 @@ enum {
     ELF_MAGIC1 = 'E',
     ELF_MAGIC2 = 'L',
     ELF_MAGIC3 = 'F',
+    ELF_TYPE_EXEC = 2,
     ELF_PHDR_LOAD = 1,
     ELF_PHDR_FLAG_EXEC = 1,
     ELF_PHDR_FLAG_WRITE = 2,
@@ -210,6 +211,8 @@ const char *userimg_result_name(mvos_userimg_result_t rc) {
             return "layout-invalid";
         case MVOS_USERIMG_ERR_MAP:
             return "vmm-map-failed";
+        case MVOS_USERIMG_ERR_UNSUPPORTED_TYPE:
+            return "unsupported-elf-type";
         default:
             return "unknown";
     }
@@ -235,6 +238,9 @@ mvos_userimg_result_t userimg_prepare_image(const uint8_t *image, uint64_t image
         eh->e_ident[3] != ELF_MAGIC3 ||
         eh->e_phnum == 0) {
         return MVOS_USERIMG_ERR_LAYOUT;
+    }
+    if (eh->e_type != ELF_TYPE_EXEC) {
+        return MVOS_USERIMG_ERR_UNSUPPORTED_TYPE;
     }
 
     uint64_t ph_bytes = 0;
