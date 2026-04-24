@@ -27,6 +27,7 @@
 - 2026-04-24：`Phase 33` 新增 `make test-elf-sample`，將 ELF 樣本重生流程納入回歸測試。
 - 2026-04-24：`Phase 34` 新增 `/tmp` 可寫 overlay VFS 與 shell `write/append/touch/rm` 指令，並加入 `make test-vfs-rw`。
 - 2026-04-24：`Phase 35` 新增 scheduler 任務控制命令（`task start/stop/reset/list`）與 `make test-scheduler-ctl`。
+- 2026-04-24：`Phase 36` 新增 VMM 骨架（map/unmap + region metadata）與 `brk` 狀態接線，並加入 `make test-vmm-basic`。
 
 ## 檢查前提
 
@@ -207,3 +208,7 @@
   - scheduler 新增 task active 控制與 run counter reset API。
   - shell 新增 `task start/stop/reset/list`，支援透過名稱或 index 操作任務。
   - 新增 `scripts/test_scheduler_ctl.sh` 與 `make test-scheduler-ctl`，補齊 host-side 行為回歸。
+- Phase 36：虛擬記憶體骨架（完成）
+  - 新增 `vmm` 模組，提供最小 `map/unmap/region list` 介面與 flags/tag metadata。
+  - 新增 `vmm_user_heap_init` / `vmm_user_brk_set`，將 Linux ABI `brk` 路徑納入同一狀態模型。
+  - 新增 `scripts/test_vmm_basic.sh` 與 `make test-vmm-basic`，驗證 VMM 介面與 brk 邊界行為。

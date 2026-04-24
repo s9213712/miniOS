@@ -5,6 +5,7 @@
 #include <mvos/scheduler.h>
 #include <mvos/userapp.h>
 #include <mvos/vfs.h>
+#include <mvos/vmm.h>
 #include <mvos/interrupt.h>
 #include <mvos/panic.h>
 #include <stdint.h>
@@ -313,6 +314,48 @@ static void shell_cmd_task(const char *arg) {
     shell_task_usage();
 }
 
+static void shell_vmm_print_flags(uint64_t flags) {
+    console_write_char((flags & MVOS_VMM_FLAG_READ) ? 'r' : '-');
+    console_write_char((flags & MVOS_VMM_FLAG_WRITE) ? 'w' : '-');
+    console_write_char((flags & MVOS_VMM_FLAG_EXEC) ? 'x' : '-');
+    console_write_char((flags & MVOS_VMM_FLAG_USER) ? 'u' : '-');
+}
+
+static void shell_cmd_vmm(const char *arg) {
+    const char *sub = shell_skip_spaces(arg);
+    if (sub[0] != '\0' && !shell_streq(sub, "list") && !shell_streq(sub, "status")) {
+        console_write_string("vmm usage: vmm [list|status]\n");
+        return;
+    }
+
+    uint32_t count = vmm_region_count();
+    console_write_string("vmm regions=");
+    console_write_u64((uint64_t)count);
+    console_write_string("\n");
+    for (uint32_t i = 0; i < count; ++i) {
+        mvos_vmm_region_info_t region;
+        if (vmm_region_at(i, &region) != 0) {
+            continue;
+        }
+        console_write_string("  #");
+        console_write_u64((uint64_t)i);
+        console_write_string(" ");
+        console_write_string(region.tag);
+        console_write_string(" base=");
+        console_write_u64(region.base);
+        console_write_string(" size=");
+        console_write_u64(region.size);
+        console_write_string(" flags=");
+        shell_vmm_print_flags(region.flags);
+        console_write_string("\n");
+    }
+    console_write_string("vmm user_brk=");
+    console_write_u64(vmm_user_brk_get());
+    console_write_string(" limit=");
+    console_write_u64(vmm_user_brk_limit());
+    console_write_string("\n");
+}
+
 static void shell_print_vfs_write_error(int rc) {
     if (rc == -2) {
         console_write_string("vfs write rejected: writable paths are limited to /tmp/*\n");
@@ -476,6 +519,7 @@ static void shell_cmd_capabilities(void) {
     console_write_string("    - kernel-mode shell + builtin user-app demos\n");
     console_write_string("    - VFS bootstrap files via ls/cat + writable /tmp overlay\n");
     console_write_string("    - scheduler + timer observability with task start/stop/reset controls\n");
+    console_write_string("    - VMM region metadata + user brk arena tracking\n");
     console_write_string("  user apps in table:\n");
     for (uint64_t i = 0; i < count; ++i) {
         const char *name = userapp_name(i);
@@ -504,6 +548,7 @@ static void shell_cmd_capabilities(void) {
     console_write_string("    - `make host-programs` compiles host C/C++ demos\n");
     console_write_string("    - `make test-vfs-rw` validates writable /tmp VFS behavior\n");
     console_write_string("    - `make test-scheduler-ctl` validates scheduler task controls\n");
+    console_write_string("    - `make test-vmm-basic` validates VMM map/unmap and brk bounds\n");
     console_write_string("    - `python3 scripts/dev_status.py --build-programs` validates build chain\n");
     console_write_string("    - `make refresh-elf-sample` regenerates embedded Linux ELF sample blob\n");
     console_write_string("    - `make test-elf-sample` validates regenerated ELF sample contract\n");
@@ -514,6 +559,7 @@ static void shell_cmd_capabilities(void) {
     console_write_string("  not yet supported in miniOS runtime:\n");
     console_write_string("    - Python interpreter\n");
     console_write_string("    - Linux native executables (transmission/htop/nano)\n");
+    console_write_string("    - full user page-table mapping + real ring3 isolation\n");
     console_write_string("    - ELF userspace loader + persistent disk filesystem\n");
 }
 
@@ -525,6 +571,8 @@ static void shell_print_help(void) {
     console_write_string("  tasks  - print scheduler task list\n");
     console_write_string("  task   - control scheduler tasks\n");
     console_write_string("         usage: task [list|start <id|name>|stop <id|name>|reset <id|name|all>]\n");
+    console_write_string("  vmm    - print VMM regions and user brk status\n");
+    console_write_string("         usage: vmm [list|status]\n");
     console_write_string("  reboot - reset the machine\n");
     console_write_string("  halt   - stop execution\n");
     console_write_string("  hello  - print hello from shell\n");
@@ -650,6 +698,10 @@ static void shell_exec(const char *line) {
             shell_task_usage();
             return;
         }
+        if (shell_streq(arg, "vmm")) {
+            console_write_string("vmm usage: vmm [list|status]\n");
+            return;
+        }
         console_write_string("unknown help topic: ");
         console_write_string(arg);
         console_write_string("\n");
@@ -679,6 +731,10 @@ static void shell_exec(const char *line) {
         shell_cmd_task(arg);
         return;
     }
+    if (cmd_len == 3 && shell_streq(trimmed_line, "vmm")) {
+        shell_cmd_vmm(arg);
+        return;
+    }
     if (cmd_len == 6 && shell_streq(trimmed_line, "reboot")) {
         shell_reboot();
         return;
@@ -704,6 +760,7 @@ static void shell_exec(const char *line) {
         console_write_string("  make host-programs\n");
         console_write_string("  make test-vfs-rw\n");
         console_write_string("  make test-scheduler-ctl\n");
+        console_write_string("  make test-vmm-basic\n");
         console_write_string("  make test-elf-sample\n");
         console_write_string("  python3 scripts/dev_status.py --build-programs\n");
         console_write_string("  python3 scripts/build_user_programs.py --source-dir samples/user-programs --out-dir build/host-programs\n");
@@ -848,7 +905,7 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 7 && shell_streq(trimmed_line, "version")) {
-        console_write_string("MiniOS Phase 35 (scheduler task control)\n");
+        console_write_string("MiniOS Phase 36 (vmm scaffold + brk state)\n");
         return;
     }
     if (cmd_len == 4 && shell_streq(trimmed_line, "echo")) {
@@ -877,7 +934,7 @@ static void shell_exec(const char *line) {
 
 void shell_run(void) {
     static char line[SHELL_BUFFER_LEN];
-    console_write_string("MiniOS shell (phase 35)\n");
+    console_write_string("MiniOS shell (phase 36)\n");
     shell_print_help();
     for (;;) {
         shell_print_prompt();

@@ -10,6 +10,7 @@
 #include <mvos/console.h>
 #include <mvos/scheduler.h>
 #include <mvos/vfs.h>
+#include <mvos/vmm.h>
 #include <mvos/shell.h>
 #include <mvos/keyboard.h>
 #include <mvos/userapp.h>
@@ -242,6 +243,20 @@ void kmain(void) {
     klog_u64((uint64_t)heap_block);
     klogln("");
     klogln("[phase3] memory allocator ready");
+
+    /* Phase-36: initialize virtual-memory metadata layer and user brk arena.
+     * This is still a teaching scaffold (metadata + bounds), but keeps
+     * Linux ABI brk state consistent and testable.
+     */
+    vmm_init(hhdm_request.response->offset);
+    vmm_user_heap_init(0x0000000000400000ULL, 0x2000ULL, 0x400000ULL);
+    klog("[vmm] regions=");
+    klog_u64((uint64_t)vmm_region_count());
+    klog(" user_brk=");
+    klog_u64(vmm_user_brk_get());
+    klog(" limit=");
+    klog_u64(vmm_user_brk_limit());
+    klogln("");
 
     /* Phase-6: initramfs-style VFS smoke diagnostics.
      * This validates file-open/read/list behavior before scheduling starts.

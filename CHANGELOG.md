@@ -1,5 +1,31 @@
 # Changelog
 
+## Phase 36 – VMM Scaffold and `brk` State Wiring
+
+### Added
+- Added VMM module:
+  - `kernel/mm/vmm.c`
+  - `kernel/include/mvos/vmm.h`
+- Added VMM APIs for teaching-path virtual memory metadata:
+  - `vmm_map_range`, `vmm_unmap_range`
+  - `vmm_region_count`, `vmm_region_at`
+  - `vmm_user_heap_init`, `vmm_user_brk_get`, `vmm_user_brk_set`, `vmm_user_brk_limit`
+- Wired Linux ABI `brk` in `kernel/core/userproc.c` to VMM user-heap state.
+- Added shell `vmm` command to inspect current VMM regions and `user_brk/limit`.
+- Added host regression coverage:
+  - `tests/host/test_vmm_basic.c`
+  - `scripts/test_vmm_basic.sh`
+  - `make test-vmm-basic`
+
+### Validation
+- `make test-vmm-basic`
+- `make test-scheduler-ctl`
+- `make test-vfs-rw`
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+- `make test-elf-sample`
+- `make test-host-programs`
+
 ## Phase 35 – Scheduler Task Control
 
 ### Added

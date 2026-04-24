@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 35, 教學型專案)
+# MinimalOS v1 (Phase 36, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -27,6 +27,7 @@
 - 2026-04-24：`Phase 33` 新增 `make test-elf-sample`，將 ELF 樣本重生流程納入可回歸檢查。
 - 2026-04-24：`Phase 34` 新增可寫入 `/tmp` overlay VFS，shell 支援 `write/append/touch/rm`，並補上 `make test-vfs-rw`。
 - 2026-04-24：`Phase 35` 強化 scheduler 控制面，新增 `task start/stop/reset/list` 與 `make test-scheduler-ctl`。
+- 2026-04-24：`Phase 36` 新增 VMM 基礎層（map/unmap + region metadata）並將 `linux-abi brk` 接入，補上 `make test-vmm-basic`。
 
 ## 分支策略
 
@@ -96,6 +97,10 @@
   - shell 新增 `task list/start/stop/reset`，可依任務名稱或 index 控制執行狀態。
   - scheduler 新增 task active 狀態管理與 run counter 重置 API。
   - 新增 `make test-scheduler-ctl` 驗證任務啟停與統計重置路徑。
+- Phase 36：VMM 骨架與 brk 狀態接線（完成）
+  - 新增 `kernel/mm/vmm.c` 與 `kernel/include/mvos/vmm.h`，提供 `map/unmap` 與 region 查詢接口。
+  - `linux-abi` 的 `brk` 改為使用 VMM user-heap 狀態，不再是獨立靜態變數。
+  - shell 新增 `vmm` 指令顯示 region 與 `user_brk/limit`，並新增 `make test-vmm-basic`。
 
 ## 每階段目的與預期成效
 
@@ -205,6 +210,7 @@ make refresh-elf-sample
 make test-elf-sample
 make test-vfs-rw
 make test-scheduler-ctl
+make test-vmm-basic
 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
 LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 ```
@@ -218,6 +224,7 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 - `make test-elf-sample`：驗證 ELF 樣本重生輸出契約（magic/符號/大小）
 - `make test-vfs-rw`：驗證 `/tmp` 可寫 overlay 的 host 端回歸測試
 - `make test-scheduler-ctl`：驗證 scheduler 任務啟停與 reset 控制
+- `make test-vmm-basic`：驗證 VMM map/unmap 與 `brk` 邊界行為
 - `python3 scripts/dev_status.py --build`：環境 + 建置健康檢查（建議每次大改後）
 - `python3 scripts/dev_status.py --build-programs`：主機端範例程式建置檢查
 - `python3 scripts/dev_status.py`：只做環境檢查，不會重建

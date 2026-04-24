@@ -1,6 +1,7 @@
 #include <mvos/userproc.h>
 #include <mvos/console.h>
 #include <mvos/interrupt.h>
+#include <mvos/vmm.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -45,7 +46,6 @@ uint64_t g_userproc_return_stack;
 uint64_t g_userproc_current_app_id;
 uint64_t g_userproc_running;
 
-static uint64_t g_userproc_brk = 0x0000000000400000ULL;
 static uint64_t g_userproc_fs_base;
 static uint64_t g_userproc_gs_base;
 static uint64_t g_userproc_tid_addr;
@@ -147,14 +147,7 @@ static uint64_t userproc_linux_writev(uint64_t fd, uint64_t user_iov, uint64_t i
 }
 
 static uint64_t userproc_linux_brk(uint64_t new_brk) {
-    if (new_brk == 0) {
-        return g_userproc_brk;
-    }
-    if (new_brk < 0x0000000000400000ULL) {
-        return g_userproc_brk;
-    }
-    g_userproc_brk = new_brk;
-    return g_userproc_brk;
+    return vmm_user_brk_set(new_brk);
 }
 
 static uint64_t userproc_linux_uname(uint64_t user_buf) {
@@ -165,8 +158,8 @@ static uint64_t userproc_linux_uname(uint64_t user_buf) {
     volatile minios_utsname_t *u = (volatile minios_utsname_t *)(uintptr_t)user_buf;
     userproc_copy_cstr((char *)u->sysname, sizeof(u->sysname), "miniOS");
     userproc_copy_cstr((char *)u->nodename, sizeof(u->nodename), "miniOS-node");
-    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.31");
-    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Phase31 linux abi preview+");
+    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.36");
+    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Phase36 vmm+linux abi preview");
     userproc_copy_cstr((char *)u->machine, sizeof(u->machine), "x86_64");
     userproc_copy_cstr((char *)u->domainname, sizeof(u->domainname), "miniOS.local");
     return 0;
