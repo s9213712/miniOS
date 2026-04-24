@@ -17,6 +17,7 @@ enum {
     MINIOS_LINUX_SYSCALL_FSTAT = 5,
     MINIOS_LINUX_SYSCALL_LSEEK = 8,
     MINIOS_LINUX_SYSCALL_MMAP = 9,
+    MINIOS_LINUX_SYSCALL_MPROTECT = 10,
     MINIOS_LINUX_SYSCALL_MUNMAP = 11,
     MINIOS_LINUX_SYSCALL_BRK = 12,
     MINIOS_LINUX_SYSCALL_ACCESS = 21,
@@ -598,6 +599,21 @@ static uint64_t userproc_linux_munmap(uint64_t addr, uint64_t length) {
         return userproc_errno(-22); /* EINVAL */
     }
     if (vmm_unmap_range(addr, map_len) != 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    return 0;
+}
+
+static uint64_t userproc_linux_mprotect(uint64_t addr, uint64_t length, uint64_t prot) {
+    if (addr == 0 || (addr & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0 || length == 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    uint64_t map_len = 0;
+    if (userproc_align_up_u64(length, MVOS_VMM_PAGE_SIZE, &map_len) != 0 || map_len == 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    uint64_t vmm_flags = userproc_mmap_flags_from_prot(prot);
+    if (vmm_protect_range(addr, map_len, vmm_flags) != 0) {
         return userproc_errno(-22); /* EINVAL */
     }
     return 0;
@@ -1207,6 +1223,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_lseek(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_MMAP:
             return userproc_linux_mmap(arg1, arg2, arg3, arg4, arg5, arg6);
+        case MINIOS_LINUX_SYSCALL_MPROTECT:
+            return userproc_linux_mprotect(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_MUNMAP:
             return userproc_linux_munmap(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_WRITEV:
@@ -1414,6 +1432,14 @@ void userproc_linux_abi_probe(void) {
                                           0);
     userproc_probe_print_ret("mmap.anon_addr", map_addr);
     if (!userproc_is_errno(map_addr)) {
+        ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_MPROTECT,
+                                map_addr,
+                                8192,
+                                MINIOS_PROT_READ,
+                                0,
+                                0,
+                                0);
+        userproc_probe_print_ret("mprotect.anon_ret", ret);
         ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_MUNMAP, map_addr, 8192, 0, 0, 0, 0);
         userproc_probe_print_ret("munmap.anon_ret", ret);
     }

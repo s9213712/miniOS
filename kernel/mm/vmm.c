@@ -164,6 +164,51 @@ static void clear_user_backing_range(uint64_t vaddr, uint64_t size) {
     }
 }
 
+static void protect_user_backing_range(uint64_t vaddr, uint64_t size, uint64_t flags) {
+    if (g_hhdm_offset == 0 || size == 0) {
+        return;
+    }
+
+    uint64_t end = 0;
+    if (add_overflow_u64(vaddr, size, &end) != 0) {
+        return;
+    }
+
+    uint64_t pte_flags = MVOS_VMM_PTE_PRESENT | MVOS_VMM_PTE_USER;
+    if ((flags & MVOS_VMM_FLAG_WRITE) != 0) {
+        pte_flags |= MVOS_VMM_PTE_WRITE;
+    }
+
+    uint64_t *pml4 = phys_to_kernel_virt(read_cr3_phys());
+    for (uint64_t page = vaddr; page < end; page += MVOS_VMM_PAGE_SIZE) {
+        uint64_t pml4_i = (page >> 39) & 0x1FFULL;
+        uint64_t pdpt_i = (page >> 30) & 0x1FFULL;
+        uint64_t pd_i = (page >> 21) & 0x1FFULL;
+        uint64_t pt_i = (page >> 12) & 0x1FFULL;
+
+        uint64_t pml4e = pml4[pml4_i];
+        if ((pml4e & MVOS_VMM_PTE_PRESENT) == 0 || (pml4e & MVOS_VMM_PTE_HUGE) != 0) {
+            continue;
+        }
+        uint64_t *pdpt = phys_to_kernel_virt(pml4e & MVOS_VMM_PTE_ADDR_MASK);
+        uint64_t pdpte = pdpt[pdpt_i];
+        if ((pdpte & MVOS_VMM_PTE_PRESENT) == 0 || (pdpte & MVOS_VMM_PTE_HUGE) != 0) {
+            continue;
+        }
+        uint64_t *pd = phys_to_kernel_virt(pdpte & MVOS_VMM_PTE_ADDR_MASK);
+        uint64_t pde = pd[pd_i];
+        if ((pde & MVOS_VMM_PTE_PRESENT) == 0 || (pde & MVOS_VMM_PTE_HUGE) != 0) {
+            continue;
+        }
+        uint64_t *pt = phys_to_kernel_virt(pde & MVOS_VMM_PTE_ADDR_MASK);
+        if ((pt[pt_i] & MVOS_VMM_PTE_PRESENT) != 0) {
+            uint64_t phys = pt[pt_i] & MVOS_VMM_PTE_ADDR_MASK;
+            pt[pt_i] = phys | pte_flags;
+            flush_user_page(page);
+        }
+    }
+}
+
 static int map_user_backing_range(uint64_t base, uint64_t size, uint64_t flags) {
     if (g_hhdm_offset == 0) {
         return 0;
@@ -249,6 +294,27 @@ int vmm_unmap_range(uint64_t vaddr, uint64_t size) {
         }
     }
     return -2;
+}
+
+int vmm_protect_range(uint64_t vaddr, uint64_t size, uint64_t flags) {
+    if (vaddr == 0 || size == 0) {
+        return -1;
+    }
+    if ((vaddr & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0 || (size & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
+        return -2;
+    }
+
+    for (uint32_t i = 0; i < MVOS_VMM_MAX_REGIONS; ++i) {
+        if (!g_regions[i].in_use) {
+            continue;
+        }
+        if (g_regions[i].base == vaddr && g_regions[i].size == size) {
+            g_regions[i].flags = flags;
+            protect_user_backing_range(vaddr, size, flags);
+            return 0;
+        }
+    }
+    return -3;
 }
 
 int vmm_map_user_backed_page(uint64_t vaddr, uint64_t flags, void **out_kernel_page) {

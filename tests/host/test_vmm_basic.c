@@ -80,6 +80,16 @@ int main(void) {
         fprintf(stderr, "[test_vmm_basic] expected user-brk range check success\n");
         return 1;
     }
+    if (vmm_protect_range(0x400000ULL,
+                          0x1000ULL,
+                          MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_USER) != 0) {
+        fprintf(stderr, "[test_vmm_basic] expected protect user-brk success\n");
+        return 1;
+    }
+    if (vmm_user_range_check(0x400000ULL, 0x1000ULL, MVOS_VMM_FLAG_WRITE) == 0) {
+        fprintf(stderr, "[test_vmm_basic] write check unexpectedly passed after protect\n");
+        return 1;
+    }
     if (vmm_user_range_check(0x400000ULL, 0x6000ULL, MVOS_VMM_FLAG_READ) == 0) {
         fprintf(stderr, "[test_vmm_basic] over-limit user range unexpectedly passed\n");
         return 1;
