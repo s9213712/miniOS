@@ -48,6 +48,7 @@ enum {
     MINIOS_LINUX_SYSCALL_FACCESSAT = 269,
     MINIOS_LINUX_SYSCALL_DUP3 = 292,
     MINIOS_LINUX_SYSCALL_GETRANDOM = 318,
+    MINIOS_LINUX_SYSCALL_STATX = 332,
     MINIOS_SYSCALL_USER_PRINT = 1
 };
 
@@ -91,6 +92,21 @@ enum {
     MINIOS_S_IFREG = 0100000,
     MINIOS_S_IFDIR = 0040000,
     MINIOS_S_IFCHR = 0020000,
+    MINIOS_STATX_TYPE = 0x0001,
+    MINIOS_STATX_MODE = 0x0002,
+    MINIOS_STATX_NLINK = 0x0004,
+    MINIOS_STATX_UID = 0x0008,
+    MINIOS_STATX_GID = 0x0010,
+    MINIOS_STATX_ATIME = 0x0020,
+    MINIOS_STATX_MTIME = 0x0040,
+    MINIOS_STATX_CTIME = 0x0080,
+    MINIOS_STATX_INO = 0x0100,
+    MINIOS_STATX_SIZE = 0x0200,
+    MINIOS_STATX_BLOCKS = 0x0400,
+    MINIOS_STATX_BASIC_STATS = MINIOS_STATX_TYPE | MINIOS_STATX_MODE | MINIOS_STATX_NLINK |
+                                MINIOS_STATX_UID | MINIOS_STATX_GID | MINIOS_STATX_ATIME |
+                                MINIOS_STATX_MTIME | MINIOS_STATX_CTIME | MINIOS_STATX_INO |
+                                MINIOS_STATX_SIZE | MINIOS_STATX_BLOCKS,
     MINIOS_DT_DIR = 4,
     MINIOS_DT_REG = 8,
     MINIOS_USERPROC_MMAP_BASE = 0x0000400001000000ULL,
@@ -122,6 +138,39 @@ typedef struct {
     uint64_t st_ctime_nsec;
     int64_t __unused[3];
 } minios_linux_stat_t;
+
+typedef struct {
+    int64_t tv_sec;
+    uint32_t tv_nsec;
+    int32_t __reserved;
+} minios_statx_timestamp_t;
+
+typedef struct {
+    uint32_t stx_mask;
+    uint32_t stx_blksize;
+    uint64_t stx_attributes;
+    uint32_t stx_nlink;
+    uint32_t stx_uid;
+    uint32_t stx_gid;
+    uint16_t stx_mode;
+    uint16_t __spare0[1];
+    uint64_t stx_ino;
+    uint64_t stx_size;
+    uint64_t stx_blocks;
+    uint64_t stx_attributes_mask;
+    minios_statx_timestamp_t stx_atime;
+    minios_statx_timestamp_t stx_btime;
+    minios_statx_timestamp_t stx_ctime;
+    minios_statx_timestamp_t stx_mtime;
+    uint32_t stx_rdev_major;
+    uint32_t stx_rdev_minor;
+    uint32_t stx_dev_major;
+    uint32_t stx_dev_minor;
+    uint64_t stx_mnt_id;
+    uint32_t stx_dio_mem_align;
+    uint32_t stx_dio_offset_align;
+    uint64_t __spare3[12];
+} minios_statx_t;
 
 typedef struct {
     char sysname[65];
@@ -610,6 +659,19 @@ static void userproc_fill_stat(minios_linux_stat_t *st, const mvos_vfs_file_t *f
     st->st_size = (int64_t)file->size;
     st->st_blksize = 512;
     st->st_blocks = (int64_t)((file->size + 511ULL) / 512ULL);
+}
+
+static void userproc_fill_statx(minios_statx_t *stx, const mvos_vfs_file_t *file, uint32_t mode) {
+    memset(stx, 0, sizeof(*stx));
+    stx->stx_mask = MINIOS_STATX_BASIC_STATS;
+    stx->stx_blksize = 512;
+    stx->stx_nlink = 1;
+    stx->stx_mode = (uint16_t)mode;
+    stx->stx_ino = (uint64_t)(uintptr_t)file->path;
+    stx->stx_size = file->size;
+    stx->stx_blocks = (file->size + 511ULL) / 512ULL;
+    stx->stx_dev_major = 0;
+    stx->stx_dev_minor = 1;
 }
 
 static int userproc_path_child_name(const char *dir, const char *path, char *name, uint64_t name_cap, int *is_dir) {
@@ -1429,6 +1491,48 @@ static uint64_t userproc_linux_newfstatat(uint64_t dirfd, uint64_t user_path, ui
     return userproc_errno(userproc_copy_to_user(user_stat, &st, sizeof(st)));
 }
 
+static uint64_t userproc_linux_statx(uint64_t dirfd,
+                                     uint64_t user_path,
+                                     uint64_t flags,
+                                     uint64_t mask,
+                                     uint64_t user_statx) {
+    (void)flags;
+    (void)mask;
+    if (user_path == 0 || user_statx == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+
+    char path_buf[MINIOS_EXECVE_MAX_PATH];
+    int64_t rc = userproc_resolve_path(dirfd, user_path, path_buf, sizeof(path_buf));
+    if (rc != 0) {
+        return userproc_errno(rc);
+    }
+
+    minios_statx_t stx;
+    if (userproc_path_is_directory(path_buf)) {
+        mvos_vfs_file_t dir = {
+            .size = 0,
+            .path = path_buf,
+            .in_use = 1,
+        };
+        userproc_fill_statx(&stx, &dir, MINIOS_S_IFDIR | 0555);
+        return userproc_errno(userproc_copy_to_user(user_statx, &stx, sizeof(stx)));
+    }
+
+    mvos_vfs_file_t file;
+    int open_rc = vfs_open(path_buf, &file);
+    if (open_rc == -2) {
+        return userproc_errno(-2); /* ENOENT */
+    }
+    if (open_rc != 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+
+    userproc_fill_statx(&stx, &file, MINIOS_S_IFREG | 0444);
+    vfs_close(&file);
+    return userproc_errno(userproc_copy_to_user(user_statx, &stx, sizeof(stx)));
+}
+
 static uint64_t userproc_linux_getdents64(uint64_t fd, uint64_t user_dirp, uint64_t count) {
     if (user_dirp == 0) {
         return userproc_errno(-14); /* EFAULT */
@@ -1899,7 +2003,6 @@ uint64_t userproc_dispatch(uint64_t syscall,
                            uint64_t arg4,
                            uint64_t arg5,
                            uint64_t arg6) {
-    (void)arg5;
     (void)arg6;
     if (!g_userproc_running) {
         return userproc_errno(-1);
@@ -1983,6 +2086,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_dup3(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_GETRANDOM:
             return userproc_linux_getrandom(arg1, arg2, arg3);
+        case MINIOS_LINUX_SYSCALL_STATX:
+            return userproc_linux_statx(arg1, arg2, arg3, arg4, arg5);
         case MINIOS_LINUX_SYSCALL_EXECVE: {
             mvos_userimg_report_t report;
             mvos_user_stack_layout_t layout;

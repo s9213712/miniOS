@@ -125,6 +125,7 @@ enum {
     TEST_LINUX_SYSCALL_FACCESSAT = 269,
     TEST_LINUX_SYSCALL_DUP3 = 292,
     TEST_LINUX_SYSCALL_GETRANDOM = 318,
+    TEST_LINUX_SYSCALL_STATX = 332,
     TEST_LINUX_SYSCALL_GETDENTS64 = 217,
     TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
     TEST_AT_FDCWD = -100,
@@ -141,7 +142,9 @@ enum {
     TEST_PROT_WRITE = 0x2,
     TEST_MAP_PRIVATE = 0x02,
     TEST_MAP_ANONYMOUS = 0x20,
+    TEST_S_IFREG = 0100000,
     TEST_S_IFDIR = 0040000,
+    TEST_STATX_BASIC_STATS = 0x07ff,
     TEST_DT_DIR = 4,
     TEST_DT_REG = 8,
 };
@@ -171,6 +174,39 @@ typedef struct {
     int64_t tv_sec;
     int64_t tv_nsec;
 } test_timespec_t;
+
+typedef struct {
+    int64_t tv_sec;
+    uint32_t tv_nsec;
+    int32_t __reserved;
+} test_statx_timestamp_t;
+
+typedef struct {
+    uint32_t stx_mask;
+    uint32_t stx_blksize;
+    uint64_t stx_attributes;
+    uint32_t stx_nlink;
+    uint32_t stx_uid;
+    uint32_t stx_gid;
+    uint16_t stx_mode;
+    uint16_t __spare0[1];
+    uint64_t stx_ino;
+    uint64_t stx_size;
+    uint64_t stx_blocks;
+    uint64_t stx_attributes_mask;
+    test_statx_timestamp_t stx_atime;
+    test_statx_timestamp_t stx_btime;
+    test_statx_timestamp_t stx_ctime;
+    test_statx_timestamp_t stx_mtime;
+    uint32_t stx_rdev_major;
+    uint32_t stx_rdev_minor;
+    uint32_t stx_dev_major;
+    uint32_t stx_dev_minor;
+    uint64_t stx_mnt_id;
+    uint32_t stx_dio_mem_align;
+    uint32_t stx_dio_offset_align;
+    uint64_t __spare3[12];
+} test_statx_t;
 
 static int dirents_contain(const uint8_t *buf, uint64_t len, const char *name, uint8_t dtype) {
     uint64_t off = 0;
@@ -847,6 +883,23 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
+    test_statx_t stx;
+    memset(&stx, 0, sizeof(stx));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_STATX,
+                                (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                (uint64_t)(uintptr_t)readme_path,
+                                0,
+                                TEST_STATX_BASIC_STATS,
+                                (uint64_t)(uintptr_t)&stx,
+                                0);
+    if (exec_rc != 0 || stx.stx_size == 0 || (stx.stx_mode & TEST_S_IFREG) == 0) {
+        fprintf(stderr, "[test_userimg_loader] expected statx file success, rc=%lld size=%llu mode=%o\n",
+                (long long)exec_rc,
+                (unsigned long long)stx.stx_size,
+                stx.stx_mode);
+        free(stack_mem);
+        return 1;
+    }
     const char init_dir_path[] = "/boot/init";
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_NEWFSTATAT,
                                 (uint64_t)(int64_t)TEST_AT_FDCWD,
@@ -859,6 +912,21 @@ int main(void) {
         fprintf(stderr, "[test_userimg_loader] expected newfstatat directory success, rc=%lld mode=%o\n",
                 (long long)exec_rc,
                 st.st_mode);
+        free(stack_mem);
+        return 1;
+    }
+    memset(&stx, 0, sizeof(stx));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_STATX,
+                                (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                (uint64_t)(uintptr_t)init_dir_path,
+                                0,
+                                TEST_STATX_BASIC_STATS,
+                                (uint64_t)(uintptr_t)&stx,
+                                0);
+    if (exec_rc != 0 || (stx.stx_mode & TEST_S_IFDIR) == 0) {
+        fprintf(stderr, "[test_userimg_loader] expected statx directory success, rc=%lld mode=%o\n",
+                (long long)exec_rc,
+                stx.stx_mode);
         free(stack_mem);
         return 1;
     }
@@ -965,6 +1033,19 @@ int main(void) {
                                 0);
     if ((int64_t)exec_rc != -2) {
         fprintf(stderr, "[test_userimg_loader] expected openat ENOENT (-2), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_STATX,
+                                (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                (uint64_t)(uintptr_t)"/missing",
+                                0,
+                                TEST_STATX_BASIC_STATS,
+                                (uint64_t)(uintptr_t)&stx,
+                                0);
+    if ((int64_t)exec_rc != -2) {
+        fprintf(stderr, "[test_userimg_loader] expected statx ENOENT (-2), got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }
