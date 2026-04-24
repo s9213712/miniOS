@@ -24,6 +24,10 @@ trap cleanup EXIT
 EXPECTED_BOOT="hello from kernel"
 EXPECTED_FAULT="\\[fault\\]"
 EXPECTED_PMM="\\[pmm\\] memory map"
+EXPECTED_EXECVE_START="\\[execve-demo\\] running linux-abi probe"
+EXPECTED_EXECVE_HELLO="hello from linux user elf"
+EXPECTED_EXECVE_RETURN="userapp execve returned"
+EXPECTED_EXECVE_DONE="\\[execve-demo\\] linux-abi probe done"
 EXPECTED_PROTO_LOWER="^protocol[[:space:]]*:[[:space:]]*limine$"
 EXPECTED_PROTO_UPPER="^PROTOCOL[[:space:]]*=[[:space:]]*limine$"
 EXPECTED_PATH_UPPER="^KERNEL_PATH[[:space:]]*=[[:space:]]*boot:///boot/mvos\\.bin$"
@@ -182,6 +186,22 @@ if ! grep -q "$EXPECTED_PMM" "$SERIAL_LOG"; then
   exit 1
 fi
 echo "[test_smoke] Phase 3 memory map verified."
+
+if [ "${EXECVE_DEMO:-0}" = "1" ]; then
+  for expected in "$EXPECTED_EXECVE_START" "$EXPECTED_EXECVE_HELLO" "$EXPECTED_EXECVE_RETURN" "$EXPECTED_EXECVE_DONE"; do
+    if ! grep -q "$expected" "$SERIAL_LOG"; then
+      echo "[test_smoke] Expected execve demo marker not found: $expected" >&2
+      tail -n 120 "$SERIAL_LOG" >&2
+      exit 1
+    fi
+  done
+  if grep -q "\[fault\]\|\[panic\]" "$SERIAL_LOG"; then
+    echo "[test_smoke] Execve demo produced fault/panic marker." >&2
+    tail -n 120 "$SERIAL_LOG" >&2
+    exit 1
+  fi
+  echo "[test_smoke] Execve demo verified."
+fi
 
 if [ -n "${PANIC_TEST:-}" ]; then
   if ! grep -q "\[panic\]" "$SERIAL_LOG"; then

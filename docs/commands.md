@@ -144,7 +144,7 @@
 - `LIMINE_LOCAL_DIR=/tmp/limine-bin`：離線使用本機 Limine。
 - `QEMU_TIMEOUT=8`：smoke timeout（`scripts/test_smoke.sh`）。
 - `TEST_SMOKE_LOG_DIR=/tmp`：測試日誌存放目錄。
-- `TEST_SMOKE_BASENAME=xxx`：測試 log 名稱。
+- `SMOKE_BASENAME=xxx`：測試 log 名稱。
 - `MHOST_VERBOSE=1`：在 `make host-programs` 時輸出每個編譯命令。
 - `MHOST_STATIC=1`：加上 `-static` 連結（適合離線/單機執行）。
 - `MHOST_COMMON_FLAGS` / `MHOST_CFLAGS` / `MHOST_CXXFLAGS`：補充 host 編譯旗標。
