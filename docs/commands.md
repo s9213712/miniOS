@@ -7,7 +7,7 @@
 > cd /home/s92137/miniOS
 > ```
 
-> 目前進度摘要：`smoke` 主線穩定後，新增 `run --help`、`run --status`，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`app`、`tasks`、`run cpp`、`run linux-abi`、`run elf-inspect`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Python 尚未提供 miniOS 內部 runtime；Linux 應用（如 transmission/htop/nano）也尚未支援，`run linux-abi` 目前是擴展中的 syscall ABI 預覽（非完整 userspace）。
+> 目前進度摘要：`smoke` 主線穩定後，新增 `run --help`、`run --status`，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Python 尚未提供 miniOS 內部 runtime；Linux 應用（如 transmission/htop/nano）也尚未支援，`run linux-abi` 目前是擴展中的 syscall ABI 預覽（非完整 userspace）。
 
 ---
 
@@ -59,6 +59,10 @@
 - 驗證 writable `/tmp` VFS 行為：
   ```bash
   make test-vfs-rw
+  ```
+- 驗證 scheduler 任務控制行為：
+  ```bash
+  make test-scheduler-ctl
   ```
 - 主機端編譯腳本（可用來驗證輸出）：
   ```bash
@@ -165,6 +169,10 @@
   - `mem`
   - `ticks`
   - `tasks`
+  - `task list`
+  - `task start <id|name>`
+  - `task stop <id|name>`
+  - `task reset <id|name|all>`
   - `ls`
   - `cat`
   - `write <path> <text>`（僅允許 `/tmp/*`）
@@ -201,6 +209,7 @@
   python3 scripts/dev_status.py`
 - `ls` 與 `cat` 目前只支援 initfs 內建唯讀節點，無法建立或修改檔案。
 - 新增 `/tmp` overlay 後，`write/append/touch/rm` 可對 `/tmp/*` 做 in-memory 檔案操作；`/boot/init/*` 仍是唯讀。
+- `task start/stop/reset/list` 可直接控制 scheduler 任務狀態與 run counter；`tasks` 會顯示 active/stopped。
 - `run cpp` 為目前 C++ 使用者應用示範，仍以 kernel-mode fallback 路徑實作。
 - `run linux-abi` 為 Linux ABI 教學預覽，會輸出一組 fallback probe 結果；目前尚不支援 ELF loader、動態連結與 glibc userspace。
 - `run elf-inspect` 會輸出內嵌 Linux user ELF 的 entry、program header 數與 load/file range，供 loader 前置驗證。

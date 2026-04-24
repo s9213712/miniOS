@@ -26,6 +26,7 @@
 - 2026-04-24：`Phase 32` 新增 `run elf-inspect` 與可重生的 ELF 樣本更新流程（`make refresh-elf-sample`）。
 - 2026-04-24：`Phase 33` 新增 `make test-elf-sample`，將 ELF 樣本重生流程納入回歸測試。
 - 2026-04-24：`Phase 34` 新增 `/tmp` 可寫 overlay VFS 與 shell `write/append/touch/rm` 指令，並加入 `make test-vfs-rw`。
+- 2026-04-24：`Phase 35` 新增 scheduler 任務控制命令（`task start/stop/reset/list`）與 `make test-scheduler-ctl`。
 
 ## 檢查前提
 
@@ -202,3 +203,7 @@
   - VFS 在保留 `/boot/init` 唯讀節點外，新增 `/tmp` 可寫 overlay（建立、覆寫、附加、刪除）。
   - shell 新增 `write/append/touch/rm` 命令，讓使用者可直接做檔案內容變更。
   - 新增 `scripts/test_vfs_rw.sh` 與 `make test-vfs-rw`，補齊 host-side 行為回歸。
+- Phase 35：任務控制可操作化（完成）
+  - scheduler 新增 task active 控制與 run counter reset API。
+  - shell 新增 `task start/stop/reset/list`，支援透過名稱或 index 操作任務。
+  - 新增 `scripts/test_scheduler_ctl.sh` 與 `make test-scheduler-ctl`，補齊 host-side 行為回歸。

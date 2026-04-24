@@ -1,5 +1,33 @@
 # Changelog
 
+## Phase 35 – Scheduler Task Control
+
+### Added
+- Extended scheduler control APIs in `kernel/core/scheduler.c`:
+  - `scheduler_task_active`
+  - `scheduler_set_task_active`
+  - `scheduler_find_task`
+  - `scheduler_reset_task_runs`
+  - `scheduler_reset_all_task_runs`
+- Hardened scheduler dispatch path to recover when current task is inactive and to skip execution when no active tasks remain.
+- Added shell task control command family:
+  - `task list`
+  - `task start <id|name>`
+  - `task stop <id|name>`
+  - `task reset <id|name|all>`
+- Added host regression coverage:
+  - `tests/host/test_scheduler_ctl.c`
+  - `scripts/test_scheduler_ctl.sh`
+  - `make test-scheduler-ctl`
+
+### Validation
+- `make test-scheduler-ctl`
+- `make test-vfs-rw`
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+- `make test-elf-sample`
+- `make test-host-programs`
+
 ## Phase 34 – Writable /tmp VFS Overlay
 
 ### Added

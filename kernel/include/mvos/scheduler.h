@@ -12,3 +12,8 @@ uint64_t scheduler_ticks(void);
 uint32_t scheduler_task_count(void);
 const char *scheduler_task_name(uint32_t index);
 uint64_t scheduler_task_runs(uint32_t index);
+int scheduler_task_active(uint32_t index);
+int scheduler_set_task_active(uint32_t index, int active);
+int scheduler_find_task(const char *name);
+void scheduler_reset_task_runs(uint32_t index);
+void scheduler_reset_all_task_runs(void);

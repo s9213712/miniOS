@@ -155,6 +155,164 @@ static void shell_cmd_cat(const char *arg) {
     vfs_close(&file);
 }
 
+static int shell_parse_u32(const char *s, uint32_t *out) {
+    if (s == NULL || s[0] == '\0' || out == NULL) {
+        return -1;
+    }
+    uint64_t value = 0;
+    uint64_t i = 0;
+    while (s[i] != '\0') {
+        char ch = s[i];
+        if (ch < '0' || ch > '9') {
+            return -1;
+        }
+        value = value * 10u + (uint64_t)(ch - '0');
+        if (value > 0xffffffffu) {
+            return -1;
+        }
+        ++i;
+    }
+    *out = (uint32_t)value;
+    return 0;
+}
+
+static void shell_tasks_list(void) {
+    uint32_t task_count = scheduler_task_count();
+    console_write_string("scheduler tasks=");
+    console_write_u64((uint64_t)task_count);
+    console_write_string("\n");
+    for (uint32_t i = 0; i < task_count; ++i) {
+        const char *name = scheduler_task_name(i);
+        uint64_t runs = scheduler_task_runs(i);
+        int active = scheduler_task_active(i);
+        console_write_string("  #");
+        console_write_u64((uint64_t)i);
+        console_write_string(" ");
+        console_write_string(name == NULL ? "(nil)" : name);
+        console_write_string(" [");
+        console_write_string(active == 1 ? "active" : "stopped");
+        console_write_string("] runs=");
+        console_write_u64(runs);
+        console_write_string("\n");
+    }
+}
+
+static void shell_task_usage(void) {
+    console_write_string("task usage:\n");
+    console_write_string("  task list\n");
+    console_write_string("  task start <id|name>\n");
+    console_write_string("  task stop <id|name>\n");
+    console_write_string("  task reset <id|name|all>\n");
+}
+
+static int shell_task_resolve_target(const char *token, uint32_t *out_index) {
+    uint32_t idx = 0;
+    if (shell_parse_u32(token, &idx) == 0) {
+        if (idx < scheduler_task_count()) {
+            *out_index = idx;
+            return 0;
+        }
+        return -1;
+    }
+    int by_name = scheduler_find_task(token);
+    if (by_name < 0) {
+        return -1;
+    }
+    *out_index = (uint32_t)by_name;
+    return 0;
+}
+
+static void shell_task_parse_action(const char *arg, char *action_out, size_t action_cap, const char **rest_out) {
+    const char *p = shell_skip_spaces(arg);
+    size_t i = 0;
+    while (p[i] != '\0' && p[i] != ' ' && i + 1 < action_cap) {
+        action_out[i] = p[i];
+        ++i;
+    }
+    action_out[i] = '\0';
+    p += i;
+    *rest_out = shell_skip_spaces(p);
+}
+
+static void shell_task_parse_target(const char *arg, char *target_out, size_t target_cap) {
+    const char *p = shell_skip_spaces(arg);
+    size_t i = 0;
+    while (p[i] != '\0' && p[i] != ' ' && i + 1 < target_cap) {
+        target_out[i] = p[i];
+        ++i;
+    }
+    target_out[i] = '\0';
+}
+
+static void shell_cmd_task(const char *arg) {
+    char action[16];
+    const char *rest = NULL;
+    shell_task_parse_action(arg, action, sizeof(action), &rest);
+    if (action[0] == '\0') {
+        shell_task_usage();
+        return;
+    }
+    if (shell_streq(action, "list")) {
+        shell_tasks_list();
+        return;
+    }
+    if (shell_streq(action, "help")) {
+        shell_task_usage();
+        return;
+    }
+
+    char target[32];
+    shell_task_parse_target(rest, target, sizeof(target));
+    if (target[0] == '\0') {
+        shell_task_usage();
+        return;
+    }
+
+    if (shell_streq(action, "reset") && shell_streq(target, "all")) {
+        scheduler_reset_all_task_runs();
+        console_write_string("task reset ok: all\n");
+        return;
+    }
+
+    uint32_t index = 0;
+    if (shell_task_resolve_target(target, &index) != 0) {
+        console_write_string("task target not found: ");
+        console_write_string(target);
+        console_write_string("\n");
+        return;
+    }
+
+    if (shell_streq(action, "start")) {
+        scheduler_set_task_active(index, 1);
+        console_write_string("task started: #");
+        console_write_u64(index);
+        console_write_string(" ");
+        console_write_string(scheduler_task_name(index));
+        console_write_string("\n");
+        return;
+    }
+    if (shell_streq(action, "stop")) {
+        scheduler_set_task_active(index, 0);
+        console_write_string("task stopped: #");
+        console_write_u64(index);
+        console_write_string(" ");
+        console_write_string(scheduler_task_name(index));
+        console_write_string("\n");
+        return;
+    }
+    if (shell_streq(action, "reset")) {
+        scheduler_reset_task_runs(index);
+        console_write_string("task runs reset: #");
+        console_write_u64(index);
+        console_write_string(" ");
+        console_write_string(scheduler_task_name(index));
+        console_write_string("\n");
+        return;
+    }
+
+    shell_task_usage();
+}
+
 static void shell_print_vfs_write_error(int rc) {
     if (rc == -2) {
         console_write_string("vfs write rejected: writable paths are limited to /tmp/*\n");
@@ -317,7 +475,7 @@ static void shell_cmd_capabilities(void) {
     console_write_string("  runtime:\n");
     console_write_string("    - kernel-mode shell + builtin user-app demos\n");
     console_write_string("    - VFS bootstrap files via ls/cat + writable /tmp overlay\n");
-    console_write_string("    - scheduler + timer observability\n");
+    console_write_string("    - scheduler + timer observability with task start/stop/reset controls\n");
     console_write_string("  user apps in table:\n");
     for (uint64_t i = 0; i < count; ++i) {
         const char *name = userapp_name(i);
@@ -345,6 +503,7 @@ static void shell_cmd_capabilities(void) {
     console_write_string("  host tooling:\n");
     console_write_string("    - `make host-programs` compiles host C/C++ demos\n");
     console_write_string("    - `make test-vfs-rw` validates writable /tmp VFS behavior\n");
+    console_write_string("    - `make test-scheduler-ctl` validates scheduler task controls\n");
     console_write_string("    - `python3 scripts/dev_status.py --build-programs` validates build chain\n");
     console_write_string("    - `make refresh-elf-sample` regenerates embedded Linux ELF sample blob\n");
     console_write_string("    - `make test-elf-sample` validates regenerated ELF sample contract\n");
@@ -364,6 +523,8 @@ static void shell_print_help(void) {
     console_write_string("  mem    - print memory allocator stats\n");
     console_write_string("  ticks  - print current timer ticks\n");
     console_write_string("  tasks  - print scheduler task list\n");
+    console_write_string("  task   - control scheduler tasks\n");
+    console_write_string("         usage: task [list|start <id|name>|stop <id|name>|reset <id|name|all>]\n");
     console_write_string("  reboot - reset the machine\n");
     console_write_string("  halt   - stop execution\n");
     console_write_string("  hello  - print hello from shell\n");
@@ -485,6 +646,10 @@ static void shell_exec(const char *line) {
             shell_cmd_run_help();
             return;
         }
+        if (shell_streq(arg, "task")) {
+            shell_task_usage();
+            return;
+        }
         console_write_string("unknown help topic: ");
         console_write_string(arg);
         console_write_string("\n");
@@ -507,21 +672,11 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 5 && shell_streq(trimmed_line, "tasks")) {
-        uint32_t task_count = scheduler_task_count();
-        console_write_string("scheduler tasks=");
-        console_write_u64((uint64_t)task_count);
-        console_write_string("\n");
-        for (uint32_t i = 0; i < task_count; ++i) {
-            const char *name = scheduler_task_name(i);
-            uint64_t runs = scheduler_task_runs(i);
-            console_write_string("  #");
-            console_write_u64((uint64_t)i);
-            console_write_string(" ");
-            console_write_string(name == NULL ? "(nil)" : name);
-            console_write_string(" runs=");
-            console_write_u64(runs);
-            console_write_string("\n");
-        }
+        shell_tasks_list();
+        return;
+    }
+    if (cmd_len == 4 && shell_streq(trimmed_line, "task")) {
+        shell_cmd_task(arg);
         return;
     }
     if (cmd_len == 6 && shell_streq(trimmed_line, "reboot")) {
@@ -548,6 +703,7 @@ static void shell_exec(const char *line) {
         console_write_string("host build (outside miniOS):\n");
         console_write_string("  make host-programs\n");
         console_write_string("  make test-vfs-rw\n");
+        console_write_string("  make test-scheduler-ctl\n");
         console_write_string("  make test-elf-sample\n");
         console_write_string("  python3 scripts/dev_status.py --build-programs\n");
         console_write_string("  python3 scripts/build_user_programs.py --source-dir samples/user-programs --out-dir build/host-programs\n");
@@ -692,7 +848,7 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 7 && shell_streq(trimmed_line, "version")) {
-        console_write_string("MiniOS Phase 34 (writable tmp vfs overlay)\n");
+        console_write_string("MiniOS Phase 35 (scheduler task control)\n");
         return;
     }
     if (cmd_len == 4 && shell_streq(trimmed_line, "echo")) {
@@ -721,7 +877,7 @@ static void shell_exec(const char *line) {
 
 void shell_run(void) {
     static char line[SHELL_BUFFER_LEN];
-    console_write_string("MiniOS shell (phase 34)\n");
+    console_write_string("MiniOS shell (phase 35)\n");
     shell_print_help();
     for (;;) {
         shell_print_prompt();

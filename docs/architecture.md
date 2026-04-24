@@ -34,6 +34,7 @@ MiniOS is a small x86_64 educational OS with incremental phases and readable bou
 - **Phase 32**: add ELF64 metadata inspection path (`run elf-inspect`) plus reproducible sample refresh (`make refresh-elf-sample`).
 - **Phase 33**: add ELF sample regression test path (`make test-elf-sample`) to keep refresh output verifiable.
 - **Phase 34**: add writable `/tmp` VFS overlay plus shell file mutation commands (`write/append/touch/rm`).
+- **Phase 35**: add scheduler task control APIs and shell control command (`task start/stop/reset/list`).
 
 ## Core layout
 
@@ -73,6 +74,7 @@ Current user-visible runtime limit:
 - `make refresh-elf-sample` regenerates `kernel/core/elf_sample_blob.c` from `samples/linux-user/hello_linux_tiny.S`.
 - `make test-elf-sample` re-runs sample generation and checks blob contract (ELF magic, symbols, minimum byte count).
 - `make test-vfs-rw` compiles and runs a host regression for writable VFS behavior (`/tmp` write/append/remove/list).
+- `make test-scheduler-ctl` compiles and runs a host regression for scheduler task state control and run-counter reset behavior.
 - `cap` / `capabilities` shell command reports:
   - user app execution mode coverage (kernel vs user placeholder),
   - host-program build workflow status,
