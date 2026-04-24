@@ -123,6 +123,7 @@ static void shell_cmd_run_help(void) {
     console_write_string("  run                 list available user apps\n");
     console_write_string("  run --help          show this message\n");
     console_write_string("  run --status        show user apps and execution mode\n");
+    console_write_string("  run help            same as run --help\n");
     console_write_string("  run <name>          execute app by name\n");
 }
 
@@ -145,6 +146,8 @@ static void shell_cmd_run_list(void) {
 
 static void shell_cmd_run_status(void) {
     uint64_t count = userapp_count();
+    uint64_t user_count = 0;
+    uint64_t kernel_count = 0;
     console_write_string("run status:\n");
     console_write_string("  total=");
     console_write_u64(count);
@@ -154,13 +157,26 @@ static void shell_cmd_run_status(void) {
         const char *desc = userapp_desc(i);
         int user_mode = userapp_is_user_mode(i);
         console_write_string("  ");
+        console_write_u64(i);
+        console_write_string(". ");
         console_write_string(name == NULL ? "(unnamed)" : name);
         console_write_string(" [");
-        console_write_string(user_mode == 1 ? "user" : "kernel");
+        if (user_mode == 1) {
+            console_write_string("user");
+            ++user_count;
+        } else {
+            console_write_string("kernel");
+            ++kernel_count;
+        }
         console_write_string("] ");
         console_write_string(desc == NULL ? "(no description)" : desc);
         console_write_string("\n");
     }
+    console_write_string("  summary: user=");
+    console_write_u64(user_count);
+    console_write_string(" kernel=");
+    console_write_u64(kernel_count);
+    console_write_string("\n");
 }
 
 static void shell_print_help(void) {
@@ -269,7 +285,20 @@ static void shell_exec(const char *line) {
     size_t cmd_len = (size_t)(arg - trimmed_line);
 
     if (cmd_len == 4 && shell_streq(trimmed_line, "help")) {
-        shell_print_help();
+        while (*arg == ' ') {
+            ++arg;
+        }
+        if (*arg == '\0') {
+            shell_print_help();
+            return;
+        }
+        if (shell_streq(arg, "run")) {
+            shell_cmd_run_help();
+            return;
+        }
+        console_write_string("unknown help topic: ");
+        console_write_string(arg);
+        console_write_string("\n");
         return;
     }
     if (cmd_len == 3 && shell_streq(trimmed_line, "mem")) {
@@ -340,6 +369,10 @@ static void shell_exec(const char *line) {
             return;
         }
         if (shell_streq(arg, "-h") || shell_streq(arg, "--help")) {
+            shell_cmd_run_help();
+            return;
+        }
+        if (shell_streq(arg, "help")) {
             shell_cmd_run_help();
             return;
         }

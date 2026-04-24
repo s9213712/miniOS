@@ -1,5 +1,15 @@
 # Changelog
 
+## Phase 24 – Shell Help Consistency
+
+### Added
+- Added `help run` in interactive shell for targeted topic help.
+- Added `run help` alias to existing run help flow.
+- Enhanced `run --status` output with index and summary counters (`summary: user=... kernel=...`).
+
+### Validation
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 23 – Run Command Observability
 
 ### Added

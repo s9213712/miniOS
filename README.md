@@ -48,6 +48,10 @@
   - 改善 `run` 命令幫助與狀態檢視，支援 `run --help` 與 `run --status`。
   - `run --status` 會顯示每個 app 的執行模式（user/kernel），避免混淆未啟用 ring3 的情況。
   - `run -h` 提供與 `run --help` 相同的命令說明。
+- Phase 24：shell help 細節可視化（完成）
+  - 增加 `help run` 快速查詢 `run` 用法。
+  - `run help` 視為幫助別名，與 `run --help` 行為一致。
+  - `run --status` 補上編號與 user/kernel 摘要，方便逐項比對。
 
 ## 每階段目的與預期成效
 

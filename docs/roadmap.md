@@ -15,6 +15,7 @@
 - `Phase 21` 的 `ls`/`cat` 目前仍為唯讀 initfs 檢視能力。
 - `Phase 20` `run hello` 路徑先走 kernel fallback，後續保留 ring3 切換開關。
 - `Phase 23` `run` 子命令已上線，加入 user/kernel 模式資訊與說明輸出。
+- 2026-04-24：`Phase 24` 完成，新增 `help run` 與 `run help` 快速查詢，並讓 `run --status` 顯示索引與摘要。
 
 ## 檢查前提
 
@@ -161,3 +162,7 @@
   - `run` 新增 `--help` 與 `--status`，可輸出 app 列表與執行模式標記（user/kernel）
   - 維持既有 `run <name>` 行為與 smoke 路徑不變
   - `run -h` 支援相同幫助行為，降低指令門檻
+- Phase 24：help 路徑一致性（完成）
+  - 讓 `help run` 進入 run 專屬說明，提升指令發現性
+  - `run help` 視為 `run --help` 別名，降低操作摩擦
+  - `run --status` 新增 app 索引與 user/kernel 總覽摘要（`summary: user=... kernel=...`）
