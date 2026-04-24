@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 27, 教學型專案)
+# MinimalOS v1 (Phase 28, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -19,6 +19,7 @@
 - `Phase 18` 的 `tasks`、`Phase 17` 的 `app` 查詢、`Phase 22` 的 C++ 路徑都已可作為 smoke 之外的進階教學示例。
 - 2026-04-24：`Phase 26` 補齊主機端 C/C++ 編譯 pipeline（`make host-programs`）並完成 `manifest.json` 產出。
 - 2026-04-24：`Phase 27` 上線 `cap` / `capabilities`，可在 shell 快速查閱能力邊界與 Linux 支援限制。
+- 2026-04-24：`Phase 28` 強化 host-side 編譯可追蹤性，`make host-programs` 輸出新增 `status`、`flags`、`sha256` 與錯誤摘要。
 
 ## 分支策略
 
@@ -62,6 +63,9 @@
   - 建構 `build/host-programs`，輸出 `manifest.json` 供下一步 loader 導入做準備
 - Phase 27：能力邊界可見化（完成）
   - 新增 `cap` / `capabilities`，輸出現在能力矩陣（可執行 app、host build 能力、尚未支援功能）
+- Phase 28：主機編譯可診斷化（完成）
+  - 增加 `make host-programs` 的可選 verbose，並加入 `MHOST_VERBOSE`、`MHOST_COMMON_FLAGS`、`MHOST_CFLAGS`、`MHOST_CXXFLAGS`。
+  - `build/host-programs/manifest.json` 新增 `status`、`built_at`、`flags`、`sha256` 與編譯錯誤欄位，讓每次輸出可追溯。
 
 ## 每階段目的與預期成效
 
@@ -194,6 +198,8 @@ GUI 限制：
 - `make smoke-offline`：離線模式 smoke（建議搭配 `SMOKE_OFFLINE=1`）
 - `PANIC_TEST=1 make run`：啟用 panic path
 - `FAULT_TEST=div0|opcode|gpf|pf make run`：啟用 fault path
+- `MHOST_VERBOSE=1 make host-programs`：顯示 host 編譯指令與摘要
+- `MHOST_COMMON_FLAGS` / `MHOST_CFLAGS` / `MHOST_CXXFLAGS`：覆寫 host 編譯旗標
 
 ## 預期 serial 輸出
 

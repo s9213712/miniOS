@@ -139,7 +139,8 @@ host-programs:
 	@$(PYTHON) scripts/build_user_programs.py \
 	  --source-dir "$(HOST_PROGRAMS_SRC_DIR)" \
 	  --out-dir "$(HOST_PROGRAMS_OUT_DIR)" \
-	  --manifest "$(HOST_PROGRAMS_MANIFEST)"
+	  --manifest "$(HOST_PROGRAMS_MANIFEST)" \
+	  $(if $(MHOST_VERBOSE),--verbose,)
 
 clean-host-programs:
 	rm -rf "$(HOST_PROGRAMS_OUT_DIR)"
