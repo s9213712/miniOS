@@ -14,7 +14,7 @@ miniOS 是 x86_64 教學型作業系統專案，主線目標是：
 | Stage 3 | Linux ABI + ELF loader + Minimal `execve` bring-up（目前） | 進行中 |
 | Stage 4 | 系統完整化（FS/網路/安全 + Linux userspace 相容） | 待開始 |
 
-目前所在：`Stage 3 (Phase 42 minimal execve userspace)`
+目前所在：`Stage 3 (Phase 43 x86-64 syscall entry)`
 Phase 細節歷史保留在 `CHANGELOG.md`，Stage 視角主文件如下：
 - `docs/roadmap.md`
 - `docs/linux-parity-goals.md`
@@ -23,7 +23,7 @@ Phase 細節歷史保留在 `CHANGELOG.md`，Stage 視角主文件如下：
 
 - 可穩定開機並通過 smoke（serial 8 秒內可見 `hello from kernel`）。
 - 有基本 kernel 子系統：PMM/heap、interrupt/timer、scheduler、VFS、shell。
-- 有 Linux ABI 預覽子集合（`write/writev/brk/uname/getpid/gettid/...`）。
+- 有 Linux ABI 預覽子集合（`write/writev/brk/uname/getpid/gettid/...`），userspace 透過 x86-64 `syscall` 指令進 kernel。
 - 有 ELF 載入與最小 `execve` demo：`run elf-inspect`、`run elf-load`、`EXECVE_DEMO=1` boot probe。
 - `run elf-load` 現在可驗證：
   - load+stack 映射

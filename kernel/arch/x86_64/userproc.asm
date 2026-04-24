@@ -5,6 +5,7 @@ global userproc_enter_asm
 global userproc_enter_execve_asm
 global userproc_execve_trampoline_asm
 global isr_user_syscall
+global syscall_entry
 global minios_userapp_hello
 global minios_userapp_ticks
 global minios_userapp_scheduler
@@ -13,6 +14,8 @@ global minios_userapp_linux_abi
 extern userproc_dispatch
 extern g_userproc_return_rip
 extern g_userproc_return_stack
+extern g_userproc_syscall_stack_top
+extern g_userproc_syscall_user_rsp
 
 section .text
 
@@ -85,10 +88,10 @@ userapp_hello_syscall_loop:
     mov edi, 1
     xor esi, esi
     xor edx, edx
-    int 0x80
+    syscall
     mov eax, 60
     xor edi, edi
-    int 0x80
+    syscall
 
 minios_userapp_hello:
     nop
@@ -99,47 +102,114 @@ minios_userapp_ticks:
     mov edi, 2
     xor esi, esi
     xor edx, edx
-    int 0x80
+    syscall
     mov eax, 60
     xor edi, edi
-    int 0x80
+    syscall
 
 minios_userapp_scheduler:
     mov eax, 1
     mov edi, 3
     xor esi, esi
     xor edx, edx
-    int 0x80
+    syscall
     mov eax, 60
     xor edi, edi
-    int 0x80
+    syscall
 
 minios_userapp_linux_abi:
     mov eax, 1
     mov edi, 1
     lea rsi, [rel linux_abi_msg]
     mov edx, linux_abi_msg_len
-    int 0x80
+    syscall
     mov eax, 20
     mov edi, 1
     lea rsi, [rel linux_abi_iov]
     mov edx, 2
-    int 0x80
+    syscall
     mov eax, 39
     xor edi, edi
     xor esi, esi
     xor edx, edx
-    int 0x80
+    syscall
     mov eax, 186
     xor edi, edi
     xor esi, esi
     xor edx, edx
-    int 0x80
+    syscall
     mov eax, 231
     xor edi, edi
     xor esi, esi
     xor edx, edx
-    int 0x80
+    syscall
+
+syscall_entry:
+    ; Long-mode SYSCALL does not switch stacks. Capture the user RSP,
+    ; then move to the kernel-provided syscall stack before touching C.
+    mov [rel g_userproc_syscall_user_rsp], rsp
+    mov rsp, [rel g_userproc_syscall_stack_top]
+
+    ; Build an IRET-compatible user return frame.
+    push qword 0x23          ; user data segment selector
+    push qword [rel g_userproc_syscall_user_rsp]
+    push r11                 ; user RFLAGS saved by SYSCALL
+    push qword 0x1B          ; user code selector
+    push rcx                 ; user RIP saved by SYSCALL
+
+    ; Save all general-purpose registers. RCX/R11 intentionally restore to
+    ; SYSCALL-clobbered values (return RIP / flags), matching x86-64 ABI.
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+
+    mov r8, rax
+    mov r9, rdi
+    mov r10, rsi
+    mov r11, rdx
+    mov rdi, r8
+    mov rsi, r9
+    mov rdx, r10
+    mov rcx, r11
+    call userproc_dispatch
+    cmp rax, 1
+    je .syscall_user_exit
+    mov [rsp + 112], rax
+
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    iretq
+
+.syscall_user_exit:
+    add rsp, 120
+    mov rsp, [rel g_userproc_return_stack]
+    mov rax, [rel g_userproc_return_rip]
+    jmp rax
 
 isr_user_syscall:
     ; Save all general-purpose registers.

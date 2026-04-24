@@ -58,12 +58,38 @@ uint64_t g_userproc_return_rip;
 uint64_t g_userproc_return_stack;
 uint64_t g_userproc_current_app_id;
 uint64_t g_userproc_running;
+uint64_t g_userproc_syscall_stack_top;
+uint64_t g_userproc_syscall_user_rsp;
 
 static uint64_t g_userproc_fs_base;
 static uint64_t g_userproc_gs_base;
 static uint64_t g_userproc_tid_addr;
 static uint8_t g_userproc_execve_stack_scratch[MINIOS_EXECVE_STACK_SCRATCH_SIZE];
 static uint8_t g_userproc_execve_kernel_stack[MINIOS_EXECVE_KERNEL_STACK_SIZE] __attribute__((aligned(16)));
+
+enum {
+    MINIOS_MSR_EFER = 0xC0000080,
+    MINIOS_MSR_STAR = 0xC0000081,
+    MINIOS_MSR_LSTAR = 0xC0000082,
+    MINIOS_MSR_SFMASK = 0xC0000084,
+    MINIOS_EFER_SCE = 1u << 0,
+    MINIOS_RFLAGS_IF = 1u << 9,
+};
+
+extern void syscall_entry(void);
+
+static uint64_t userproc_rdmsr(uint32_t msr) {
+    uint32_t lo = 0;
+    uint32_t hi = 0;
+    __asm__ volatile("rdmsr" : "=a"(lo), "=d"(hi) : "c"(msr));
+    return ((uint64_t)hi << 32) | lo;
+}
+
+static void userproc_wrmsr(uint32_t msr, uint64_t value) {
+    uint32_t lo = (uint32_t)(value & 0xFFFFFFFFu);
+    uint32_t hi = (uint32_t)(value >> 32);
+    __asm__ volatile("wrmsr" : : "c"(msr), "a"(lo), "d"(hi));
+}
 
 static int userproc_streq(const char *a, const char *b) {
     uint64_t i = 0;
@@ -290,8 +316,8 @@ static uint64_t userproc_linux_uname(uint64_t user_buf) {
     volatile minios_utsname_t *u = (volatile minios_utsname_t *)(uintptr_t)user_buf;
     userproc_copy_cstr((char *)u->sysname, sizeof(u->sysname), "miniOS");
     userproc_copy_cstr((char *)u->nodename, sizeof(u->nodename), "miniOS-node");
-    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.42");
-    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Stage3 phase42 minimal execve userspace");
+    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.43");
+    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Stage3 phase43 x86-64 syscall entry");
     userproc_copy_cstr((char *)u->machine, sizeof(u->machine), "x86_64");
     userproc_copy_cstr((char *)u->domainname, sizeof(u->domainname), "miniOS.local");
     return 0;
@@ -431,6 +457,20 @@ void userproc_set_return_context(uint64_t return_rip, uint64_t return_stack) {
 
 void userproc_set_current_app_id(uint64_t app_id) {
     g_userproc_current_app_id = app_id;
+}
+
+void userproc_syscall_init(void) {
+    uint64_t efer = userproc_rdmsr(MINIOS_MSR_EFER);
+    userproc_wrmsr(MINIOS_MSR_EFER, efer | MINIOS_EFER_SCE);
+
+    uint64_t star = ((uint64_t)MINIOS_GDT_SELECTOR_USER_CODE << 48) |
+                    ((uint64_t)MINIOS_GDT_SELECTOR_KERNEL_CODE << 32);
+    userproc_wrmsr(MINIOS_MSR_STAR, star);
+    userproc_wrmsr(MINIOS_MSR_LSTAR, (uint64_t)(uintptr_t)syscall_entry);
+    userproc_wrmsr(MINIOS_MSR_SFMASK, MINIOS_RFLAGS_IF);
+
+    g_userproc_syscall_stack_top = (uint64_t)(uintptr_t)(g_userproc_execve_kernel_stack +
+                                                        MINIOS_EXECVE_KERNEL_STACK_SIZE);
 }
 
 const char *userproc_handoff_result_name(int rc) {
@@ -824,6 +864,7 @@ uint64_t userproc_enter_execve_and_wait(uint64_t entry,
     uint64_t execve_rsp0 = (uint64_t)(uintptr_t)(g_userproc_execve_kernel_stack +
                                                 MINIOS_EXECVE_KERNEL_STACK_SIZE);
     g_userproc_running = true;
+    g_userproc_syscall_stack_top = execve_rsp0;
     gdt_set_rsp0(execve_rsp0);
     uint64_t rc = userproc_execve_trampoline_asm(entry, user_stack_top, argc, argv_user, envp_user);
     gdt_set_rsp0(previous_rsp0);

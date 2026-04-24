@@ -38,6 +38,16 @@ if ! grep -q '0x7f, 0x45, 0x4c, 0x46' "${BLOB}"; then
     exit 1
 fi
 
+if ! grep -Eq '^[[:space:]]*syscall[[:space:]]*$' "${SOURCE}"; then
+    echo "[test_elf_sample] sample must use x86-64 syscall instruction"
+    exit 1
+fi
+
+if grep -Eq '^[[:space:]]*int[[:space:]]+\$0x80' "${SOURCE}"; then
+    echo "[test_elf_sample] sample must not use int \$0x80"
+    exit 1
+fi
+
 byte_count="$(grep -o '0x[0-9a-f][0-9a-f],' "${BLOB}" | wc -l | tr -d ' ')"
 if [ "${byte_count}" -lt 128 ]; then
     echo "[test_elf_sample] blob too small: ${byte_count} bytes"

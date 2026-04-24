@@ -1,5 +1,27 @@
 # Changelog
 
+## Phase 43 – x86-64 `syscall` Userspace Entry
+
+### Added
+- Added long-mode `syscall` MSR setup (`EFER.SCE`, `STAR`, `LSTAR`, `SFMASK`) during kernel init.
+- Added `syscall_entry` in `kernel/arch/x86_64/userproc.asm`:
+  - switches from user RSP to the miniOS syscall kernel stack
+  - builds an `iretq` return frame from `RCX/R11/RSP`
+  - dispatches Linux x86-64 syscall numbers through `userproc_dispatch`
+  - resumes the supervisor continuation on `exit`/`exit_group`
+- Extended `test-elf-sample` to reject `int $0x80` in the tiny Linux sample.
+
+### Changed
+- Updated built-in userapp stubs and `samples/linux-user/hello_linux_tiny.S` to use the x86-64 `syscall` instruction.
+- Refreshed the embedded ELF sample blob.
+- Updated Stage 3 docs and version strings to Phase 43.
+
+### Validation
+- `make test-elf-sample`
+- `make test-userimg-loader`
+- `make smoke-build`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 42 – Minimal Execve Userspace Run
 
 ### Added
@@ -13,7 +35,7 @@
 - Added `EXECVE_DEMO=1` boot probe wiring for serial-smoke verification.
 
 ### Changed
-- Updated the embedded Linux tiny sample to use the miniOS-supported `int 0x80` path.
+- Updated the embedded Linux tiny sample to use the then-supported `int 0x80` teaching path.
 - Updated Stage 3 docs and version strings to Phase 42.
 
 ### Validation

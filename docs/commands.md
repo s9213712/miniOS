@@ -230,7 +230,7 @@
 - `task start/stop/reset/list` 可直接控制 scheduler 任務狀態與 run counter；`tasks` 會顯示 active/stopped。
 - `vmm` 可檢視目前 VMM region 與 user brk/limit（目前為教學型 metadata 骨架，尚未是完整 ring3 分頁切換）。
 - `run cpp` 為目前 C++ 使用者應用示範，仍以 kernel-mode fallback 路徑實作。
-- `run linux-abi` 為 Linux ABI 教學預覽，會輸出一組 fallback probe 結果；probe 內的 `execve("/bin/hello_linux_tiny", ...)` 可載入內嵌 tiny static ELF、進入 ring3 並經 `exit_group` 返回。尚不支援動態連結與 glibc userspace。
+- `run linux-abi` 為 Linux ABI 教學預覽，會輸出一組 fallback probe 結果；probe 內的 `execve("/bin/hello_linux_tiny", ...)` 可載入內嵌 tiny static ELF、進入 ring3，透過 x86-64 `syscall` 指令呼叫 kernel，並經 `exit_group` 返回。尚不支援動態連結與 glibc userspace。
 - `run elf-inspect` 會輸出內嵌 Linux user ELF 的 entry、program header 數與 load/file range，供 loader 前置驗證。
 - `run elf-load` 會輸出 mapped entry/range、mapped region 統計、stack 規劃、handoff dry-run 與 exec stack prep 狀態；它仍是診斷路徑，真正執行由 `run linux-abi` probe 的 `execve` 路徑驗證。
 - `make test-elf-sample` 會重新產生 blob 並檢查 ELF magic、必要符號與最小 byte 數，適合每次調整 loader/ELF 邏輯後回歸。

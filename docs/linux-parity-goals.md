@@ -1,13 +1,13 @@
 # miniOS Linux Parity Goals（Stage 版）
 
-最後更新：2026-04-24（Stage 3 / Phase 42 minimal execve userspace）
+最後更新：2026-04-24（Stage 3 / Phase 43 x86-64 syscall entry）
 
 這份文件聚焦 miniOS 與一般 Linux 系統之間的差距，並用 Stage 管理收斂路徑。  
 Phase 細節只作為歷史，不作為主要規劃單位。
 
 ## 目前定位
 
-- 已有：boot 穩定、核心基礎模組、Linux ABI 子集合、ELF 載入與 tiny static ELF `execve` demo。
+- 已有：boot 穩定、核心基礎模組、x86-64 `syscall` 入口的 Linux ABI 子集合、ELF 載入與 tiny static ELF `execve` demo。
 - 目前 Stage：Stage 3。
 - 現況關鍵字：`minimal real userspace execution`，但仍未到一般 Linux userspace 相容。
 
@@ -29,7 +29,7 @@ Phase 細節只作為歷史，不作為主要規劃單位。
 - 目前已具備：
   - `run elf-load` mapping + handoff dry-run + exec stack scaffold
   - 內嵌 tiny static ELF segment copy/zero、user page backing、entry register setup
-  - `execve("/bin/hello_linux_tiny", ...)` ring3 entry 與 `exit_group` 返回
+  - `execve("/bin/hello_linux_tiny", ...)` ring3 entry、x86-64 `syscall` dispatch 與 `exit_group` 返回
   - `make test-userimg-loader` 回歸
 - 尚缺：
   - 每行程 address space

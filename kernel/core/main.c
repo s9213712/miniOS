@@ -14,6 +14,7 @@
 #include <mvos/shell.h>
 #include <mvos/keyboard.h>
 #include <mvos/userapp.h>
+#include <mvos/userproc.h>
 #include <stdint.h>
 
 /* Limine request section markers are grouped as required for bootloader discovery.
@@ -144,6 +145,7 @@ void kmain(void) {
      */
     gdt_init();
     idt_init();
+    userproc_syscall_init();
     timer_init(100);
     klogln("gdt/idt initialized");
     klog("[phase3] timer ticks=");

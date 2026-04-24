@@ -33,6 +33,9 @@ uint64_t timer_ticks(void) {
     return 0;
 }
 
+void syscall_entry(void) {
+}
+
 uint64_t gdt_get_rsp0(void) {
     return 0;
 }
