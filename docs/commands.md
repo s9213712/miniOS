@@ -7,7 +7,7 @@
 > cd /home/s92137/miniOS
 > ```
 
-> 目前進度摘要：`smoke` 主線穩定後，新增 `run --help`、`run --status`，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`、`run elf-load`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Python 尚未提供 miniOS 內部 runtime；Linux 應用（如 transmission/htop/nano）也尚未支援，`run linux-abi` 目前是擴展中的 syscall ABI 預覽（非完整 userspace），`run elf-load` 則提供 handoff dry-run + exec stack scaffold 驗證。
+> 目前進度摘要：專案已重整為 Stage 管理，當前位於 `Stage 3`。`smoke` 主線穩定，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`、`run elf-load`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Linux 應用（如 transmission/htop/nano）尚未支援；`run elf-load` 目前提供 handoff dry-run + exec stack scaffold 驗證。
 
 ---
 
