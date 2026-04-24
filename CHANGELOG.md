@@ -23,6 +23,16 @@
 - `python3 scripts/build_user_programs.py --source-dir samples/user-programs --out-dir build/host-programs`
 - `python3 scripts/dev_status.py --build-programs`
 
+## Phase 27 – Capability Visibility
+
+### Added
+- 新增 `cap` / `capabilities` shell 指令，提供內建程式能力、host 編譯能力、Linux 應用支援限制的即時矩陣輸出。
+- 更新 `shell` 版本字串至 `Phase 27` 以對齊里程碑進度。
+- 補齊 `README`、`docs/commands.md`、`docs/architecture.md`、`docs/roadmap.md` 的能力邊界與 phase 進度描述。
+
+### Validation
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 24 – Shell Help Consistency
 
 ### Added

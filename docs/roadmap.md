@@ -17,7 +17,8 @@
 - `Phase 23` `run` 子命令已上線，加入 user/kernel 模式資訊與說明輸出。
 - 2026-04-24：`Phase 24` 完成，新增 `help run` 與 `run help` 快速查詢，並讓 `run --status` 顯示索引與摘要。
 - 2026-04-24：`Phase 25` 完成，加入 `run list` 作為命令別名與幫助路徑一致化補強。
-- 2026-04-24：`Phase 26` 啟動，新增主機端 `C/C++` 編譯流程，建立可重複 `make host-programs` 驗證路徑。
+- 2026-04-24：`Phase 26` 啟動完成，新增主機端 `C/C++` 編譯流程，建立可重複 `make host-programs` 驗證路徑。
+- 2026-04-24：`Phase 27` 加入 `cap` / `capabilities`，提供能力矩陣與目前不支援項目（Linux 應用、Python 內部 runtime）查詢。
 
 ## 檢查前提
 
@@ -171,7 +172,10 @@
 - Phase 25：run 命令命名一致性（完成）
   - 新增 `run list`，與 `run` 無參數行為一致。
   - 保持 `help run` / `run help` / `run --help` 一致性，降低操作摩擦。
-- Phase 26：主機端程式編譯（建議）
+- Phase 26：主機端程式編譯（完成）
   - 維護 `samples/user-programs/*`，保留可直接複製擴充的 C/C++ 範例原始碼
   - 用 `make host-programs` 編譯主機可執行程式，輸出 `build/host-programs/manifest.json`
   - 下階段目標：將 manifest 導入 miniOS loader，讓 `run` 支援載入與執行外部程式
+- Phase 27：能力邊界透明化（完成）
+  - 在 shell 加入 `cap`/`capabilities`，直接輸出可執行 app、host build 能力與 Linux 可執行檔限制
+  - 明確告知 `transmission/htop/nano` 之類 Linux 使用者空間軟體需完整使用者載入器與 libc 才能執行

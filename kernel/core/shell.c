@@ -180,6 +180,52 @@ static void shell_cmd_run_status(void) {
     console_write_string("\n");
 }
 
+static void shell_cmd_capabilities(void) {
+    uint64_t count = userapp_count();
+    uint64_t user_count = 0;
+    uint64_t kernel_count = 0;
+
+    console_write_string("miniOS capability matrix:\n");
+    console_write_string("  boot:\n");
+    console_write_string("    - Limine handoff + serial-first startup logging\n");
+    console_write_string("    - framebuffer diagnostics (if available)\n");
+    console_write_string("  runtime:\n");
+    console_write_string("    - kernel-mode shell + builtin user-app demos\n");
+    console_write_string("    - read-only VFS bootstrap files via ls/cat\n");
+    console_write_string("    - scheduler + timer observability\n");
+    console_write_string("  user apps in table:\n");
+    for (uint64_t i = 0; i < count; ++i) {
+        const char *name = userapp_name(i);
+        const char *desc = userapp_desc(i);
+        int user_mode = userapp_is_user_mode(i);
+        console_write_string("    ");
+        console_write_string(name == NULL ? "(unnamed)" : name);
+        console_write_string(" [");
+        if (user_mode == 1) {
+            console_write_string("user");
+            ++user_count;
+        } else {
+            console_write_string("kernel");
+            ++kernel_count;
+        }
+        console_write_string("] ");
+        console_write_string(desc == NULL ? "(no description)" : desc);
+        console_write_string("\n");
+    }
+    console_write_string("  totals: user=");
+    console_write_u64(user_count);
+    console_write_string(" kernel=");
+    console_write_u64(kernel_count);
+    console_write_string("\n");
+    console_write_string("  host tooling:\n");
+    console_write_string("    - `make host-programs` compiles host C/C++ demos\n");
+    console_write_string("    - `python3 scripts/dev_status.py --build-programs` validates build chain\n");
+    console_write_string("  not yet supported in miniOS runtime:\n");
+    console_write_string("    - Python interpreter\n");
+    console_write_string("    - Linux native executables (transmission/htop/nano)\n");
+    console_write_string("    - ELF userspace loader + writable app filesystem\n");
+}
+
 static void shell_print_help(void) {
     console_write_string("Available commands:\n");
     console_write_string("  help   - show this help\n");
@@ -194,6 +240,8 @@ static void shell_print_help(void) {
     console_write_string("         usage: app [alt|status|list|launch <name>|info <name>]\n");
     console_write_string("  run    - list or run built-in user apps\n");
     console_write_string("         usage: run [list|status|help|--help|<name>]\n");
+    console_write_string("  cap    - print capability matrix for current miniOS build\n");
+    console_write_string("  capabilities - alias of cap\n");
     console_write_string("  ls     - list virtual filesystem entries\n");
     console_write_string("         usage: ls [prefix]\n");
     console_write_string("  cat    - print a virtual file content\n");
@@ -348,6 +396,14 @@ static void shell_exec(const char *line) {
         console_write_string("hello from shell\n");
         return;
     }
+    if (
+        (cmd_len == 3 && shell_streq(trimmed_line, "cap")) ||
+        (cmd_len == 4 && shell_streq(trimmed_line, "caps")) ||
+        (cmd_len == 11 && shell_streq(trimmed_line, "capabilities"))
+    ) {
+        shell_cmd_capabilities();
+        return;
+    }
     if (cmd_len == 5 && shell_streq(trimmed_line, "build")) {
         console_write_string("host build (outside miniOS):\n");
         console_write_string("  make host-programs\n");
@@ -478,7 +534,7 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 7 && shell_streq(trimmed_line, "version")) {
-        console_write_string("MiniOS Phase 22 (phase-based tutorial kernel)\n");
+        console_write_string("MiniOS Phase 27 (host build + capability roadmap)\n");
         return;
     }
     if (cmd_len == 4 && shell_streq(trimmed_line, "echo")) {
@@ -507,7 +563,7 @@ static void shell_exec(const char *line) {
 
 void shell_run(void) {
     static char line[SHELL_BUFFER_LEN];
-    console_write_string("MiniOS shell (phase 21)\n");
+    console_write_string("MiniOS shell (phase 27)\n");
     shell_print_help();
     for (;;) {
         shell_print_prompt();
