@@ -1,5 +1,25 @@
 # Changelog
 
+## Phase 38 – User Image Execution Context Scaffold
+
+### Added
+- Extended user image loader layout path in `kernel/core/userimg.c`:
+  - adds mapped user stack planning (`stack_base/stack_top/stack_size`)
+  - maps `userimg-stack` region in VMM metadata alongside `userimg-load`
+- Extended `run elf-load` output to report stack mapping context.
+- Extended host regression (`test_userimg_loader`) to validate stack tag, permissions, and report consistency.
+- Updated shell and Linux ABI version strings to Phase 38.
+
+### Validation
+- `make test-userimg-loader`
+- `make test-vmm-basic`
+- `make test-scheduler-ctl`
+- `make test-vfs-rw`
+- `make test-elf-sample`
+- `make test-host-programs`
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 37 – User Image Loader Skeleton
 
 ### Added

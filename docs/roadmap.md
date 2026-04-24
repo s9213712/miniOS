@@ -29,6 +29,7 @@
 - 2026-04-24：`Phase 35` 新增 scheduler 任務控制命令（`task start/stop/reset/list`）與 `make test-scheduler-ctl`。
 - 2026-04-24：`Phase 36` 新增 VMM 骨架（map/unmap + region metadata）與 `brk` 狀態接線，並加入 `make test-vmm-basic`。
 - 2026-04-24：`Phase 37` 新增 user image loader 骨架（`run elf-load`）與 `make test-userimg-loader`，提供 ELF `PT_LOAD` 到 VMM metadata 的最小接線。
+- 2026-04-24：`Phase 38` 擴充 user image 執行上下文（加入 `userimg-stack` 映射與 stack report），讓後續 user-mode handoff 有固定入口資料。
 
 ## 檢查前提
 
@@ -217,3 +218,7 @@
   - 新增 `userimg` 模組，解析 embedded ELF 的 `PT_LOAD` 佈局並映射到固定 user image 區段（layout-only）。
   - 新增 `run elf-load` 命令路徑，輸出 mapped entry、mapped range、mapped regions/bytes。
   - 新增 `scripts/test_userimg_loader.sh` 與 `make test-userimg-loader`，驗證重複載入下 VMM 行為穩定。
+- Phase 38：使用者映像執行上下文骨架（完成）
+  - `userimg` 佈局新增 user stack 映射（`userimg-stack`），並輸出 `stack_base/stack_top/stack_size`。
+  - `run elf-load` 可同時觀察 image 及 stack 佈局，提供後續切換到真實 userspace 前置資訊。
+  - `make test-userimg-loader` 補驗 stack region tag、flags 與 report 一致性。

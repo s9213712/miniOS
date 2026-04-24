@@ -124,6 +124,13 @@ static void userapp_fallback_elf_load(void) {
     console_write_string(" mapped_bytes=");
     console_write_u64(report.mapped_bytes);
     console_write_string("\n");
+    console_write_string("stack=[");
+    console_write_u64(report.stack_base);
+    console_write_string(",");
+    console_write_u64(report.stack_top);
+    console_write_string(") size=");
+    console_write_u64(report.stack_size);
+    console_write_string("\n");
 }
 
 static const mvos_userapp_t g_userapps[] = {

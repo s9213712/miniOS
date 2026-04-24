@@ -40,9 +40,14 @@ int main(void) {
         fprintf(stderr, "[test_userimg_loader] expected additional VMM regions after load prepare\n");
         return 1;
     }
+    if (report.stack_base >= report.stack_top || report.stack_size == 0 || report.stack_top - report.stack_base != report.stack_size) {
+        fprintf(stderr, "[test_userimg_loader] invalid stack report\n");
+        return 1;
+    }
 
     uint32_t regions_after_first = vmm_region_count();
     int found_userimg = 0;
+    int found_stack = 0;
     for (uint32_t i = 0; i < regions_after_first; ++i) {
         mvos_vmm_region_info_t info;
         if (vmm_region_at(i, &info) != 0) {
@@ -55,9 +60,24 @@ int main(void) {
                 return 1;
             }
         }
+        if (strcmp(info.tag, "userimg-stack") == 0) {
+            found_stack = 1;
+            if ((info.flags & MVOS_VMM_FLAG_USER) == 0 || (info.flags & MVOS_VMM_FLAG_WRITE) == 0) {
+                fprintf(stderr, "[test_userimg_loader] expected user writable stack region\n");
+                return 1;
+            }
+            if (info.base != report.stack_base || info.size != report.stack_size) {
+                fprintf(stderr, "[test_userimg_loader] stack region mismatch with report\n");
+                return 1;
+            }
+        }
     }
     if (!found_userimg) {
         fprintf(stderr, "[test_userimg_loader] missing userimg-load region tag\n");
+        return 1;
+    }
+    if (!found_stack) {
+        fprintf(stderr, "[test_userimg_loader] missing userimg-stack region tag\n");
         return 1;
     }
 
@@ -75,8 +95,9 @@ int main(void) {
         return 1;
     }
 
-    printf("[test_userimg_loader] PASS regions=%u mapped=%llu\n",
+    printf("[test_userimg_loader] PASS regions=%u mapped=%llu stack=%llu\n",
            regions_after_first,
-           (unsigned long long)report.mapped_regions);
+           (unsigned long long)report.mapped_regions,
+           (unsigned long long)report.stack_size);
     return 0;
 }

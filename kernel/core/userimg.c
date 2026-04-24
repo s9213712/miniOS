@@ -16,6 +16,8 @@ enum {
 
 enum {
     USERIMG_MAX_LAYOUT_REGIONS = 16,
+    USERIMG_STACK_GAP_BYTES = 0x100000,
+    USERIMG_STACK_SIZE_BYTES = 0x10000,
 };
 
 typedef struct __attribute__((packed)) {
@@ -301,6 +303,33 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
         mapped_bytes += region_size;
     }
 
+    uint64_t stack_base = 0;
+    if (checked_add_u64(mapped_limit, USERIMG_STACK_GAP_BYTES, &stack_base) != 0 ||
+        align_up_u64(stack_base, MVOS_VMM_PAGE_SIZE, &stack_base) != 0) {
+        rollback_mapped_layout();
+        return MVOS_USERIMG_ERR_LAYOUT;
+    }
+    uint64_t stack_top = 0;
+    if (checked_add_u64(stack_base, USERIMG_STACK_SIZE_BYTES, &stack_top) != 0) {
+        rollback_mapped_layout();
+        return MVOS_USERIMG_ERR_LAYOUT;
+    }
+    if (vmm_map_range(stack_base,
+                      USERIMG_STACK_SIZE_BYTES,
+                      MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_USER,
+                      "userimg-stack") != 0) {
+        rollback_mapped_layout();
+        return MVOS_USERIMG_ERR_MAP;
+    }
+    if (g_last_mapped_count >= USERIMG_MAX_LAYOUT_REGIONS) {
+        rollback_mapped_layout();
+        return MVOS_USERIMG_ERR_LAYOUT;
+    }
+    g_last_mapped[g_last_mapped_count].base = stack_base;
+    g_last_mapped[g_last_mapped_count].size = USERIMG_STACK_SIZE_BYTES;
+    ++g_last_mapped_count;
+    mapped_bytes += USERIMG_STACK_SIZE_BYTES;
+
     if (elf_report.entry < src_floor || elf_report.entry >= src_ceil) {
         rollback_mapped_layout();
         return MVOS_USERIMG_ERR_LAYOUT;
@@ -314,9 +343,12 @@ mvos_userimg_result_t userimg_prepare_embedded_sample(mvos_userimg_report_t *out
 
     out->entry = elf_report.entry;
     out->mapped_entry = mapped_entry;
+    out->stack_base = stack_base;
+    out->stack_top = stack_top;
+    out->stack_size = USERIMG_STACK_SIZE_BYTES;
     out->image_size = elf_report.image_size;
     out->load_segments = elf_report.load_count;
-    out->mapped_regions = layout_count;
+    out->mapped_regions = g_last_mapped_count;
     out->mapped_bytes = mapped_bytes;
     out->min_vaddr = elf_report.min_vaddr;
     out->max_vaddr = elf_report.max_vaddr;

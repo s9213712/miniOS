@@ -13,6 +13,9 @@ typedef enum {
 typedef struct {
     uint64_t entry;
     uint64_t mapped_entry;
+    uint64_t stack_base;
+    uint64_t stack_top;
+    uint64_t stack_size;
     uint64_t image_size;
     uint64_t load_segments;
     uint64_t mapped_regions;
