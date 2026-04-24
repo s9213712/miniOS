@@ -1065,6 +1065,13 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_ACCESS, (uint64_t)(uintptr_t)init_dir_path, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected directory access success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FACCESSAT,
                                 (uint64_t)(int64_t)TEST_AT_FDCWD,
                                 (uint64_t)(uintptr_t)readme_path,
@@ -1074,6 +1081,53 @@ int main(void) {
                                 0);
     if (exec_rc != 0) {
         fprintf(stderr, "[test_userimg_loader] expected faccessat success, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t access_dirfd = userproc_dispatch(TEST_LINUX_SYSCALL_OPENAT,
+                                              (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                              (uint64_t)(uintptr_t)init_dir_path,
+                                              TEST_O_DIRECTORY,
+                                              0,
+                                              0,
+                                              0);
+    if (access_dirfd < 3 || access_dirfd > 10) {
+        fprintf(stderr, "[test_userimg_loader] expected directory fd for faccessat, got %lld\n",
+                (long long)access_dirfd);
+        free(stack_mem);
+        return 1;
+    }
+    const char relative_readme[] = "readme.txt";
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FACCESSAT,
+                                access_dirfd,
+                                (uint64_t)(uintptr_t)relative_readme,
+                                0,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected relative faccessat success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FACCESSAT,
+                                access_dirfd,
+                                (uint64_t)(uintptr_t)"missing.txt",
+                                0,
+                                0,
+                                0,
+                                0);
+    if ((int64_t)exec_rc != -2) {
+        fprintf(stderr, "[test_userimg_loader] expected relative faccessat ENOENT (-2), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, access_dirfd, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected faccessat dirfd close success, got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

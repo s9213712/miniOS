@@ -1285,11 +1285,17 @@ static uint64_t userproc_linux_getcwd(uint64_t user_buf, uint64_t size) {
     return user_buf;
 }
 
-static uint64_t userproc_linux_access_path(uint64_t user_path) {
+static uint64_t userproc_linux_faccessat(uint64_t dirfd, uint64_t user_path, uint64_t mode, uint64_t flags) {
+    (void)mode;
+    (void)flags;
     char path_buf[MINIOS_EXECVE_MAX_PATH];
-    int64_t rc = userproc_copy_user_cstr(user_path, path_buf, sizeof(path_buf));
+    int64_t rc = userproc_resolve_path(dirfd, user_path, path_buf, sizeof(path_buf));
     if (rc != 0) {
         return userproc_errno(rc);
+    }
+
+    if (userproc_path_is_directory(path_buf)) {
+        return 0;
     }
 
     mvos_vfs_file_t file;
@@ -2052,7 +2058,7 @@ uint64_t userproc_dispatch(uint64_t syscall,
         case MINIOS_LINUX_SYSCALL_DUP2:
             return userproc_linux_dup2(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_ACCESS:
-            return userproc_linux_access_path(arg1);
+            return userproc_linux_faccessat((uint64_t)(int64_t)MINIOS_AT_FDCWD, arg1, arg2, 0);
         case MINIOS_LINUX_SYSCALL_UNAME:
             return userproc_linux_uname(arg1);
         case MINIOS_LINUX_SYSCALL_FCNTL:
@@ -2081,7 +2087,7 @@ uint64_t userproc_dispatch(uint64_t syscall,
         case MINIOS_LINUX_SYSCALL_READLINKAT:
             return userproc_linux_readlinkat(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_FACCESSAT:
-            return userproc_linux_access_path(arg2);
+            return userproc_linux_faccessat(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_DUP3:
             return userproc_linux_dup3(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_GETRANDOM:
