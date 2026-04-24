@@ -11,6 +11,7 @@
 extern void minios_userapp_hello(void);
 extern void minios_userapp_ticks(void);
 extern void minios_userapp_scheduler(void);
+extern void minios_userapp_linux_abi(void);
 extern uint64_t minios_userapp_cpp_magic(void);
 
 #define MINIOS_USERAPP_STACK_SIZE 4096
@@ -78,9 +79,15 @@ static void userapp_fallback_python(void) {
     console_write_string("You can still run C/C++ built-ins via `run <name>`.\n");
 }
 
+static void userapp_fallback_linux_abi(void) {
+    console_write_string("linux abi preview: user-mode path disabled, running fallback\n");
+    console_write_string("supported preview syscalls: write(1/2), getpid, exit\n");
+}
+
 static const mvos_userapp_t g_userapps[] = {
     {"hello", "print hello from user app (user mode)", userapp_fallback_hello, (uint64_t)minios_userapp_hello, true},
     {"ticks", "print current timer ticks via user syscall", userapp_fallback_ticks, (uint64_t)minios_userapp_ticks, true},
+    {"linux-abi", "preview Linux x86_64 syscall subset (write/getpid/exit)", userapp_fallback_linux_abi, (uint64_t)minios_userapp_linux_abi, true},
     {"cpp", "print C++ demo result (kernel mode demo)", userapp_fallback_cpp, 0, false},
     {"scheduler", "print scheduler snapshot (kernel mode)", userapp_scheduler, 0, false},
     {"python", "print Python availability notice", userapp_fallback_python, 0, false},

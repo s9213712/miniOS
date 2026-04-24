@@ -21,6 +21,7 @@
 - 2026-04-24：`Phase 27` 加入 `cap` / `capabilities`，提供能力矩陣與目前不支援項目（Linux 應用、Python 內部 runtime）查詢。
 - 2026-04-24：`Phase 28` 補齊 host-side 編譯可追蹤輸出（`status`、`flags`、`sha256`、`request`）與調整腳本可診斷性。
 - 2026-04-24：`Phase 29` 加入主機端靜態連結模式（`MHOST_STATIC=1`）與 `link_mode` metadata，建立可重複建置報告。
+- 2026-04-24：`Phase 30` 新增 Linux ABI 預覽路徑，支援最小 syscall 子集合（`write/getpid/exit`）與 `run linux-abi` 驗證命令。
 
 ## 檢查前提
 
@@ -181,3 +182,6 @@
 - Phase 27：能力邊界透明化（完成）
   - 在 shell 加入 `cap`/`capabilities`，直接輸出可執行 app、host build 能力與 Linux 可執行檔限制
   - 明確告知 `transmission/htop/nano` 之類 Linux 使用者空間軟體需完整使用者載入器與 libc 才能執行
+- Phase 30：Linux ABI 預覽骨架（完成）
+  - userproc 對齊第一批 Linux x86_64 syscall 編號（1, 39, 60）並保留教學輸出。
+  - `run linux-abi` 提供最小 userspace 呼叫路徑驗證；目前僅示範 ABI，不含 ELF loader / libc 相容層。

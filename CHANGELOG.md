@@ -1,5 +1,20 @@
 # Changelog
 
+## Phase 30 – Linux ABI Preview Scaffold
+
+### Added
+- Added a Linux ABI preview syscall subset in `userproc_dispatch`:
+  - `write` (`rax=1`, fd 1/2)
+  - `getpid` (`rax=39`)
+  - `exit` (`rax=60`)
+- Added `run linux-abi` user app wiring for teaching-path verification.
+- Updated syscall return path in `isr_user_syscall` so non-exit syscalls return values back to user mode in `rax`.
+- Updated docs and shell version output to Phase 30.
+
+### Validation
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 25 – Run Command Naming Consistency
 
 ### Added

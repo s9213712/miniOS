@@ -29,6 +29,7 @@ MiniOS is a small x86_64 educational OS with incremental phases and readable bou
 - **Phase 22**: add a C++-compiled userapp path demonstration (`run cpp`) as a minimum non-Python basic program sample. (Completed; executed as kernel-mode fallback in this stage.)
 - **Phase 26**: add a host-side `make host-programs` build path for `.c/.cpp` samples so users can compile C/C++ program outputs from the repository immediately.
 - **Phase 27**: add in-OS capability disclosure (`cap` / `capabilities`) to make runtime scope explicit.
+- **Phase 30**: add Linux ABI preview syscall path (`write/getpid/exit`) for user-mode teaching experiments.
 
 ## Core layout
 
@@ -63,6 +64,7 @@ Current architecture keeps serial as primary boot diagnostics, with framebuffer 
 Current user-visible runtime limit:
 - `run cpp` demonstrates C++ build flow, while miniOS still does not include a Python interpreter for executing `.py` programs inside the VM.
 - `make host-programs` compiles sample C/C++ sources (`samples/user-programs`) into `build/host-programs`; these are currently host-side artifacts and are not yet runnable inside miniOS.
+- `run linux-abi` verifies a minimal Linux syscall-number-compatible preview path only (1/39/60), not full POSIX process compatibility.
 - `cap` / `capabilities` shell command reports:
   - user app execution mode coverage (kernel vs user placeholder),
   - host-program build workflow status,

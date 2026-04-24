@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 29, 教學型專案)
+# MinimalOS v1 (Phase 30, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -21,6 +21,7 @@
 - 2026-04-24：`Phase 27` 上線 `cap` / `capabilities`，可在 shell 快速查閱能力邊界與 Linux 支援限制。
 - 2026-04-24：`Phase 28` 強化 host-side 編譯可追蹤性，`make host-programs` 輸出新增 `status`、`flags`、`sha256` 與錯誤摘要。
 - 2026-04-24：`Phase 29` 補上 host 編譯輸出連結模式控制（`MHOST_STATIC`），並將輸出模式納入 manifest 以供可重現打包。
+- 2026-04-24：`Phase 30` 新增 Linux ABI 預覽路徑（`run linux-abi`），打通最小 `write/getpid/exit` syscall 骨架。
 
 ## 分支策略
 
@@ -70,6 +71,9 @@
 - Phase 29：編譯輸出可重現性（完成）
   - 增加 `MHOST_STATIC=1`，可輸出靜態連結主機可執行檔，便於單機測試。
   - manifest 新增 `link_mode` 與 `default_link_mode`，對應 `dynamic/static` 追蹤。
+- Phase 30：Linux ABI 最小骨架（完成）
+  - userproc 增加 Linux x86_64 syscall 預覽子集合：`write(1/2)`、`getpid`、`exit`。
+  - 新增 `run linux-abi` user app（教學用途，非完整 Linux userspace 相容）。
 
 ## 每階段目的與預期成效
 

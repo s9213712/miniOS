@@ -6,6 +6,7 @@ global isr_user_syscall
 global minios_userapp_hello
 global minios_userapp_ticks
 global minios_userapp_scheduler
+global minios_userapp_linux_abi
 
 extern userproc_dispatch
 extern g_userproc_return_rip
@@ -50,6 +51,18 @@ minios_userapp_ticks:
 minios_userapp_scheduler:
     mov eax, 1
     mov edi, 3
+    int 0x80
+    mov eax, 60
+    xor edi, edi
+    int 0x80
+
+minios_userapp_linux_abi:
+    mov eax, 1
+    mov edi, 1
+    lea rsi, [rel linux_abi_msg]
+    mov edx, linux_abi_msg_len
+    int 0x80
+    mov eax, 39
     int 0x80
     mov eax, 60
     xor edi, edi
@@ -119,5 +132,10 @@ isr_user_syscall:
     iretq
 
 .user_syscall_continue:
-    pop rax
+    add rsp, 8
+    mov rax, rbx
     iretq
+
+section .rodata
+linux_abi_msg: db "linux abi preview: write/getpid/exit ok", 10
+linux_abi_msg_len equ $ - linux_abi_msg
