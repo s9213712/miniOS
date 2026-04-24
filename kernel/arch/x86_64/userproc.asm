@@ -2,6 +2,7 @@ BITS 64
 default rel
 
 global userproc_enter_asm
+global userproc_enter_execve_asm
 global isr_user_syscall
 global minios_userapp_hello
 global minios_userapp_ticks
@@ -26,6 +27,28 @@ userproc_enter_asm:
     push rax                  ; restore modified RFLAGS
     push qword 0x1B           ; user code selector (RPL=3)
     push rdi                  ; user RIP
+    iretq
+
+userproc_enter_execve_asm:
+    ; Arguments:
+    ; rdi = entry function pointer (RIP in user mode)
+    ; rsi = initial userspace RSP
+    ; rdx = argc
+    ; rcx = argv pointer
+    ; r8  = envp pointer
+    mov r9, rdi
+    mov r10, rsi
+    push qword 0x23          ; user data segment selector
+    push r10                 ; user stack pointer
+    pushfq
+    pop rax
+    or eax, 0x200
+    push rax
+    push qword 0x1B          ; user code selector (RPL=3)
+    push r9                  ; user RIP
+    mov rdi, rdx             ; argc
+    mov rsi, rcx             ; argv
+    mov rdx, r8              ; envp
     iretq
 
 userapp_hello_syscall_loop:

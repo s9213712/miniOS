@@ -773,10 +773,27 @@ void userproc_linux_abi_probe(void) {
  * pushes a user-mode IRET frame and jumps via iretq.
  */
 extern void userproc_enter_asm(uint64_t entry, uint64_t user_stack);
+extern void userproc_enter_execve_asm(uint64_t entry,
+                                      uint64_t user_stack,
+                                      uint64_t argc,
+                                      uint64_t argv_user,
+                                      uint64_t envp_user);
 
 void userproc_enter(uint64_t entry, uint64_t user_stack_top, uint64_t return_rip, uint64_t return_stack) {
     g_userproc_running = true;
     userproc_set_return_context(return_rip, return_stack);
     g_userproc_current_app_id = 0;
     userproc_enter_asm(entry, user_stack_top);
+}
+
+void userproc_enter_execve(uint64_t entry,
+                           uint64_t user_stack_top,
+                           uint64_t argc,
+                           uint64_t argv_user,
+                           uint64_t envp_user,
+                           uint64_t return_rip,
+                           uint64_t return_stack) {
+    g_userproc_running = true;
+    userproc_set_return_context(return_rip, return_stack);
+    userproc_enter_execve_asm(entry, user_stack_top, argc, argv_user, envp_user);
 }

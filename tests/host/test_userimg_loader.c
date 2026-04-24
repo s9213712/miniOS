@@ -8,6 +8,12 @@
 
 static uint64_t g_console_last_u64;
 static uint32_t g_console_u64_count;
+static uint64_t g_enter_execve_entry;
+static uint64_t g_enter_execve_stack;
+static uint64_t g_enter_execve_argc;
+static uint64_t g_enter_execve_argv;
+static uint64_t g_enter_execve_envp;
+static uint32_t g_enter_execve_count;
 
 /* Host test stubs for elf.c diagnostic symbols. */
 void console_write_string(const char *str) {
@@ -32,8 +38,23 @@ void userproc_enter_asm(uint64_t entry, uint64_t user_stack) {
     (void)user_stack;
 }
 
+void userproc_enter_execve_asm(uint64_t entry,
+                               uint64_t user_stack,
+                               uint64_t argc,
+                               uint64_t argv_user,
+                               uint64_t envp_user) {
+    g_enter_execve_entry = entry;
+    g_enter_execve_stack = user_stack;
+    g_enter_execve_argc = argc;
+    g_enter_execve_argv = argv_user;
+    g_enter_execve_envp = envp_user;
+    g_enter_execve_count++;
+}
+
 extern uint64_t g_userproc_running;
 extern uint64_t g_userproc_current_app_id;
+extern uint64_t g_userproc_return_rip;
+extern uint64_t g_userproc_return_stack;
 
 enum {
     TEST_LINUX_SYSCALL_EXECVE = 59,
@@ -161,6 +182,31 @@ int main(void) {
     }
     if (layout.used_bytes == 0 || layout.strings_bytes == 0 || layout.used_bytes < layout.strings_bytes) {
         fprintf(stderr, "[test_userimg_loader] invalid used/strings byte counters\n");
+        free(stack_mem);
+        return 1;
+    }
+
+    g_userproc_running = 0;
+    g_userproc_return_rip = 0;
+    g_userproc_return_stack = 0;
+    g_enter_execve_count = 0;
+    userproc_enter_execve(report.mapped_entry,
+                          layout.initial_rsp,
+                          layout.argc,
+                          layout.argv_user,
+                          layout.envp_user,
+                          0xCAFEBABEULL,
+                          0xFEEDFACEULL);
+    if (g_userproc_running != 1 ||
+        g_userproc_return_rip != 0xCAFEBABEULL ||
+        g_userproc_return_stack != 0xFEEDFACEULL ||
+        g_enter_execve_count != 1 ||
+        g_enter_execve_entry != report.mapped_entry ||
+        g_enter_execve_stack != layout.initial_rsp ||
+        g_enter_execve_argc != layout.argc ||
+        g_enter_execve_argv != layout.argv_user ||
+        g_enter_execve_envp != layout.envp_user) {
+        fprintf(stderr, "[test_userimg_loader] execve userspace entry handoff mismatch\n");
         free(stack_mem);
         return 1;
     }
