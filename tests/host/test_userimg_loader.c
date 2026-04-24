@@ -6,13 +6,17 @@
 #include <stdio.h>
 #include <string.h>
 
+static uint64_t g_console_last_u64;
+static uint32_t g_console_u64_count;
+
 /* Host test stubs for elf.c diagnostic symbols. */
 void console_write_string(const char *str) {
     (void)str;
 }
 
 void console_write_u64(uint64_t value) {
-    (void)value;
+    g_console_last_u64 = value;
+    g_console_u64_count++;
 }
 
 void console_write_char(char ch) {
@@ -33,6 +37,7 @@ extern uint64_t g_userproc_current_app_id;
 
 enum {
     TEST_LINUX_SYSCALL_EXECVE = 59,
+    TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
 };
 
 static uint64_t read_u64(const uint8_t *stack_mem, uint64_t stack_base, uint64_t stack_top, uint64_t addr) {
@@ -235,6 +240,21 @@ int main(void) {
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_EXECVE, 0, 0, 0);
     if ((int64_t)exec_rc != -14) {
         fprintf(stderr, "[test_userimg_loader] expected execve EFAULT (-14), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+
+    g_console_last_u64 = 0;
+    g_console_u64_count = 0;
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_UNIMPLEMENTED, 0, 0, 0);
+    if ((int64_t)exec_rc != -38) {
+        fprintf(stderr, "[test_userimg_loader] expected unimplemented syscall ENOSYS (-38), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    if (g_console_u64_count == 0 || g_console_last_u64 != TEST_LINUX_SYSCALL_UNIMPLEMENTED) {
+        fprintf(stderr, "[test_userimg_loader] expected unimplemented syscall number in diagnostics\n");
         free(stack_mem);
         return 1;
     }

@@ -685,7 +685,9 @@ uint64_t userproc_dispatch(uint64_t syscall, uint64_t arg1, uint64_t arg2, uint6
             console_write_string("\n");
             return 1;
         default:
-            console_write_string("userapp syscall not implemented\n");
+            console_write_string("userapp syscall not implemented nr=");
+            console_write_u64(syscall);
+            console_write_string("\n");
             return userproc_errno(-38); /* ENOSYS */
     }
 }
