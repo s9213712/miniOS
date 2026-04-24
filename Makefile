@@ -195,7 +195,7 @@ prefetch-limine: $(KERNEL_ELF)
 	SMOKE_KEEP_LOGS=1 \
 	SMOKE_OFFLINE=0 \
 	TEST_SMOKE_LOG_DIR="${CURDIR}/.cache/miniOS-smoke-logs" \
-	TEST_SMOKE_BASENAME="prefetch" \
+	SMOKE_BASENAME="prefetch" \
 	bash scripts/make_iso.sh >/dev/null
 
 clean:

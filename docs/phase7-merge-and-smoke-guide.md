@@ -30,9 +30,10 @@
 2. 觀察輸出需包含：
    - `test_smoke Boot text found.`
    - `Phase 3 memory map verified.`
+   - `Execve demo verified.`
    - `PASS`
 
-實作結果：`smoke-offline` 成功通過（含 serial 8 秒內 `hello from kernel` 驗證）。
+實作結果：`smoke-offline` 成功通過（含 serial 8 秒內 `hello from kernel` 與 execve demo 驗證）。
 
 補測：
 - `LIMINE_LOCAL_DIR=/tmp/limine-bin make test-smoke`

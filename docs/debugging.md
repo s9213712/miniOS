@@ -50,7 +50,7 @@ make clean
 SKIP_SMOKE_RUN=1 make test-smoke
 LIMINE_LOCAL_DIR=/path/to/limine-bin make test-smoke
 LIMINE_LOCAL_DIR=/path/to/limine-bin make smoke-offline
-make smoke-offline
+LIMINE_LOCAL_DIR=/path/to/limine-bin make smoke-offline-basic
 ```
 
 If boot output still does not appear, common causes are:
@@ -69,7 +69,7 @@ Optional environment flags:
 - `LIMINE_CACHE_DIR` can hold a reusable local Limine binary cache.
 - `QEMU_MACHINE`, `QEMU_CPU`, `QEMU_MEM` can be passed for emulator tuning.
 - `QEMU_TIMEOUT` can be set in seconds for smoke tests.
-- `TEST_SMOKE_LOG_DIR` and `TEST_SMOKE_BASENAME` control where smoke logs are written.
+- `TEST_SMOKE_LOG_DIR` and `SMOKE_BASENAME` control where smoke logs are written.
 - `SMOKE_KEEP_LOGS=1` keeps logs on successful runs for later inspection.
 
 Example:
