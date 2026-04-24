@@ -465,6 +465,26 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
+    uint64_t file_map_addr = userproc_dispatch(TEST_LINUX_SYSCALL_MMAP,
+                                               0,
+                                               4096,
+                                               TEST_PROT_READ,
+                                               TEST_MAP_PRIVATE,
+                                               fd,
+                                               0);
+    if ((int64_t)file_map_addr < 0 || (file_map_addr & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected file-backed mmap addr, got %lld\n",
+                (long long)file_map_addr);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MUNMAP, file_map_addr, 4096, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected file-backed munmap success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, fd, 0, 0, 0, 0, 0);
     if (exec_rc != 0) {
         fprintf(stderr, "[test_userimg_loader] expected close success, got %lld\n", (long long)exec_rc);
@@ -607,8 +627,8 @@ int main(void) {
                                 TEST_MAP_PRIVATE,
                                 UINT64_MAX,
                                 0);
-    if ((int64_t)exec_rc != -38) {
-        fprintf(stderr, "[test_userimg_loader] expected file-backed mmap ENOSYS (-38), got %lld\n",
+    if ((int64_t)exec_rc != -9) {
+        fprintf(stderr, "[test_userimg_loader] expected bad-fd file mmap EBADF (-9), got %lld\n",
                 (long long)exec_rc);
         free(stack_mem);
         return 1;
