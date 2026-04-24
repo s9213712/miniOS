@@ -1,4 +1,4 @@
-# MinimalOS v1 (Phase 36, 教學型專案)
+# MinimalOS v1 (Phase 37, 教學型專案)
 
 這個專案是逐階段開發的小型 x86_64 作業系統，目標是讓每個階段都能在 `make smoke-offline` 下驗證。  
 每個階段都有明確目的、實作範圍與預期成效，並保留在 `main` 歷史中的歷程提交作為教學紀錄。
@@ -28,6 +28,7 @@
 - 2026-04-24：`Phase 34` 新增可寫入 `/tmp` overlay VFS，shell 支援 `write/append/touch/rm`，並補上 `make test-vfs-rw`。
 - 2026-04-24：`Phase 35` 強化 scheduler 控制面，新增 `task start/stop/reset/list` 與 `make test-scheduler-ctl`。
 - 2026-04-24：`Phase 36` 新增 VMM 基礎層（map/unmap + region metadata）並將 `linux-abi brk` 接入，補上 `make test-vmm-basic`。
+- 2026-04-24：`Phase 37` 新增 user image loader 骨架（`run elf-load`），可將 embedded ELF 的 load layout 映射到 VMM metadata，並補上 `make test-userimg-loader`。
 
 ## 分支策略
 
@@ -101,6 +102,10 @@
   - 新增 `kernel/mm/vmm.c` 與 `kernel/include/mvos/vmm.h`，提供 `map/unmap` 與 region 查詢接口。
   - `linux-abi` 的 `brk` 改為使用 VMM user-heap 狀態，不再是獨立靜態變數。
   - shell 新增 `vmm` 指令顯示 region 與 `user_brk/limit`，並新增 `make test-vmm-basic`。
+- Phase 37：使用者映像載入骨架（完成）
+  - 新增 `kernel/core/userimg.c` 與 `kernel/include/mvos/userimg.h`，以 `ELF64 inspect + PT_LOAD layout` 建立 user image 映射規劃。
+  - 新增 `run elf-load`，把 embedded Linux ELF 的 load 區段映射進 VMM metadata（layout-only，尚未切到真實 userspace 執行）。
+  - 新增 `make test-userimg-loader` 驗證重複載入與 VMM region/tag 行為。
 
 ## 每階段目的與預期成效
 
@@ -211,6 +216,7 @@ make test-elf-sample
 make test-vfs-rw
 make test-scheduler-ctl
 make test-vmm-basic
+make test-userimg-loader
 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
 LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 ```
@@ -225,6 +231,7 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make run
 - `make test-vfs-rw`：驗證 `/tmp` 可寫 overlay 的 host 端回歸測試
 - `make test-scheduler-ctl`：驗證 scheduler 任務啟停與 reset 控制
 - `make test-vmm-basic`：驗證 VMM map/unmap 與 `brk` 邊界行為
+- `make test-userimg-loader`：驗證 `run elf-load` 對應的 ELF load layout 映射骨架
 - `python3 scripts/dev_status.py --build`：環境 + 建置健康檢查（建議每次大改後）
 - `python3 scripts/dev_status.py --build-programs`：主機端範例程式建置檢查
 - `python3 scripts/dev_status.py`：只做環境檢查，不會重建

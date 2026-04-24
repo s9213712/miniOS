@@ -7,7 +7,7 @@
 > cd /home/s92137/miniOS
 > ```
 
-> 目前進度摘要：`smoke` 主線穩定後，新增 `run --help`、`run --status`，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Python 尚未提供 miniOS 內部 runtime；Linux 應用（如 transmission/htop/nano）也尚未支援，`run linux-abi` 目前是擴展中的 syscall ABI 預覽（非完整 userspace）。
+> 目前進度摘要：`smoke` 主線穩定後，新增 `run --help`、`run --status`，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`、`run elf-load`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Python 尚未提供 miniOS 內部 runtime；Linux 應用（如 transmission/htop/nano）也尚未支援，`run linux-abi` 目前是擴展中的 syscall ABI 預覽（非完整 userspace）。
 
 ---
 
@@ -67,6 +67,10 @@
 - 驗證 VMM 與 brk 邊界行為：
   ```bash
   make test-vmm-basic
+  ```
+- 驗證 user image loader 載入佈局行為：
+  ```bash
+  make test-userimg-loader
   ```
 - 主機端編譯腳本（可用來驗證輸出）：
   ```bash
@@ -195,6 +199,7 @@
   - `run cpp`
   - `run linux-abi`（Linux x86_64 syscall 子集合預覽：write/writev/brk/uname/getpid/gettid/set_tid_address/arch_prctl/exit_group）
   - `run elf-inspect`（檢查內嵌 Linux ELF64 樣本 metadata）
+  - `run elf-load`（把內嵌 Linux ELF64 的 `PT_LOAD` 佈局映射到 VMM metadata）
   - `run python`（目前僅回報 Python 尚未支援於 miniOS）
   - `cap` / `capabilities`：列出 miniOS 當前能力矩陣與限制
   - `run --help` 列出 `run` 可用子選項
@@ -219,7 +224,9 @@
 - `run cpp` 為目前 C++ 使用者應用示範，仍以 kernel-mode fallback 路徑實作。
 - `run linux-abi` 為 Linux ABI 教學預覽，會輸出一組 fallback probe 結果；目前尚不支援 ELF loader、動態連結與 glibc userspace。
 - `run elf-inspect` 會輸出內嵌 Linux user ELF 的 entry、program header 數與 load/file range，供 loader 前置驗證。
+- `run elf-load` 會輸出對應 mapped entry/range 與 mapped region 統計；目前是 layout-only 骨架，尚未真的執行 Linux userspace ELF。
 - `make test-elf-sample` 會重新產生 blob 並檢查 ELF magic、必要符號與最小 byte 數，適合每次調整 loader/ELF 邏輯後回歸。
+- `make test-userimg-loader` 會檢查 loader 映射結果可重複載入且不造成 VMM region 數量漂移。
 
 ---
 

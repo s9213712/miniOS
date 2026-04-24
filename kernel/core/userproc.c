@@ -158,8 +158,8 @@ static uint64_t userproc_linux_uname(uint64_t user_buf) {
     volatile minios_utsname_t *u = (volatile minios_utsname_t *)(uintptr_t)user_buf;
     userproc_copy_cstr((char *)u->sysname, sizeof(u->sysname), "miniOS");
     userproc_copy_cstr((char *)u->nodename, sizeof(u->nodename), "miniOS-node");
-    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.36");
-    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Phase36 vmm+linux abi preview");
+    userproc_copy_cstr((char *)u->release, sizeof(u->release), "0.37");
+    userproc_copy_cstr((char *)u->version, sizeof(u->version), "Phase37 userimg+linux abi preview");
     userproc_copy_cstr((char *)u->machine, sizeof(u->machine), "x86_64");
     userproc_copy_cstr((char *)u->domainname, sizeof(u->domainname), "miniOS.local");
     return 0;

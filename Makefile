@@ -70,7 +70,7 @@ OBJS := $(C_OBJS) $(CXX_OBJS) $(ASM_OBJS)
 
 FLAGS_MARK := $(OUTPUT_DIR)/.build-flags
 
-.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline prefetch-limine host-programs build-host-programs clean-host-programs test-host-programs refresh-elf-sample test-elf-sample test-vfs-rw test-scheduler-ctl test-vmm-basic
+.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline prefetch-limine host-programs build-host-programs clean-host-programs test-host-programs refresh-elf-sample test-elf-sample test-vfs-rw test-scheduler-ctl test-vmm-basic test-userimg-loader
 
 HOST_PROGRAMS_SRC_DIR := samples/user-programs
 HOST_PROGRAMS_OUT_DIR := $(OUTPUT_DIR)/host-programs
@@ -161,6 +161,9 @@ test-scheduler-ctl:
 
 test-vmm-basic:
 	@bash scripts/test_vmm_basic.sh
+
+test-userimg-loader:
+	@bash scripts/test_userimg_loader.sh
 
 clean-host-programs:
 	rm -rf "$(HOST_PROGRAMS_OUT_DIR)"

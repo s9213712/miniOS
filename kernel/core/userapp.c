@@ -5,6 +5,7 @@
 #include <mvos/scheduler.h>
 #include <mvos/interrupt.h>
 #include <mvos/elf.h>
+#include <mvos/userimg.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
@@ -91,11 +92,46 @@ static void userapp_fallback_elf_inspect(void) {
     elf_sample_diagnostic();
 }
 
+static void userapp_fallback_elf_load(void) {
+    mvos_userimg_report_t report;
+    mvos_userimg_result_t rc = userimg_prepare_embedded_sample(&report);
+    if (rc != MVOS_USERIMG_OK) {
+        console_write_string("elf load failed: ");
+        console_write_string(userimg_result_name(rc));
+        console_write_string("\n");
+        return;
+    }
+
+    console_write_string("elf load prepared (layout-only)\n");
+    console_write_string("entry=");
+    console_write_u64(report.entry);
+    console_write_string(" mapped_entry=");
+    console_write_u64(report.mapped_entry);
+    console_write_string("\n");
+    console_write_string("orig_vaddr=[");
+    console_write_u64(report.min_vaddr);
+    console_write_string(",");
+    console_write_u64(report.max_vaddr);
+    console_write_string(") mapped=[");
+    console_write_u64(report.mapped_base);
+    console_write_string(",");
+    console_write_u64(report.mapped_limit);
+    console_write_string(")\n");
+    console_write_string("load_segments=");
+    console_write_u64(report.load_segments);
+    console_write_string(" mapped_regions=");
+    console_write_u64(report.mapped_regions);
+    console_write_string(" mapped_bytes=");
+    console_write_u64(report.mapped_bytes);
+    console_write_string("\n");
+}
+
 static const mvos_userapp_t g_userapps[] = {
     {"hello", "print hello from user app (user mode)", userapp_fallback_hello, (uint64_t)minios_userapp_hello, true},
     {"ticks", "print current timer ticks via user syscall", userapp_fallback_ticks, (uint64_t)minios_userapp_ticks, true},
     {"linux-abi", "preview Linux x86_64 syscall subset (stage 33 scaffold)", userapp_fallback_linux_abi, (uint64_t)minios_userapp_linux_abi, true},
     {"elf-inspect", "inspect embedded linux-user ELF metadata (kernel mode)", userapp_fallback_elf_inspect, 0, false},
+    {"elf-load", "prepare embedded linux-user ELF VMM layout (kernel mode)", userapp_fallback_elf_load, 0, false},
     {"cpp", "print C++ demo result (kernel mode demo)", userapp_fallback_cpp, 0, false},
     {"scheduler", "print scheduler snapshot (kernel mode)", userapp_scheduler, 0, false},
     {"python", "print Python availability notice", userapp_fallback_python, 0, false},

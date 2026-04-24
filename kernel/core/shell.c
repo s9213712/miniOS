@@ -549,6 +549,7 @@ static void shell_cmd_capabilities(void) {
     console_write_string("    - `make test-vfs-rw` validates writable /tmp VFS behavior\n");
     console_write_string("    - `make test-scheduler-ctl` validates scheduler task controls\n");
     console_write_string("    - `make test-vmm-basic` validates VMM map/unmap and brk bounds\n");
+    console_write_string("    - `make test-userimg-loader` validates ELF load layout mapping into VMM metadata\n");
     console_write_string("    - `python3 scripts/dev_status.py --build-programs` validates build chain\n");
     console_write_string("    - `make refresh-elf-sample` regenerates embedded Linux ELF sample blob\n");
     console_write_string("    - `make test-elf-sample` validates regenerated ELF sample contract\n");
@@ -560,7 +561,8 @@ static void shell_cmd_capabilities(void) {
     console_write_string("    - Python interpreter\n");
     console_write_string("    - Linux native executables (transmission/htop/nano)\n");
     console_write_string("    - full user page-table mapping + real ring3 isolation\n");
-    console_write_string("    - ELF userspace loader + persistent disk filesystem\n");
+    console_write_string("    - full ELF userspace execution path (currently layout-only mapping)\n");
+    console_write_string("    - persistent disk filesystem\n");
 }
 
 static void shell_print_help(void) {
@@ -761,6 +763,7 @@ static void shell_exec(const char *line) {
         console_write_string("  make test-vfs-rw\n");
         console_write_string("  make test-scheduler-ctl\n");
         console_write_string("  make test-vmm-basic\n");
+        console_write_string("  make test-userimg-loader\n");
         console_write_string("  make test-elf-sample\n");
         console_write_string("  python3 scripts/dev_status.py --build-programs\n");
         console_write_string("  python3 scripts/build_user_programs.py --source-dir samples/user-programs --out-dir build/host-programs\n");
@@ -905,7 +908,7 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 7 && shell_streq(trimmed_line, "version")) {
-        console_write_string("MiniOS Phase 36 (vmm scaffold + brk state)\n");
+        console_write_string("MiniOS Phase 37 (user image loader skeleton)\n");
         return;
     }
     if (cmd_len == 4 && shell_streq(trimmed_line, "echo")) {
@@ -934,7 +937,7 @@ static void shell_exec(const char *line) {
 
 void shell_run(void) {
     static char line[SHELL_BUFFER_LEN];
-    console_write_string("MiniOS shell (phase 36)\n");
+    console_write_string("MiniOS shell (phase 37)\n");
     shell_print_help();
     for (;;) {
         shell_print_prompt();

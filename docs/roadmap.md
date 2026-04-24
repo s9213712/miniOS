@@ -28,6 +28,7 @@
 - 2026-04-24：`Phase 34` 新增 `/tmp` 可寫 overlay VFS 與 shell `write/append/touch/rm` 指令，並加入 `make test-vfs-rw`。
 - 2026-04-24：`Phase 35` 新增 scheduler 任務控制命令（`task start/stop/reset/list`）與 `make test-scheduler-ctl`。
 - 2026-04-24：`Phase 36` 新增 VMM 骨架（map/unmap + region metadata）與 `brk` 狀態接線，並加入 `make test-vmm-basic`。
+- 2026-04-24：`Phase 37` 新增 user image loader 骨架（`run elf-load`）與 `make test-userimg-loader`，提供 ELF `PT_LOAD` 到 VMM metadata 的最小接線。
 
 ## 檢查前提
 
@@ -212,3 +213,7 @@
   - 新增 `vmm` 模組，提供最小 `map/unmap/region list` 介面與 flags/tag metadata。
   - 新增 `vmm_user_heap_init` / `vmm_user_brk_set`，將 Linux ABI `brk` 路徑納入同一狀態模型。
   - 新增 `scripts/test_vmm_basic.sh` 與 `make test-vmm-basic`，驗證 VMM 介面與 brk 邊界行為。
+- Phase 37：使用者映像載入骨架（完成）
+  - 新增 `userimg` 模組，解析 embedded ELF 的 `PT_LOAD` 佈局並映射到固定 user image 區段（layout-only）。
+  - 新增 `run elf-load` 命令路徑，輸出 mapped entry、mapped range、mapped regions/bytes。
+  - 新增 `scripts/test_userimg_loader.sh` 與 `make test-userimg-loader`，驗證重複載入下 VMM 行為穩定。

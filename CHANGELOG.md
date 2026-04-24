@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 37 – User Image Loader Skeleton
+
+### Added
+- Added user image loader module:
+  - `kernel/core/userimg.c`
+  - `kernel/include/mvos/userimg.h`
+- Added `run elf-load` user app path to prepare embedded ELF `PT_LOAD` layout into VMM metadata (layout-only path for teaching).
+- Added host regression coverage:
+  - `tests/host/test_userimg_loader.c`
+  - `scripts/test_userimg_loader.sh`
+  - `make test-userimg-loader`
+- Updated shell capability text/build hints and phase strings to reflect Phase 37.
+
+### Validation
+- `make test-userimg-loader`
+- `make test-vmm-basic`
+- `make test-scheduler-ctl`
+- `make test-vfs-rw`
+- `make test-elf-sample`
+- `make test-host-programs`
+- `make -B`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
 ## Phase 36 – VMM Scaffold and `brk` State Wiring
 
 ### Added
