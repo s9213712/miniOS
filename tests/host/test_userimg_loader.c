@@ -132,6 +132,8 @@ enum {
     TEST_LINUX_SYSCALL_NEWFSTATAT = 262,
     TEST_LINUX_SYSCALL_READLINKAT = 267,
     TEST_LINUX_SYSCALL_FACCESSAT = 269,
+    TEST_LINUX_SYSCALL_SET_ROBUST_LIST = 273,
+    TEST_LINUX_SYSCALL_GET_ROBUST_LIST = 274,
     TEST_LINUX_SYSCALL_DUP3 = 292,
     TEST_LINUX_SYSCALL_PRLIMIT64 = 302,
     TEST_LINUX_SYSCALL_GETRANDOM = 318,
@@ -639,6 +641,45 @@ int main(void) {
                                 0);
     if ((int64_t)exec_rc != -22) {
         fprintf(stderr, "[test_userimg_loader] expected sched_getaffinity EINVAL (-22), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint8_t robust_head[32];
+    uint64_t robust_head_user = (uint64_t)(uintptr_t)robust_head;
+    uint64_t robust_head_out = 0;
+    uint64_t robust_len_out = 0;
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_SET_ROBUST_LIST,
+                                robust_head_user,
+                                sizeof(robust_head),
+                                0,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected set_robust_list success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GET_ROBUST_LIST,
+                                0,
+                                (uint64_t)(uintptr_t)&robust_head_out,
+                                (uint64_t)(uintptr_t)&robust_len_out,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0 || robust_head_out != robust_head_user || robust_len_out != sizeof(robust_head)) {
+        fprintf(stderr, "[test_userimg_loader] expected get_robust_list echo, rc=%lld head=%llu len=%llu\n",
+                (long long)exec_rc,
+                (unsigned long long)robust_head_out,
+                (unsigned long long)robust_len_out);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_SET_ROBUST_LIST, 0, sizeof(robust_head), 0, 0, 0, 0);
+    if ((int64_t)exec_rc != -22) {
+        fprintf(stderr, "[test_userimg_loader] expected set_robust_list EINVAL (-22), got %lld\n",
                 (long long)exec_rc);
         free(stack_mem);
         return 1;

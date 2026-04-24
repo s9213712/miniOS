@@ -55,6 +55,8 @@ enum {
     MINIOS_LINUX_SYSCALL_NEWFSTATAT = 262,
     MINIOS_LINUX_SYSCALL_READLINKAT = 267,
     MINIOS_LINUX_SYSCALL_FACCESSAT = 269,
+    MINIOS_LINUX_SYSCALL_SET_ROBUST_LIST = 273,
+    MINIOS_LINUX_SYSCALL_GET_ROBUST_LIST = 274,
     MINIOS_LINUX_SYSCALL_DUP3 = 292,
     MINIOS_LINUX_SYSCALL_PRLIMIT64 = 302,
     MINIOS_LINUX_SYSCALL_GETRANDOM = 318,
@@ -249,6 +251,8 @@ uint64_t g_userproc_syscall_user_rsp;
 static uint64_t g_userproc_fs_base;
 static uint64_t g_userproc_gs_base;
 static uint64_t g_userproc_tid_addr;
+static uint64_t g_userproc_robust_list_head;
+static uint64_t g_userproc_robust_list_len;
 static uint64_t g_userproc_mmap_next = MINIOS_USERPROC_MMAP_BASE;
 static bool g_userproc_strict_user_memory;
 static char g_userproc_exe_path[MINIOS_EXECVE_MAX_PATH];
@@ -1476,6 +1480,33 @@ static uint64_t userproc_linux_sched_getaffinity(uint64_t pid, uint64_t cpusetsi
     return sizeof(mask);
 }
 
+static uint64_t userproc_linux_set_robust_list(uint64_t head, uint64_t len) {
+    if (head == 0 || len == 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    g_userproc_robust_list_head = head;
+    g_userproc_robust_list_len = len;
+    return 0;
+}
+
+static uint64_t userproc_linux_get_robust_list(uint64_t pid, uint64_t user_head, uint64_t user_len) {
+    if (pid != 0 && pid != 1000 + g_userproc_current_app_id) {
+        return userproc_errno(-3); /* ESRCH */
+    }
+    if (user_head == 0 || user_len == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    int64_t rc = userproc_copy_to_user(user_head, &g_userproc_robust_list_head, sizeof(g_userproc_robust_list_head));
+    if (rc != 0) {
+        return userproc_errno(rc);
+    }
+    rc = userproc_copy_to_user(user_len, &g_userproc_robust_list_len, sizeof(g_userproc_robust_list_len));
+    if (rc != 0) {
+        return userproc_errno(rc);
+    }
+    return 0;
+}
+
 static uint64_t userproc_linux_getrandom(uint64_t user_buf, uint64_t count, uint64_t flags) {
     (void)flags;
     if (count == 0) {
@@ -2257,6 +2288,10 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_readlinkat(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_FACCESSAT:
             return userproc_linux_faccessat(arg1, arg2, arg3, arg4);
+        case MINIOS_LINUX_SYSCALL_SET_ROBUST_LIST:
+            return userproc_linux_set_robust_list(arg1, arg2);
+        case MINIOS_LINUX_SYSCALL_GET_ROBUST_LIST:
+            return userproc_linux_get_robust_list(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_DUP3:
             return userproc_linux_dup3(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_PRLIMIT64:
