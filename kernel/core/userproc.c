@@ -20,10 +20,13 @@ enum {
     MINIOS_LINUX_SYSCALL_MPROTECT = 10,
     MINIOS_LINUX_SYSCALL_MUNMAP = 11,
     MINIOS_LINUX_SYSCALL_BRK = 12,
+    MINIOS_LINUX_SYSCALL_RT_SIGACTION = 13,
+    MINIOS_LINUX_SYSCALL_RT_SIGPROCMASK = 14,
     MINIOS_LINUX_SYSCALL_IOCTL = 16,
     MINIOS_LINUX_SYSCALL_PREAD64 = 17,
     MINIOS_LINUX_SYSCALL_ACCESS = 21,
     MINIOS_LINUX_SYSCALL_WRITEV = 20,
+    MINIOS_LINUX_SYSCALL_MADVISE = 28,
     MINIOS_LINUX_SYSCALL_UNAME = 63,
     MINIOS_LINUX_SYSCALL_FCNTL = 72,
     MINIOS_LINUX_SYSCALL_GETCWD = 79,
@@ -79,6 +82,8 @@ enum {
     MINIOS_F_SETFD = 2,
     MINIOS_F_GETFL = 3,
     MINIOS_F_SETFL = 4,
+    MINIOS_RT_SIGSET_SIZE = 8,
+    MINIOS_RT_SIGACTION_SIZE = 32,
     MINIOS_S_IFREG = 0100000,
     MINIOS_S_IFCHR = 0020000,
     MINIOS_USERPROC_MMAP_BASE = 0x0000400001000000ULL,
@@ -509,6 +514,43 @@ static uint64_t userproc_linux_ioctl(uint64_t fd, uint64_t request, uint64_t arg
     return userproc_errno(-25); /* ENOTTY */
 }
 
+static uint64_t userproc_linux_rt_sigaction(uint64_t sig,
+                                            uint64_t user_act,
+                                            uint64_t user_oldact,
+                                            uint64_t sigsetsize) {
+    if (sig == 0 || sig >= 65 || sigsetsize != MINIOS_RT_SIGSET_SIZE) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    if (user_act != 0 &&
+        !userproc_user_range_ok(user_act, MINIOS_RT_SIGACTION_SIZE, MVOS_VMM_FLAG_READ)) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    if (user_oldact != 0) {
+        uint8_t empty_action[MINIOS_RT_SIGACTION_SIZE];
+        memset(empty_action, 0, sizeof(empty_action));
+        return userproc_errno(userproc_copy_to_user(user_oldact, empty_action, sizeof(empty_action)));
+    }
+    return 0;
+}
+
+static uint64_t userproc_linux_rt_sigprocmask(uint64_t how,
+                                              uint64_t user_set,
+                                              uint64_t user_oldset,
+                                              uint64_t sigsetsize) {
+    (void)how;
+    if (sigsetsize != MINIOS_RT_SIGSET_SIZE) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    if (user_set != 0 && !userproc_user_range_ok(user_set, sigsetsize, MVOS_VMM_FLAG_READ)) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    if (user_oldset != 0) {
+        uint64_t empty_mask = 0;
+        return userproc_errno(userproc_copy_to_user(user_oldset, &empty_mask, sizeof(empty_mask)));
+    }
+    return 0;
+}
+
 static uint64_t userproc_linux_fcntl(uint64_t fd, uint64_t cmd, uint64_t arg) {
     (void)arg;
     if (!userproc_fd_is_valid(fd)) {
@@ -530,6 +572,22 @@ static uint64_t userproc_linux_fcntl(uint64_t fd, uint64_t cmd, uint64_t arg) {
         default:
             return userproc_errno(-22); /* EINVAL */
     }
+}
+
+static uint64_t userproc_linux_madvise(uint64_t addr, uint64_t length, uint64_t advice) {
+    (void)advice;
+    if (length == 0) {
+        return 0;
+    }
+    if (addr == 0 || (addr & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    uint64_t map_len = 0;
+    if (userproc_align_up_u64(length, MVOS_VMM_PAGE_SIZE, &map_len) != 0 ||
+        !userproc_user_range_ok(addr, map_len, 0)) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    return 0;
 }
 
 static uint64_t userproc_linux_write(uint64_t fd, uint64_t user_buf, uint64_t count) {
@@ -1419,6 +1477,10 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_mprotect(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_MUNMAP:
             return userproc_linux_munmap(arg1, arg2);
+        case MINIOS_LINUX_SYSCALL_RT_SIGACTION:
+            return userproc_linux_rt_sigaction(arg1, arg2, arg3, arg4);
+        case MINIOS_LINUX_SYSCALL_RT_SIGPROCMASK:
+            return userproc_linux_rt_sigprocmask(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_IOCTL:
             return userproc_linux_ioctl(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_WRITEV:
@@ -1427,6 +1489,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_pread64(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_BRK:
             return userproc_linux_brk(arg1);
+        case MINIOS_LINUX_SYSCALL_MADVISE:
+            return userproc_linux_madvise(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_ACCESS:
             return userproc_linux_access_path(arg1);
         case MINIOS_LINUX_SYSCALL_UNAME:

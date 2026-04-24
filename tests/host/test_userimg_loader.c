@@ -102,9 +102,12 @@ enum {
     TEST_LINUX_SYSCALL_MMAP = 9,
     TEST_LINUX_SYSCALL_MPROTECT = 10,
     TEST_LINUX_SYSCALL_MUNMAP = 11,
+    TEST_LINUX_SYSCALL_RT_SIGACTION = 13,
+    TEST_LINUX_SYSCALL_RT_SIGPROCMASK = 14,
     TEST_LINUX_SYSCALL_IOCTL = 16,
     TEST_LINUX_SYSCALL_PREAD64 = 17,
     TEST_LINUX_SYSCALL_ACCESS = 21,
+    TEST_LINUX_SYSCALL_MADVISE = 28,
     TEST_LINUX_SYSCALL_GETCWD = 79,
     TEST_LINUX_SYSCALL_FCNTL = 72,
     TEST_LINUX_SYSCALL_EXECVE = 59,
@@ -121,6 +124,8 @@ enum {
     TEST_F_SETFD = 2,
     TEST_F_GETFL = 3,
     TEST_F_SETFL = 4,
+    TEST_RT_SIGSET_SIZE = 8,
+    TEST_RT_SIGACTION_SIZE = 32,
     TEST_SEEK_SET = 0,
     TEST_SEEK_CUR = 1,
     TEST_PROT_READ = 0x1,
@@ -455,6 +460,57 @@ int main(void) {
         return 1;
     }
 
+    uint8_t old_action[TEST_RT_SIGACTION_SIZE];
+    memset(old_action, 0xA5, sizeof(old_action));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_RT_SIGACTION,
+                                2,
+                                0,
+                                (uint64_t)(uintptr_t)old_action,
+                                TEST_RT_SIGSET_SIZE,
+                                0,
+                                0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected rt_sigaction success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    for (uint64_t i = 0; i < sizeof(old_action); ++i) {
+        if (old_action[i] != 0) {
+            fprintf(stderr, "[test_userimg_loader] expected empty old sigaction\n");
+            free(stack_mem);
+            return 1;
+        }
+    }
+    uint64_t old_mask = UINT64_MAX;
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_RT_SIGPROCMASK,
+                                0,
+                                0,
+                                (uint64_t)(uintptr_t)&old_mask,
+                                TEST_RT_SIGSET_SIZE,
+                                0,
+                                0);
+    if (exec_rc != 0 || old_mask != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected empty rt_sigprocmask, rc=%lld mask=%llu\n",
+                (long long)exec_rc,
+                (unsigned long long)old_mask);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_RT_SIGACTION,
+                                0,
+                                0,
+                                0,
+                                TEST_RT_SIGSET_SIZE,
+                                0,
+                                0);
+    if ((int64_t)exec_rc != -22) {
+        fprintf(stderr, "[test_userimg_loader] expected rt_sigaction EINVAL (-22), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+
     const char readme_path[] = "/boot/init/readme.txt";
     uint64_t fd = userproc_dispatch(TEST_LINUX_SYSCALL_OPENAT,
                                     (uint64_t)(int64_t)TEST_AT_FDCWD,
@@ -750,6 +806,19 @@ int main(void) {
     }
     if (!found_mmap) {
         fprintf(stderr, "[test_userimg_loader] expected user-mmap VMM region\n");
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MADVISE, mmap_addr, 8192, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected madvise success, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MADVISE, mmap_addr + 1, 4096, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != -22) {
+        fprintf(stderr, "[test_userimg_loader] expected unaligned madvise EINVAL (-22), got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

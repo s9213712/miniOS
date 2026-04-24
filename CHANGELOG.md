@@ -16,6 +16,7 @@
 - Added VFS-backed `pread64` support for offset-based reads without mutating fd cursor state.
 - Added minimal `fcntl` and `ioctl` syscall handling for common runtime fd capability probes.
 - Added `/proc/self/exe` compatibility for `readlink` and `readlinkat` based on the last successful `execve`.
+- Added bootstrap runtime handling for `madvise`, `rt_sigaction`, and `rt_sigprocmask`.
 - Extended the tiny Linux ELF demo to open and read `/boot/init/readme.txt` through real user-mode syscalls.
 - Extended execve smoke checks to require the initfs read marker from userspace.
 - Added host regression coverage for shell command parsing and CI coverage for all host regressions.
