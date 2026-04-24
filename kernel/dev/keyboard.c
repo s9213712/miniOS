@@ -44,6 +44,17 @@ int keyboard_read_char_nonblocking(void) {
     return (int)scancode_to_ascii[scancode];
 }
 
+int keyboard_read_char_timeout(uint64_t max_polls) {
+    for (uint64_t i = 0; i < max_polls; ++i) {
+        int c = keyboard_read_char_nonblocking();
+        if (c >= 0) {
+            return c;
+        }
+        io_wait();
+    }
+    return -1;
+}
+
 int keyboard_read_char(void) {
     int c;
     do {
