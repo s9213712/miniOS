@@ -30,6 +30,7 @@ enum {
     MINIOS_LINUX_SYSCALL_GETPID = 39,
     MINIOS_LINUX_SYSCALL_EXECVE = 59,
     MINIOS_LINUX_SYSCALL_EXIT = 60,
+    MINIOS_LINUX_SYSCALL_READLINK = 89,
     MINIOS_LINUX_SYSCALL_ARCH_PRCTL = 158,
     MINIOS_LINUX_SYSCALL_GETTID = 186,
     MINIOS_LINUX_SYSCALL_SET_TID_ADDRESS = 218,
@@ -37,6 +38,7 @@ enum {
     MINIOS_LINUX_SYSCALL_EXIT_GROUP = 231,
     MINIOS_LINUX_SYSCALL_OPENAT = 257,
     MINIOS_LINUX_SYSCALL_NEWFSTATAT = 262,
+    MINIOS_LINUX_SYSCALL_READLINKAT = 267,
     MINIOS_LINUX_SYSCALL_FACCESSAT = 269,
     MINIOS_LINUX_SYSCALL_GETRANDOM = 318,
     MINIOS_SYSCALL_USER_PRINT = 1
@@ -135,6 +137,7 @@ static uint64_t g_userproc_gs_base;
 static uint64_t g_userproc_tid_addr;
 static uint64_t g_userproc_mmap_next = MINIOS_USERPROC_MMAP_BASE;
 static bool g_userproc_strict_user_memory;
+static char g_userproc_exe_path[MINIOS_EXECVE_MAX_PATH];
 static mvos_vfs_file_t g_userproc_files[MINIOS_USERPROC_MAX_FDS];
 static uint8_t g_userproc_execve_stack_scratch[MINIOS_EXECVE_STACK_SCRATCH_SIZE];
 static uint8_t g_userproc_execve_kernel_stack[MINIOS_EXECVE_KERNEL_STACK_SIZE] __attribute__((aligned(16)));
@@ -973,6 +976,39 @@ static uint64_t userproc_linux_newfstatat(uint64_t dirfd, uint64_t user_path, ui
     return userproc_errno(userproc_copy_to_user(user_stat, &st, sizeof(st)));
 }
 
+static uint64_t userproc_linux_readlinkat(uint64_t dirfd, uint64_t user_path, uint64_t user_buf, uint64_t bufsiz) {
+    if (user_path == 0 || user_buf == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    if (bufsiz == 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+
+    char path_buf[MINIOS_EXECVE_MAX_PATH];
+    int64_t rc = userproc_copy_user_cstr(user_path, path_buf, sizeof(path_buf));
+    if (rc != 0) {
+        return userproc_errno(rc);
+    }
+    if (path_buf[0] != '/' && dirfd != (uint64_t)(int64_t)MINIOS_AT_FDCWD) {
+        return userproc_errno(-2); /* ENOENT */
+    }
+    if (!userproc_streq(path_buf, "/proc/self/exe") &&
+        !userproc_streq(path_buf, "/proc/curproc/file")) {
+        return userproc_errno(-2); /* ENOENT */
+    }
+    if (g_userproc_exe_path[0] == '\0') {
+        return userproc_errno(-2); /* ENOENT */
+    }
+
+    uint64_t len = strlen(g_userproc_exe_path);
+    uint64_t to_copy = (len < bufsiz) ? len : bufsiz;
+    int64_t copy_rc = userproc_copy_to_user(user_buf, g_userproc_exe_path, to_copy);
+    if (copy_rc != 0) {
+        return userproc_errno(copy_rc);
+    }
+    return to_copy;
+}
+
 static uint64_t userproc_linux_brk(uint64_t new_brk) {
     return vmm_user_brk_set(new_brk);
 }
@@ -1119,6 +1155,7 @@ static int64_t userproc_linux_execve(uint64_t user_path,
         return -8; /* ENOEXEC */
     }
 
+    userproc_copy_cstr(g_userproc_exe_path, sizeof(g_userproc_exe_path), exec_path);
     *out_report = report;
     *out_layout = layout;
     return 0;
@@ -1396,6 +1433,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_uname(arg1);
         case MINIOS_LINUX_SYSCALL_FCNTL:
             return userproc_linux_fcntl(arg1, arg2, arg3);
+        case MINIOS_LINUX_SYSCALL_READLINK:
+            return userproc_linux_readlinkat((uint64_t)(int64_t)MINIOS_AT_FDCWD, arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_GETCWD:
             return userproc_linux_getcwd(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_GETPID:
@@ -1413,6 +1452,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return userproc_linux_openat(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_NEWFSTATAT:
             return userproc_linux_newfstatat(arg1, arg2, arg3, arg4);
+        case MINIOS_LINUX_SYSCALL_READLINKAT:
+            return userproc_linux_readlinkat(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_FACCESSAT:
             return userproc_linux_access_path(arg2);
         case MINIOS_LINUX_SYSCALL_GETRANDOM:

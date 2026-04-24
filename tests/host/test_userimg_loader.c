@@ -108,9 +108,11 @@ enum {
     TEST_LINUX_SYSCALL_GETCWD = 79,
     TEST_LINUX_SYSCALL_FCNTL = 72,
     TEST_LINUX_SYSCALL_EXECVE = 59,
+    TEST_LINUX_SYSCALL_READLINK = 89,
     TEST_LINUX_SYSCALL_CLOCK_GETTIME = 228,
     TEST_LINUX_SYSCALL_OPENAT = 257,
     TEST_LINUX_SYSCALL_NEWFSTATAT = 262,
+    TEST_LINUX_SYSCALL_READLINKAT = 267,
     TEST_LINUX_SYSCALL_FACCESSAT = 269,
     TEST_LINUX_SYSCALL_GETRANDOM = 318,
     TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
@@ -377,6 +379,39 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
+    const char self_exe_path[] = "/proc/self/exe";
+    const char expected_exe_path[] = "/boot/init/hello_linux_tiny";
+    char link_buf[64];
+    memset(link_buf, 0, sizeof(link_buf));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READLINK,
+                                (uint64_t)(uintptr_t)self_exe_path,
+                                (uint64_t)(uintptr_t)link_buf,
+                                sizeof(link_buf),
+                                0,
+                                0,
+                                0);
+    if (exec_rc != strlen(expected_exe_path) || memcmp(link_buf, expected_exe_path, exec_rc) != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected readlink self exe, rc=%lld text=%s\n",
+                (long long)exec_rc,
+                link_buf);
+        free(stack_mem);
+        return 1;
+    }
+    memset(link_buf, 0, sizeof(link_buf));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READLINKAT,
+                                (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                (uint64_t)(uintptr_t)self_exe_path,
+                                (uint64_t)(uintptr_t)link_buf,
+                                5,
+                                0,
+                                0);
+    if (exec_rc != 5 || memcmp(link_buf, "/boot", 5) != 0 || link_buf[5] != '\0') {
+        fprintf(stderr, "[test_userimg_loader] expected truncated readlinkat self exe, rc=%lld text=%s\n",
+                (long long)exec_rc,
+                link_buf);
+        free(stack_mem);
+        return 1;
+    }
 
     g_userproc_running = 1;
     exec_rc = userproc_dispatch(
@@ -394,6 +429,21 @@ int main(void) {
     }
     if (g_userproc_running != 1) {
         fprintf(stderr, "[test_userimg_loader] expected failed execve to keep running state\n");
+        free(stack_mem);
+        return 1;
+    }
+    memset(link_buf, 0, sizeof(link_buf));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READLINKAT,
+                                (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                (uint64_t)(uintptr_t)self_exe_path,
+                                (uint64_t)(uintptr_t)link_buf,
+                                sizeof(link_buf),
+                                0,
+                                0);
+    if (exec_rc != strlen(expected_exe_path) || memcmp(link_buf, expected_exe_path, exec_rc) != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected failed execve to preserve self exe, rc=%lld text=%s\n",
+                (long long)exec_rc,
+                link_buf);
         free(stack_mem);
         return 1;
     }
