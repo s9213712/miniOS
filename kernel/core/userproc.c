@@ -36,6 +36,7 @@ enum {
     MINIOS_LINUX_SYSCALL_READLINK = 89,
     MINIOS_LINUX_SYSCALL_ARCH_PRCTL = 158,
     MINIOS_LINUX_SYSCALL_GETTID = 186,
+    MINIOS_LINUX_SYSCALL_GETDENTS64 = 217,
     MINIOS_LINUX_SYSCALL_SET_TID_ADDRESS = 218,
     MINIOS_LINUX_SYSCALL_CLOCK_GETTIME = 228,
     MINIOS_LINUX_SYSCALL_EXIT_GROUP = 231,
@@ -85,7 +86,10 @@ enum {
     MINIOS_RT_SIGSET_SIZE = 8,
     MINIOS_RT_SIGACTION_SIZE = 32,
     MINIOS_S_IFREG = 0100000,
+    MINIOS_S_IFDIR = 0040000,
     MINIOS_S_IFCHR = 0020000,
+    MINIOS_DT_DIR = 4,
+    MINIOS_DT_REG = 8,
     MINIOS_USERPROC_MMAP_BASE = 0x0000400001000000ULL,
     MINIOS_USERPROC_MMAP_LIMIT = 0x0000400010000000ULL,
 };
@@ -130,6 +134,12 @@ typedef struct {
     int64_t tv_nsec;
 } minios_timespec_t;
 
+typedef enum {
+    MINIOS_USERPROC_FD_NONE = 0,
+    MINIOS_USERPROC_FD_FILE = 1,
+    MINIOS_USERPROC_FD_DIR = 2,
+} minios_userproc_fd_kind_t;
+
 uint64_t g_userproc_return_rip;
 uint64_t g_userproc_return_stack;
 uint64_t g_userproc_current_app_id;
@@ -143,6 +153,8 @@ static uint64_t g_userproc_tid_addr;
 static uint64_t g_userproc_mmap_next = MINIOS_USERPROC_MMAP_BASE;
 static bool g_userproc_strict_user_memory;
 static char g_userproc_exe_path[MINIOS_EXECVE_MAX_PATH];
+static minios_userproc_fd_kind_t g_userproc_fd_kinds[MINIOS_USERPROC_MAX_FDS];
+static char g_userproc_fd_paths[MINIOS_USERPROC_MAX_FDS][MINIOS_EXECVE_MAX_PATH];
 static mvos_vfs_file_t g_userproc_files[MINIOS_USERPROC_MAX_FDS];
 static uint8_t g_userproc_execve_stack_scratch[MINIOS_EXECVE_STACK_SCRATCH_SIZE];
 static uint8_t g_userproc_execve_kernel_stack[MINIOS_EXECVE_KERNEL_STACK_SIZE] __attribute__((aligned(16)));
@@ -320,6 +332,17 @@ static int64_t userproc_copy_to_user(uint64_t user_dst, const void *src, uint64_
     return 0;
 }
 
+static void userproc_store_u16_le(uint8_t *dst, uint16_t value) {
+    dst[0] = (uint8_t)(value & 0xffu);
+    dst[1] = (uint8_t)((value >> 8u) & 0xffu);
+}
+
+static void userproc_store_u64_le(uint8_t *dst, uint64_t value) {
+    for (uint64_t i = 0; i < 8; ++i) {
+        dst[i] = (uint8_t)((value >> (i * 8ULL)) & 0xffu);
+    }
+}
+
 static int64_t userproc_copy_user_cstr(uint64_t user_ptr, char *dst, uint64_t cap) {
     if (user_ptr == 0 || dst == NULL || cap < 2) {
         return -14; /* EFAULT */
@@ -409,7 +432,24 @@ static int userproc_fd_to_index(uint64_t fd, uint64_t *out_index) {
         return -1;
     }
     uint64_t index = fd - MINIOS_USERPROC_FD_BASE;
-    if (index >= MINIOS_USERPROC_MAX_FDS || !g_userproc_files[index].in_use) {
+    if (index >= MINIOS_USERPROC_MAX_FDS ||
+        g_userproc_fd_kinds[index] != MINIOS_USERPROC_FD_FILE ||
+        !g_userproc_files[index].in_use) {
+        return -1;
+    }
+    if (out_index != NULL) {
+        *out_index = index;
+    }
+    return 0;
+}
+
+static int userproc_fd_to_any_index(uint64_t fd, uint64_t *out_index) {
+    if (fd < MINIOS_USERPROC_FD_BASE) {
+        return -1;
+    }
+    uint64_t index = fd - MINIOS_USERPROC_FD_BASE;
+    if (index >= MINIOS_USERPROC_MAX_FDS ||
+        g_userproc_fd_kinds[index] == MINIOS_USERPROC_FD_NONE) {
         return -1;
     }
     if (out_index != NULL) {
@@ -422,7 +462,7 @@ static int userproc_fd_is_valid(uint64_t fd) {
     if (fd <= 2) {
         return 1;
     }
-    return userproc_fd_to_index(fd, NULL) == 0;
+    return userproc_fd_to_any_index(fd, NULL) == 0;
 }
 
 static uint64_t userproc_alloc_fd(mvos_vfs_file_t *file) {
@@ -430,12 +470,29 @@ static uint64_t userproc_alloc_fd(mvos_vfs_file_t *file) {
         return userproc_errno(-22); /* EINVAL */
     }
     for (uint64_t i = 0; i < MINIOS_USERPROC_MAX_FDS; ++i) {
-        if (!g_userproc_files[i].in_use) {
+        if (g_userproc_fd_kinds[i] == MINIOS_USERPROC_FD_NONE) {
             g_userproc_files[i] = *file;
+            g_userproc_fd_kinds[i] = MINIOS_USERPROC_FD_FILE;
+            userproc_copy_cstr(g_userproc_fd_paths[i], sizeof(g_userproc_fd_paths[i]), file->path);
             return MINIOS_USERPROC_FD_BASE + i;
         }
     }
     vfs_close(file);
+    return userproc_errno(-24); /* EMFILE */
+}
+
+static uint64_t userproc_alloc_dir_fd(const char *path) {
+    if (path == NULL) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    for (uint64_t i = 0; i < MINIOS_USERPROC_MAX_FDS; ++i) {
+        if (g_userproc_fd_kinds[i] == MINIOS_USERPROC_FD_NONE) {
+            memset(&g_userproc_files[i], 0, sizeof(g_userproc_files[i]));
+            g_userproc_fd_kinds[i] = MINIOS_USERPROC_FD_DIR;
+            userproc_copy_cstr(g_userproc_fd_paths[i], sizeof(g_userproc_fd_paths[i]), path);
+            return MINIOS_USERPROC_FD_BASE + i;
+        }
+    }
     return userproc_errno(-24); /* EMFILE */
 }
 
@@ -448,6 +505,198 @@ static void userproc_fill_stat(minios_linux_stat_t *st, const mvos_vfs_file_t *f
     st->st_size = (int64_t)file->size;
     st->st_blksize = 512;
     st->st_blocks = (int64_t)((file->size + 511ULL) / 512ULL);
+}
+
+static int userproc_path_child_name(const char *dir, const char *path, char *name, uint64_t name_cap, int *is_dir) {
+    if (dir == NULL || path == NULL || name == NULL || name_cap == 0 || path[0] != '/') {
+        return 0;
+    }
+
+    const char *rest = NULL;
+    if (userproc_streq(dir, "/")) {
+        rest = path + 1;
+    } else {
+        uint64_t dir_len = userproc_strlen(dir);
+        for (uint64_t i = 0; i < dir_len; ++i) {
+            if (path[i] == '\0' || path[i] != dir[i]) {
+                return 0;
+            }
+        }
+        if (path[dir_len] != '/') {
+            return 0;
+        }
+        rest = path + dir_len + 1;
+    }
+    if (rest == NULL || rest[0] == '\0') {
+        return 0;
+    }
+
+    uint64_t len = 0;
+    while (rest[len] != '\0' && rest[len] != '/') {
+        if (len + 1 >= name_cap) {
+            return 0;
+        }
+        name[len] = rest[len];
+        ++len;
+    }
+    if (len == 0) {
+        return 0;
+    }
+    name[len] = '\0';
+    if (is_dir != NULL) {
+        *is_dir = (rest[len] == '/') ? 1 : 0;
+    }
+    return 1;
+}
+
+typedef struct {
+    const char *dir;
+    uint64_t target;
+    uint64_t count;
+    int found;
+    char name[64];
+    int is_dir;
+    char seen[32][64];
+    uint64_t seen_count;
+} userproc_dir_find_ctx_t;
+
+static void userproc_dir_find_visitor(const char *path, uint64_t size, uint32_t checksum, void *user_data) {
+    (void)size;
+    (void)checksum;
+    userproc_dir_find_ctx_t *ctx = (userproc_dir_find_ctx_t *)user_data;
+    if (ctx == NULL || ctx->found) {
+        return;
+    }
+
+    char name[64];
+    int is_dir = 0;
+    if (!userproc_path_child_name(ctx->dir, path, name, sizeof(name), &is_dir)) {
+        return;
+    }
+    for (uint64_t i = 0; i < ctx->seen_count; ++i) {
+        if (userproc_streq(ctx->seen[i], name)) {
+            return;
+        }
+    }
+    if (ctx->seen_count < 32) {
+        userproc_copy_cstr(ctx->seen[ctx->seen_count], sizeof(ctx->seen[ctx->seen_count]), name);
+        ++ctx->seen_count;
+    }
+    if (ctx->count == ctx->target) {
+        userproc_copy_cstr(ctx->name, sizeof(ctx->name), name);
+        ctx->is_dir = is_dir;
+        ctx->found = 1;
+        return;
+    }
+    ++ctx->count;
+}
+
+static int userproc_dir_child_at(const char *dir, uint64_t index, char *name, uint64_t name_cap, int *is_dir) {
+    if (dir == NULL || name == NULL || name_cap == 0) {
+        return -1;
+    }
+    if (index == 0) {
+        userproc_copy_cstr(name, name_cap, ".");
+        if (is_dir != NULL) {
+            *is_dir = 1;
+        }
+        return 0;
+    }
+    if (index == 1) {
+        userproc_copy_cstr(name, name_cap, "..");
+        if (is_dir != NULL) {
+            *is_dir = 1;
+        }
+        return 0;
+    }
+
+    userproc_dir_find_ctx_t ctx = {
+        .dir = dir,
+        .target = index - 2,
+    };
+    (void)vfs_list(userproc_dir_find_visitor, dir, &ctx);
+    if (!ctx.found) {
+        return -1;
+    }
+    userproc_copy_cstr(name, name_cap, ctx.name);
+    if (is_dir != NULL) {
+        *is_dir = ctx.is_dir;
+    }
+    return 0;
+}
+
+typedef struct {
+    const char *dir;
+    uint64_t count;
+} userproc_dir_count_ctx_t;
+
+static void userproc_dir_count_visitor(const char *path, uint64_t size, uint32_t checksum, void *user_data) {
+    (void)size;
+    (void)checksum;
+    userproc_dir_count_ctx_t *ctx = (userproc_dir_count_ctx_t *)user_data;
+    char name[64];
+    if (ctx != NULL && userproc_path_child_name(ctx->dir, path, name, sizeof(name), NULL)) {
+        ++ctx->count;
+    }
+}
+
+static int userproc_path_is_directory(const char *path) {
+    if (path == NULL) {
+        return 0;
+    }
+    if (userproc_streq(path, "/") || userproc_streq(path, "/tmp")) {
+        return 1;
+    }
+    mvos_vfs_file_t file;
+    if (vfs_open(path, &file) == 0) {
+        vfs_close(&file);
+        return 0;
+    }
+    userproc_dir_count_ctx_t ctx = { .dir = path };
+    (void)vfs_list(userproc_dir_count_visitor, path, &ctx);
+    return ctx.count > 0;
+}
+
+static int64_t userproc_resolve_path(uint64_t dirfd, uint64_t user_path, char *out, uint64_t out_cap) {
+    if (user_path == 0 || out == NULL || out_cap < 2) {
+        return -14; /* EFAULT */
+    }
+    char path_buf[MINIOS_EXECVE_MAX_PATH];
+    int64_t rc = userproc_copy_user_cstr(user_path, path_buf, sizeof(path_buf));
+    if (rc != 0) {
+        return rc;
+    }
+    if (path_buf[0] == '/') {
+        userproc_copy_cstr(out, out_cap, path_buf);
+        return 0;
+    }
+
+    const char *base = "/";
+    if (dirfd != (uint64_t)(int64_t)MINIOS_AT_FDCWD) {
+        uint64_t index = 0;
+        if (userproc_fd_to_any_index(dirfd, &index) != 0 ||
+            g_userproc_fd_kinds[index] != MINIOS_USERPROC_FD_DIR) {
+            return -2; /* ENOENT */
+        }
+        base = g_userproc_fd_paths[index];
+    }
+
+    uint64_t base_len = userproc_strlen(base);
+    uint64_t path_len = userproc_strlen(path_buf);
+    uint64_t need_slash = (base_len > 1 && base[base_len - 1] != '/') ? 1 : 0;
+    if (base_len + need_slash + path_len + 1 > out_cap) {
+        return -36; /* ENAMETOOLONG */
+    }
+    userproc_copy_cstr(out, out_cap, base);
+    uint64_t pos = base_len;
+    if (need_slash) {
+        out[pos++] = '/';
+    }
+    for (uint64_t i = 0; i < path_len; ++i) {
+        out[pos++] = path_buf[i];
+    }
+    out[pos] = '\0';
+    return 0;
 }
 
 static uint64_t userproc_linux_read(uint64_t fd, uint64_t user_buf, uint64_t count) {
@@ -926,11 +1175,15 @@ static uint64_t userproc_linux_close(uint64_t fd) {
     }
 
     uint64_t index = 0;
-    if (userproc_fd_to_index(fd, &index) != 0) {
+    if (userproc_fd_to_any_index(fd, &index) != 0) {
         return userproc_errno(-9); /* EBADF */
     }
-    vfs_close(&g_userproc_files[index]);
+    if (g_userproc_fd_kinds[index] == MINIOS_USERPROC_FD_FILE) {
+        vfs_close(&g_userproc_files[index]);
+    }
     memset(&g_userproc_files[index], 0, sizeof(g_userproc_files[index]));
+    g_userproc_fd_kinds[index] = MINIOS_USERPROC_FD_NONE;
+    g_userproc_fd_paths[index][0] = '\0';
     return 0;
 }
 
@@ -951,10 +1204,19 @@ static uint64_t userproc_linux_fstat(uint64_t fd, uint64_t user_stat) {
     }
 
     uint64_t index = 0;
-    if (userproc_fd_to_index(fd, &index) != 0) {
+    if (userproc_fd_to_any_index(fd, &index) != 0) {
         return userproc_errno(-9); /* EBADF */
     }
-    userproc_fill_stat(&st, &g_userproc_files[index], MINIOS_S_IFREG | 0444);
+    if (g_userproc_fd_kinds[index] == MINIOS_USERPROC_FD_DIR) {
+        mvos_vfs_file_t dir = {
+            .size = 0,
+            .path = g_userproc_fd_paths[index],
+            .in_use = 1,
+        };
+        userproc_fill_stat(&st, &dir, MINIOS_S_IFDIR | 0555);
+    } else {
+        userproc_fill_stat(&st, &g_userproc_files[index], MINIOS_S_IFREG | 0444);
+    }
     return userproc_errno(userproc_copy_to_user(user_stat, &st, sizeof(st)));
 }
 
@@ -976,30 +1238,30 @@ static uint64_t userproc_linux_lseek(uint64_t fd, uint64_t offset, uint64_t when
 
 static uint64_t userproc_linux_openat(uint64_t dirfd, uint64_t user_path, uint64_t flags, uint64_t mode) {
     (void)mode;
-    if (user_path == 0) {
-        return userproc_errno(-14); /* EFAULT */
-    }
     if ((flags & MINIOS_O_ACCMODE) != 0) {
         return userproc_errno(-13); /* EACCES: VFS syscall bridge is read-only for now. */
     }
-    if ((flags & MINIOS_O_DIRECTORY) != 0) {
-        return userproc_errno(-20); /* ENOTDIR */
-    }
 
     char path_buf[MINIOS_EXECVE_MAX_PATH];
-    int64_t rc = userproc_copy_user_cstr(user_path, path_buf, sizeof(path_buf));
+    int64_t rc = userproc_resolve_path(dirfd, user_path, path_buf, sizeof(path_buf));
     if (rc != 0) {
         return userproc_errno(rc);
     }
 
-    if (path_buf[0] != '/' && dirfd != (uint64_t)(int64_t)MINIOS_AT_FDCWD) {
-        return userproc_errno(-2); /* ENOENT: directory handles are not modeled yet. */
+    if (userproc_path_is_directory(path_buf)) {
+        return userproc_alloc_dir_fd(path_buf);
     }
 
     mvos_vfs_file_t file;
     int open_rc = vfs_open(path_buf, &file);
     if (open_rc == -2) {
         return userproc_errno(-2); /* ENOENT */
+    }
+    if ((flags & MINIOS_O_DIRECTORY) != 0) {
+        if (open_rc == 0) {
+            vfs_close(&file);
+        }
+        return userproc_errno(-20); /* ENOTDIR */
     }
     if (open_rc == -3) {
         return userproc_errno(-24); /* EMFILE */
@@ -1017,12 +1279,20 @@ static uint64_t userproc_linux_newfstatat(uint64_t dirfd, uint64_t user_path, ui
     }
 
     char path_buf[MINIOS_EXECVE_MAX_PATH];
-    int64_t rc = userproc_copy_user_cstr(user_path, path_buf, sizeof(path_buf));
+    int64_t rc = userproc_resolve_path(dirfd, user_path, path_buf, sizeof(path_buf));
     if (rc != 0) {
         return userproc_errno(rc);
     }
-    if (path_buf[0] != '/' && dirfd != (uint64_t)(int64_t)MINIOS_AT_FDCWD) {
-        return userproc_errno(-2); /* ENOENT */
+
+    minios_linux_stat_t st;
+    if (userproc_path_is_directory(path_buf)) {
+        mvos_vfs_file_t dir = {
+            .size = 0,
+            .path = path_buf,
+            .in_use = 1,
+        };
+        userproc_fill_stat(&st, &dir, MINIOS_S_IFDIR | 0555);
+        return userproc_errno(userproc_copy_to_user(user_stat, &st, sizeof(st)));
     }
 
     mvos_vfs_file_t file;
@@ -1034,10 +1304,67 @@ static uint64_t userproc_linux_newfstatat(uint64_t dirfd, uint64_t user_path, ui
         return userproc_errno(-22); /* EINVAL */
     }
 
-    minios_linux_stat_t st;
     userproc_fill_stat(&st, &file, MINIOS_S_IFREG | 0444);
     vfs_close(&file);
     return userproc_errno(userproc_copy_to_user(user_stat, &st, sizeof(st)));
+}
+
+static uint64_t userproc_linux_getdents64(uint64_t fd, uint64_t user_dirp, uint64_t count) {
+    if (user_dirp == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    if (count == 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+
+    uint64_t index = 0;
+    if (userproc_fd_to_any_index(fd, &index) != 0) {
+        return userproc_errno(-9); /* EBADF */
+    }
+    if (g_userproc_fd_kinds[index] != MINIOS_USERPROC_FD_DIR) {
+        return userproc_errno(-20); /* ENOTDIR */
+    }
+
+    uint64_t written = 0;
+    for (;;) {
+        char name[64];
+        int is_dir = 0;
+        uint64_t entry_index = g_userproc_files[index].cursor;
+        if (userproc_dir_child_at(g_userproc_fd_paths[index], entry_index, name, sizeof(name), &is_dir) != 0) {
+            break;
+        }
+
+        uint64_t name_len = userproc_strlen(name);
+        uint64_t reclen = 19ULL + name_len + 1ULL;
+        if (userproc_align_up_u64(reclen, 8, &reclen) != 0 || reclen > sizeof(uint64_t) * 16ULL) {
+            return (written > 0) ? written : userproc_errno(-22); /* EINVAL */
+        }
+        if (reclen > count - written) {
+            return (written > 0) ? written : userproc_errno(-22); /* EINVAL */
+        }
+
+        uint8_t record[sizeof(uint64_t) * 16ULL];
+        memset(record, 0, sizeof(record));
+        uint64_t ino = entry_index + 1ULL;
+        uint64_t next_off = entry_index + 1ULL;
+        uint16_t reclen16 = (uint16_t)reclen;
+        uint8_t dtype = is_dir ? MINIOS_DT_DIR : MINIOS_DT_REG;
+        userproc_store_u64_le(record + 0, ino);
+        userproc_store_u64_le(record + 8, next_off);
+        userproc_store_u16_le(record + 16, reclen16);
+        record[18] = dtype;
+        for (uint64_t i = 0; i <= name_len; ++i) {
+            record[19 + i] = (uint8_t)name[i];
+        }
+
+        int64_t copy_rc = userproc_copy_to_user(user_dirp + written, record, reclen);
+        if (copy_rc != 0) {
+            return (written > 0) ? written : userproc_errno(copy_rc);
+        }
+        written += reclen;
+        g_userproc_files[index].cursor = entry_index + 1ULL;
+    }
+    return written;
 }
 
 static uint64_t userproc_linux_readlinkat(uint64_t dirfd, uint64_t user_path, uint64_t user_buf, uint64_t bufsiz) {
@@ -1511,6 +1838,8 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return 1000 + g_userproc_current_app_id;
         case MINIOS_LINUX_SYSCALL_GETTID:
             return 1000 + g_userproc_current_app_id;
+        case MINIOS_LINUX_SYSCALL_GETDENTS64:
+            return userproc_linux_getdents64(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_SET_TID_ADDRESS:
             g_userproc_tid_addr = arg1;
             return 1000 + g_userproc_current_app_id;

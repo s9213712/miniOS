@@ -121,8 +121,10 @@ enum {
     TEST_LINUX_SYSCALL_READLINKAT = 267,
     TEST_LINUX_SYSCALL_FACCESSAT = 269,
     TEST_LINUX_SYSCALL_GETRANDOM = 318,
+    TEST_LINUX_SYSCALL_GETDENTS64 = 217,
     TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
     TEST_AT_FDCWD = -100,
+    TEST_O_DIRECTORY = 00200000,
     TEST_F_GETFD = 1,
     TEST_F_SETFD = 2,
     TEST_F_GETFL = 3,
@@ -135,6 +137,9 @@ enum {
     TEST_PROT_WRITE = 0x2,
     TEST_MAP_PRIVATE = 0x02,
     TEST_MAP_ANONYMOUS = 0x20,
+    TEST_S_IFDIR = 0040000,
+    TEST_DT_DIR = 4,
+    TEST_DT_REG = 8,
 };
 
 typedef struct {
@@ -162,6 +167,23 @@ typedef struct {
     int64_t tv_sec;
     int64_t tv_nsec;
 } test_timespec_t;
+
+static int dirents_contain(const uint8_t *buf, uint64_t len, const char *name, uint8_t dtype) {
+    uint64_t off = 0;
+    while (off + 19 <= len) {
+        uint16_t reclen = 0;
+        memcpy(&reclen, buf + off + 16, sizeof(reclen));
+        if (reclen < 20 || off + reclen > len) {
+            return 0;
+        }
+        const char *entry_name = (const char *)(buf + off + 19);
+        if (buf[off + 18] == dtype && strcmp(entry_name, name) == 0) {
+            return 1;
+        }
+        off += reclen;
+    }
+    return 0;
+}
 
 static uint64_t read_u64(const uint8_t *stack_mem, uint64_t stack_base, uint64_t stack_top, uint64_t addr) {
     if (addr < stack_base || addr + sizeof(uint64_t) > stack_top) {
@@ -741,6 +763,93 @@ int main(void) {
         fprintf(stderr, "[test_userimg_loader] expected newfstatat success, rc=%lld size=%lld\n",
                 (long long)exec_rc,
                 (long long)st.st_size);
+        free(stack_mem);
+        return 1;
+    }
+    const char init_dir_path[] = "/boot/init";
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_NEWFSTATAT,
+                                (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                (uint64_t)(uintptr_t)init_dir_path,
+                                (uint64_t)(uintptr_t)&st,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0 || (st.st_mode & TEST_S_IFDIR) == 0) {
+        fprintf(stderr, "[test_userimg_loader] expected newfstatat directory success, rc=%lld mode=%o\n",
+                (long long)exec_rc,
+                st.st_mode);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t dirfd = userproc_dispatch(TEST_LINUX_SYSCALL_OPENAT,
+                                       (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                       (uint64_t)(uintptr_t)init_dir_path,
+                                       TEST_O_DIRECTORY,
+                                       0,
+                                       0,
+                                       0);
+    if (dirfd < 3 || dirfd > 10) {
+        fprintf(stderr, "[test_userimg_loader] expected directory fd from openat, got %lld\n",
+                (long long)dirfd);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FSTAT, dirfd, (uint64_t)(uintptr_t)&st, 0, 0, 0, 0);
+    if (exec_rc != 0 || (st.st_mode & TEST_S_IFDIR) == 0) {
+        fprintf(stderr, "[test_userimg_loader] expected directory fstat, rc=%lld mode=%o\n",
+                (long long)exec_rc,
+                st.st_mode);
+        free(stack_mem);
+        return 1;
+    }
+    uint8_t dents[256];
+    memset(dents, 0, sizeof(dents));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETDENTS64,
+                                dirfd,
+                                (uint64_t)(uintptr_t)dents,
+                                sizeof(dents),
+                                0,
+                                0,
+                                0);
+    if ((int64_t)exec_rc <= 0 ||
+        !dirents_contain(dents, exec_rc, ".", TEST_DT_DIR) ||
+        !dirents_contain(dents, exec_rc, "readme.txt", TEST_DT_REG) ||
+        !dirents_contain(dents, exec_rc, "hello_linux_tiny", TEST_DT_REG)) {
+        fprintf(stderr, "[test_userimg_loader] expected getdents64 directory entries, rc=%lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t eof_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETDENTS64,
+                                        dirfd,
+                                        (uint64_t)(uintptr_t)dents,
+                                        sizeof(dents),
+                                        0,
+                                        0,
+                                        0);
+    if (eof_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected getdents64 EOF, got %lld\n",
+                (long long)eof_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, dirfd, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected close dirfd success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_OPENAT,
+                                (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                (uint64_t)(uintptr_t)readme_path,
+                                TEST_O_DIRECTORY,
+                                0,
+                                0,
+                                0);
+    if ((int64_t)exec_rc != -20) {
+        fprintf(stderr, "[test_userimg_loader] expected file openat O_DIRECTORY ENOTDIR (-20), got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }
