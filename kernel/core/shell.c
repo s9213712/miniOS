@@ -389,7 +389,7 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 7 && shell_streq(trimmed_line, "version")) {
-        console_write_string("MiniOS Phase 21 (phase-based tutorial kernel)\n");
+        console_write_string("MiniOS Phase 22 (phase-based tutorial kernel)\n");
         return;
     }
     if (cmd_len == 4 && shell_streq(trimmed_line, "echo")) {

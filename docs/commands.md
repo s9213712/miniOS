@@ -7,7 +7,7 @@
 > cd /home/s92137/miniOS
 > ```
 
-> 目前進度摘要：`smoke` 主線穩定後，支援 `run`、`ls`、`cat`、`app`、`tasks`、`run cpp`，且 `run hello` 僅以 kernel fallback 執行。Python 尚未提供 miniOS 內部 runtime。
+> 目前進度摘要：`smoke` 主線穩定後，支援 `run`、`ls`、`cat`、`app`、`tasks`、`run cpp`，且 `run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Python 尚未提供 miniOS 內部 runtime。
 
 ---
 
@@ -137,12 +137,16 @@
 - `run ticks`
 - `run scheduler`
 - `run cpp`
+- `run python`（目前僅回報 Python 尚未支援於 miniOS）
 - `gui`
 - `reboot`
 - `halt`
 
 - miniOS 本體目前沒有 Python 直譯器（不能直接執行 `.py`），如需 Python 檢查請使用 host 的 `scripts/dev_status.py`。
 - C 應用是直接編譯進 miniOS 核心，透過 `run <name>` 在 shell 內叫用（例如 `run hello`、`run cpp`）。
+- `run python` 目前僅回傳：
+  `Python not available in miniOS runtime yet. Use host-side execution, e.g.:
+  python3 scripts/dev_status.py`
 - `ls` 與 `cat` 目前只支援 initfs 內建唯讀節點，無法建立或修改檔案。
 - `run cpp` 為目前 C++ 使用者應用示範，仍以 kernel-mode fallback 路徑實作。
 

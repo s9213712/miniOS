@@ -71,11 +71,19 @@ static void userapp_fallback_cpp(void) {
     console_write_string(")\n");
 }
 
+static void userapp_fallback_python(void) {
+    console_write_string("Python not available in miniOS runtime yet. ");
+    console_write_string("Use host-side execution, e.g.:\n");
+    console_write_string("  python3 scripts/dev_status.py\n");
+    console_write_string("You can still run C/C++ built-ins via `run <name>`.\n");
+}
+
 static const mvos_userapp_t g_userapps[] = {
     {"hello", "print hello from user app (user mode)", userapp_fallback_hello, (uint64_t)minios_userapp_hello, true},
     {"ticks", "print current timer ticks via user syscall", userapp_fallback_ticks, (uint64_t)minios_userapp_ticks, true},
     {"cpp", "print C++ demo result (kernel mode demo)", userapp_fallback_cpp, 0, false},
     {"scheduler", "print scheduler snapshot (kernel mode)", userapp_scheduler, 0, false},
+    {"python", "print Python availability notice", userapp_fallback_python, 0, false},
 };
 
 static const uint64_t g_userapp_count = sizeof(g_userapps) / sizeof(g_userapps[0]);
