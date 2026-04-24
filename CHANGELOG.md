@@ -18,6 +18,7 @@
 - Added `/proc/self/exe` compatibility for `readlink` and `readlinkat` based on the last successful `execve`.
 - Added bootstrap runtime handling for `madvise`, `rt_sigaction`, and `rt_sigprocmask`.
 - Added minimal directory `openat`/`newfstatat` handling and `getdents64` directory enumeration.
+- Added `dup`, `dup2`, and `dup3` support for stdio, file, and directory descriptors.
 - Pinned default Limine bootstrap downloads to a fixed ref and keyed the default cache path by that ref.
 - Hardened framebuffer console drawing against mirror double-writes and rectangle arithmetic overflow.
 - Added defensive null handling for kernel console, serial, and string helper paths.

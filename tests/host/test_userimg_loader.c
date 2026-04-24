@@ -99,6 +99,7 @@ extern uint64_t g_userproc_return_stack;
 
 enum {
     TEST_LINUX_SYSCALL_READ = 0,
+    TEST_LINUX_SYSCALL_WRITE = 1,
     TEST_LINUX_SYSCALL_CLOSE = 3,
     TEST_LINUX_SYSCALL_FSTAT = 5,
     TEST_LINUX_SYSCALL_LSEEK = 8,
@@ -111,6 +112,8 @@ enum {
     TEST_LINUX_SYSCALL_PREAD64 = 17,
     TEST_LINUX_SYSCALL_ACCESS = 21,
     TEST_LINUX_SYSCALL_MADVISE = 28,
+    TEST_LINUX_SYSCALL_DUP = 32,
+    TEST_LINUX_SYSCALL_DUP2 = 33,
     TEST_LINUX_SYSCALL_GETCWD = 79,
     TEST_LINUX_SYSCALL_FCNTL = 72,
     TEST_LINUX_SYSCALL_EXECVE = 59,
@@ -120,6 +123,7 @@ enum {
     TEST_LINUX_SYSCALL_NEWFSTATAT = 262,
     TEST_LINUX_SYSCALL_READLINKAT = 267,
     TEST_LINUX_SYSCALL_FACCESSAT = 269,
+    TEST_LINUX_SYSCALL_DUP3 = 292,
     TEST_LINUX_SYSCALL_GETRANDOM = 318,
     TEST_LINUX_SYSCALL_GETDENTS64 = 217,
     TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
@@ -611,6 +615,40 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
+    uint64_t stdout_dup = userproc_dispatch(TEST_LINUX_SYSCALL_DUP, 1, 0, 0, 0, 0, 0);
+    if (stdout_dup < 3 || stdout_dup > 10) {
+        fprintf(stderr, "[test_userimg_loader] expected stdout dup fd, got %lld\n",
+                (long long)stdout_dup);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, stdout_dup, TEST_F_GETFL, 0, 0, 0, 0);
+    if (exec_rc != 1) {
+        fprintf(stderr, "[test_userimg_loader] expected stdout dup O_WRONLY, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_WRITE,
+                                stdout_dup,
+                                (uint64_t)(uintptr_t)"",
+                                0,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected stdout dup zero write success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, stdout_dup, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected stdout dup close success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
     char read_buf[64];
     memset(read_buf, 0, sizeof(read_buf));
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READ,
@@ -645,6 +683,49 @@ int main(void) {
         fprintf(stderr, "[test_userimg_loader] expected read after lseek, rc=%lld text=%s\n",
                 (long long)exec_rc,
                 read_buf);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t dupfd = userproc_dispatch(TEST_LINUX_SYSCALL_DUP, fd, 0, 0, 0, 0, 0);
+    if (dupfd < 3 || dupfd > 10 || dupfd == fd) {
+        fprintf(stderr, "[test_userimg_loader] expected file dup fd, got %lld\n",
+                (long long)dupfd);
+        free(stack_mem);
+        return 1;
+    }
+    memset(read_buf, 0, sizeof(read_buf));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READ,
+                                dupfd,
+                                (uint64_t)(uintptr_t)read_buf,
+                                3,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 3 || strcmp(read_buf, " in") != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected dup fd to copy file cursor, rc=%lld text=%s\n",
+                (long long)exec_rc,
+                read_buf);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t dup2fd = userproc_dispatch(TEST_LINUX_SYSCALL_DUP2, fd, 10, 0, 0, 0, 0);
+    if (dup2fd != 10) {
+        fprintf(stderr, "[test_userimg_loader] expected dup2 target fd 10, got %lld\n",
+                (long long)dup2fd);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, dupfd, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected dup fd close success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, dup2fd, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected dup2 fd close success, got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }
@@ -816,6 +897,28 @@ int main(void) {
         !dirents_contain(dents, exec_rc, "readme.txt", TEST_DT_REG) ||
         !dirents_contain(dents, exec_rc, "hello_linux_tiny", TEST_DT_REG)) {
         fprintf(stderr, "[test_userimg_loader] expected getdents64 directory entries, rc=%lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t dir_dup = userproc_dispatch(TEST_LINUX_SYSCALL_DUP3, dirfd, 9, 0, 0, 0, 0);
+    if (dir_dup != 9) {
+        fprintf(stderr, "[test_userimg_loader] expected dup3 directory fd 9, got %lld\n",
+                (long long)dir_dup);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FSTAT, dir_dup, (uint64_t)(uintptr_t)&st, 0, 0, 0, 0);
+    if (exec_rc != 0 || (st.st_mode & TEST_S_IFDIR) == 0) {
+        fprintf(stderr, "[test_userimg_loader] expected dup3 directory fstat, rc=%lld mode=%o\n",
+                (long long)exec_rc,
+                st.st_mode);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, dir_dup, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected dup3 directory close success, got %lld\n",
                 (long long)exec_rc);
         free(stack_mem);
         return 1;
