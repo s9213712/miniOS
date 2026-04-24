@@ -62,6 +62,12 @@ userproc_execve_trampoline_asm:
     ; rdx = argc
     ; rcx = argv pointer
     ; r8  = envp pointer
+    push rbx
+    push rbp
+    push r12
+    push r13
+    push r14
+    push r15
     lea rax, [rel .return]
     mov [rel g_userproc_return_rip], rax
     mov [rel g_userproc_return_stack], rsp
@@ -81,6 +87,12 @@ userproc_execve_trampoline_asm:
     iretq
 .return:
     mov eax, 1
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop rbp
+    pop rbx
     ret
 
 userapp_hello_syscall_loop:
@@ -211,6 +223,7 @@ syscall_entry:
     add rsp, 120
     mov rsp, [rel g_userproc_return_stack]
     mov rax, [rel g_userproc_return_rip]
+    sti
     jmp rax
 
 isr_user_syscall:
@@ -277,6 +290,7 @@ isr_user_syscall:
     add rsp, 120
     mov rsp, [rel g_userproc_return_stack]
     mov rax, [rel g_userproc_return_rip]
+    sti
     jmp rax
 
 section .rodata

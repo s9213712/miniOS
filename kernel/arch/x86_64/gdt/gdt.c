@@ -54,9 +54,9 @@ void gdt_init(void) {
     gdt_clear();
     gdt_set_entry(0, 0, 0, 0, 0);
     gdt_set_entry(1, 0, 0xFFFFF, 0x9A, 0xA); /* kernel code */
-    gdt_set_entry(2, 0, 0xFFFFF, 0x92, 0xA); /* kernel data */
+    gdt_set_entry(2, 0, 0xFFFFF, 0x92, 0xC); /* kernel data */
     gdt_set_entry(3, 0, 0xFFFFF, 0xFA, 0xA); /* user code */
-    gdt_set_entry(4, 0, 0xFFFFF, 0xF2, 0xA); /* user data */
+    gdt_set_entry(4, 0, 0xFFFFF, 0xF2, 0xC); /* user data */
 
     gdt_tss = (struct tss){0};
     gdt_tss.rsp0 = (uint64_t)&kernel_stack_top;

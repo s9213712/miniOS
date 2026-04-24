@@ -11,6 +11,8 @@ typedef struct mvos_vfs_file {
     const char *path;
     uint32_t checksum;
     int slot;
+    int dynamic;
+    uint64_t generation;
 } mvos_vfs_file_t;
 
 typedef void (*mvos_vfs_list_visitor_t)(const char *path, uint64_t size, uint32_t checksum, void *user_data);

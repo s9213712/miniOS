@@ -29,6 +29,18 @@ void console_write_char(char ch) {
     (void)ch;
 }
 
+void klog(const char *msg) {
+    (void)msg;
+}
+
+void klogln(const char *msg) {
+    (void)msg;
+}
+
+void klog_u64(uint64_t value) {
+    (void)value;
+}
+
 uint64_t timer_ticks(void) {
     return 0;
 }
@@ -82,9 +94,36 @@ extern uint64_t g_userproc_return_rip;
 extern uint64_t g_userproc_return_stack;
 
 enum {
+    TEST_LINUX_SYSCALL_READ = 0,
+    TEST_LINUX_SYSCALL_CLOSE = 3,
+    TEST_LINUX_SYSCALL_FSTAT = 5,
     TEST_LINUX_SYSCALL_EXECVE = 59,
+    TEST_LINUX_SYSCALL_OPENAT = 257,
+    TEST_LINUX_SYSCALL_NEWFSTATAT = 262,
     TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
+    TEST_AT_FDCWD = -100,
 };
+
+typedef struct {
+    uint64_t st_dev;
+    uint64_t st_ino;
+    uint64_t st_nlink;
+    uint32_t st_mode;
+    uint32_t st_uid;
+    uint32_t st_gid;
+    uint32_t __pad0;
+    uint64_t st_rdev;
+    int64_t st_size;
+    int64_t st_blksize;
+    int64_t st_blocks;
+    uint64_t st_atime;
+    uint64_t st_atime_nsec;
+    uint64_t st_mtime;
+    uint64_t st_mtime_nsec;
+    uint64_t st_ctime;
+    uint64_t st_ctime_nsec;
+    int64_t __unused[3];
+} test_linux_stat_t;
 
 static uint64_t read_u64(const uint8_t *stack_mem, uint64_t stack_base, uint64_t stack_top, uint64_t addr) {
     if (addr < stack_base || addr + sizeof(uint64_t) > stack_top) {
@@ -318,6 +357,91 @@ int main(void) {
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_EXECVE, 0, 0, 0, 0, 0, 0);
     if ((int64_t)exec_rc != -14) {
         fprintf(stderr, "[test_userimg_loader] expected execve EFAULT (-14), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+
+    const char readme_path[] = "/boot/init/readme.txt";
+    uint64_t fd = userproc_dispatch(TEST_LINUX_SYSCALL_OPENAT,
+                                    (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                    (uint64_t)(uintptr_t)readme_path,
+                                    0,
+                                    0,
+                                    0,
+                                    0);
+    if (fd < 3 || fd > 10) {
+        fprintf(stderr, "[test_userimg_loader] expected VFS fd from openat, got %lld\n", (long long)fd);
+        free(stack_mem);
+        return 1;
+    }
+    test_linux_stat_t st;
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FSTAT, fd, (uint64_t)(uintptr_t)&st, 0, 0, 0, 0);
+    if (exec_rc != 0 || st.st_size <= 0 || (st.st_mode & 0100000) == 0) {
+        fprintf(stderr, "[test_userimg_loader] expected regular file fstat, rc=%lld size=%lld mode=%o\n",
+                (long long)exec_rc,
+                (long long)st.st_size,
+                st.st_mode);
+        free(stack_mem);
+        return 1;
+    }
+    char read_buf[64];
+    memset(read_buf, 0, sizeof(read_buf));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READ,
+                                fd,
+                                (uint64_t)(uintptr_t)read_buf,
+                                sizeof(read_buf) - 1,
+                                0,
+                                0,
+                                0);
+    if (exec_rc == 0 || strstr(read_buf, "miniOS init filesystem") == NULL) {
+        fprintf(stderr, "[test_userimg_loader] expected VFS read content, rc=%lld text=%s\n",
+                (long long)exec_rc,
+                read_buf);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, fd, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected close success, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READ,
+                                fd,
+                                (uint64_t)(uintptr_t)read_buf,
+                                sizeof(read_buf) - 1,
+                                0,
+                                0,
+                                0);
+    if ((int64_t)exec_rc != -9) {
+        fprintf(stderr, "[test_userimg_loader] expected read after close EBADF (-9), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_NEWFSTATAT,
+                                (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                (uint64_t)(uintptr_t)readme_path,
+                                (uint64_t)(uintptr_t)&st,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0 || st.st_size <= 0) {
+        fprintf(stderr, "[test_userimg_loader] expected newfstatat success, rc=%lld size=%lld\n",
+                (long long)exec_rc,
+                (long long)st.st_size);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_OPENAT,
+                                (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                (uint64_t)(uintptr_t)"/missing",
+                                0,
+                                0,
+                                0,
+                                0);
+    if ((int64_t)exec_rc != -2) {
+        fprintf(stderr, "[test_userimg_loader] expected openat ENOENT (-2), got %lld\n", (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

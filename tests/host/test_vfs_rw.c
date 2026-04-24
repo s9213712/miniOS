@@ -56,8 +56,24 @@ static void list_find_tmp_note(const char *path, uint64_t size, uint32_t checksu
     }
 }
 
+static void list_static_checksum_visitor(const char *path, uint64_t size, uint32_t checksum, void *user_data) {
+    (void)path;
+    (void)size;
+    int *bad = (int *)user_data;
+    if (checksum == 0) {
+        *bad = 1;
+    }
+}
+
 int main(void) {
     char buffer[128];
+
+    int static_bad_checksum = 0;
+    uint64_t static_listed = vfs_list(list_static_checksum_visitor, "/boot/init", &static_bad_checksum);
+    if (static_listed < 2 || static_bad_checksum) {
+        fprintf(stderr, "[test_vfs_rw] expected nonzero static checksums before open\n");
+        return 1;
+    }
 
     if (read_file_exact("/boot/init/readme.txt", buffer, sizeof(buffer)) != 0) {
         fprintf(stderr, "[test_vfs_rw] failed to read static initfs file\n");
@@ -113,6 +129,30 @@ int main(void) {
         vfs_close(&file);
         return 1;
     }
+
+    if (vfs_write_file("/tmp/stale-a.txt", "A", 1, 0) != 0) {
+        fprintf(stderr, "[test_vfs_rw] stale handle setup write failed\n");
+        return 1;
+    }
+    mvos_vfs_file_t stale;
+    if (vfs_open("/tmp/stale-a.txt", &stale) != 0) {
+        fprintf(stderr, "[test_vfs_rw] stale handle setup open failed\n");
+        return 1;
+    }
+    if (vfs_remove_file("/tmp/stale-a.txt") != 0) {
+        fprintf(stderr, "[test_vfs_rw] stale handle remove failed\n");
+        return 1;
+    }
+    if (vfs_write_file("/tmp/stale-b.txt", "B", 1, 0) != 0) {
+        fprintf(stderr, "[test_vfs_rw] stale handle slot reuse write failed\n");
+        return 1;
+    }
+    uint64_t stale_bytes = 0;
+    if (vfs_read(&stale, buffer, sizeof(buffer), &stale_bytes) == 0) {
+        fprintf(stderr, "[test_vfs_rw] stale dynamic handle unexpectedly remained readable\n");
+        return 1;
+    }
+    vfs_close(&stale);
 
     if (vfs_remove_file("/boot/init/readme.txt") != -3) {
         fprintf(stderr, "[test_vfs_rw] expected readonly remove rejection\n");

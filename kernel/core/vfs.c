@@ -20,6 +20,7 @@ typedef struct vfs_dynamic_node {
     uint8_t data[512];
     uint64_t size;
     uint32_t checksum;
+    uint64_t generation;
 } vfs_dynamic_node_t;
 
 typedef struct vfs_open_state {
@@ -152,6 +153,10 @@ static vfs_dynamic_node_t *alloc_dynamic_node(const char *path) {
             node->in_use = 1;
             node->size = 0;
             node->checksum = fnv1a_hash32("", 0);
+            ++node->generation;
+            if (node->generation == 0) {
+                node->generation = 1;
+            }
             return node;
         }
     }
@@ -185,11 +190,15 @@ int vfs_open(const char *path, mvos_vfs_file_t *file) {
                 file->size = static_node->size;
                 file->path = static_node->path;
                 file->checksum = static_node->checksum;
+                file->dynamic = 0;
+                file->generation = 0;
             } else {
                 file->data = dynamic_node->data;
                 file->size = dynamic_node->size;
                 file->path = dynamic_node->path;
                 file->checksum = dynamic_node->checksum;
+                file->dynamic = 1;
+                file->generation = dynamic_node->generation;
             }
             file->cursor = 0;
             file->in_use = 1;
@@ -209,6 +218,18 @@ int vfs_read(mvos_vfs_file_t *file, void *buffer, uint64_t max_len, uint64_t *by
             *bytes_read = 0;
         }
         return -1;
+    }
+    if (file->dynamic) {
+        vfs_dynamic_node_t *node = find_dynamic_node(file->path);
+        if (node == NULL || node->generation != file->generation) {
+            if (bytes_read) {
+                *bytes_read = 0;
+            }
+            return -1;
+        }
+        file->data = node->data;
+        file->size = node->size;
+        file->checksum = node->checksum;
     }
 
     if (file->cursor >= file->size) {
@@ -252,6 +273,7 @@ uint64_t vfs_list(mvos_vfs_list_visitor_t visitor, const char *prefix, void *use
     /* Optional visitor allows callers to emit custom path listings without exposing
      * internal array details.
      */
+    init_file_checksums();
     uint64_t listed = 0;
     for (uint64_t i = 0; i < sizeof(g_nodes) / sizeof(g_nodes[0]); ++i) {
         if (has_prefix(g_nodes[i].path, prefix)) {
@@ -333,6 +355,10 @@ int vfs_remove_file(const char *path) {
     node->in_use = 0;
     node->size = 0;
     node->checksum = 0;
+    ++node->generation;
+    if (node->generation == 0) {
+        node->generation = 1;
+    }
     node->path[0] = '\0';
     return 0;
 }

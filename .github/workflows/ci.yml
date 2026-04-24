@@ -64,6 +64,9 @@ jobs:
       - name: Build check (no boot)
         run: SKIP_SMOKE_RUN=1 make test-smoke
 
+      - name: Host regressions
+        run: make host-regressions
+
       - name: Boot smoke check (retry if flaky)
         run: |
           mkdir -p "${RUNNER_TEMP}/miniOS-smoke-logs"

@@ -7,6 +7,7 @@ import argparse
 import json
 import hashlib
 import os
+import shlex
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -86,11 +87,11 @@ def collect_sources(source_dir: Path) -> list[Path]:
 
 def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose: bool) -> int:
     c_compiler = os.environ.get("CC") or detect_compiler(
-        ("x86_64-none-elf-gcc", "x86_64-elf-gcc", "gcc", "clang"),
+        ("gcc", "clang", "x86_64-none-elf-gcc", "x86_64-elf-gcc"),
         "gcc",
     )
     cpp_compiler = os.environ.get("CXX") or detect_compiler(
-        ("x86_64-none-elf-g++", "x86_64-elf-g++", "g++", "clang++"),
+        ("g++", "clang++", "x86_64-none-elf-g++", "x86_64-elf-g++"),
         "g++",
     )
 
@@ -215,7 +216,7 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
 def _split_flags(value: str | None) -> list[str]:
     if not value:
         return []
-    return value.split()
+    return shlex.split(value)
 
 
 def _print_summary(manifest: Path) -> None:

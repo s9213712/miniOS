@@ -1,4 +1,5 @@
 #include <mvos/shell.h>
+#include <mvos/shell_parser.h>
 #include <mvos/console.h>
 #include <mvos/keyboard.h>
 #include <mvos/pmm.h>
@@ -554,7 +555,7 @@ static void shell_cmd_capabilities(void) {
     console_write_string("    - `make refresh-elf-sample` regenerates embedded Linux ELF sample blob\n");
     console_write_string("    - `make test-elf-sample` validates regenerated ELF sample contract\n");
     console_write_string("  linux abi preview:\n");
-    console_write_string("    - user syscall subset: write/writev/brk/uname/getpid/gettid/set_tid_address/arch_prctl/execve/exit_group\n");
+    console_write_string("    - user syscall subset: read/write/writev/close/fstat/brk/uname/getpid/gettid/set_tid_address/arch_prctl/execve/exit_group/openat/newfstatat\n");
     console_write_string("    - try: run linux-abi\n");
     console_write_string("    - inspect sample ELF: run elf-inspect\n");
     console_write_string("  not yet supported in miniOS runtime:\n");
@@ -654,35 +655,13 @@ static int shell_read_line(char *buffer, size_t capacity) {
 }
 
 static void shell_exec(const char *line) {
-    char trimmed[128];
-    size_t len = shell_strlen(line);
-    size_t start = 0;
-    size_t end = len;
-
-    while (end > start && line[end - 1] == ' ') {
-        --end;
-    }
-    while (start < end && line[start] == ' ') {
-        ++start;
-    }
-    if (end <= start) {
+    mvos_shell_parse_result_t parsed;
+    if (shell_parse_line(line, &parsed) != 0) {
         return;
     }
-
-    if ((end - start) >= sizeof trimmed) {
-        end = start + (sizeof trimmed - 1);
-    }
-    for (size_t i = start; i < end; ++i) {
-        trimmed[i - start] = line[i];
-    }
-    trimmed[end - start] = '\0';
-
-    const char *trimmed_line = trimmed;
-    const char *arg = trimmed_line;
-    while (*arg != '\0' && *arg != ' ') {
-        ++arg;
-    }
-    size_t cmd_len = (size_t)(arg - trimmed_line);
+    const char *trimmed_line = parsed.command;
+    const char *arg = parsed.arg;
+    size_t cmd_len = shell_strlen(trimmed_line);
 
     if (cmd_len == 4 && shell_streq(trimmed_line, "help")) {
         while (*arg == ' ') {
@@ -779,25 +758,22 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 3 && shell_streq(trimmed_line, "run")) {
-        while (*arg == ' ') {
-            ++arg;
-        }
         if (*arg == '\0') {
             shell_cmd_run_list();
             return;
         }
-    if (shell_streq(arg, "status") || shell_streq(arg, "--status")) {
-        shell_cmd_run_status();
-        return;
-    }
-    if (shell_streq(arg, "list")) {
-        shell_cmd_run_list();
-        return;
-    }
-    if (shell_streq(arg, "-h") || shell_streq(arg, "--help")) {
-        shell_cmd_run_help();
-        return;
-    }
+        if (shell_streq(arg, "status") || shell_streq(arg, "--status")) {
+            shell_cmd_run_status();
+            return;
+        }
+        if (shell_streq(arg, "list")) {
+            shell_cmd_run_list();
+            return;
+        }
+        if (shell_streq(arg, "-h") || shell_streq(arg, "--help")) {
+            shell_cmd_run_help();
+            return;
+        }
         if (shell_streq(arg, "help")) {
             shell_cmd_run_help();
             return;

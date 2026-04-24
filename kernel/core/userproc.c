@@ -3,6 +3,7 @@
 #include <mvos/gdt.h>
 #include <mvos/interrupt.h>
 #include <mvos/userimg.h>
+#include <mvos/vfs.h>
 #include <mvos/vmm.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -10,7 +11,10 @@
 #include <string.h>
 
 enum {
+    MINIOS_LINUX_SYSCALL_READ = 0,
     MINIOS_LINUX_SYSCALL_WRITE = 1,
+    MINIOS_LINUX_SYSCALL_CLOSE = 3,
+    MINIOS_LINUX_SYSCALL_FSTAT = 5,
     MINIOS_LINUX_SYSCALL_BRK = 12,
     MINIOS_LINUX_SYSCALL_WRITEV = 20,
     MINIOS_LINUX_SYSCALL_UNAME = 63,
@@ -21,6 +25,8 @@ enum {
     MINIOS_LINUX_SYSCALL_GETTID = 186,
     MINIOS_LINUX_SYSCALL_SET_TID_ADDRESS = 218,
     MINIOS_LINUX_SYSCALL_EXIT_GROUP = 231,
+    MINIOS_LINUX_SYSCALL_OPENAT = 257,
+    MINIOS_LINUX_SYSCALL_NEWFSTATAT = 262,
     MINIOS_SYSCALL_USER_PRINT = 1
 };
 
@@ -38,12 +44,40 @@ enum {
     MINIOS_EXECVE_MAX_ARG_STR = 128,
     MINIOS_EXECVE_STACK_SCRATCH_SIZE = 65536,
     MINIOS_EXECVE_KERNEL_STACK_SIZE = 16384,
+    MINIOS_USERPROC_MAX_FDS = 8,
+    MINIOS_USERPROC_FD_BASE = 3,
+    MINIOS_AT_FDCWD = -100,
+    MINIOS_O_ACCMODE = 0x3,
+    MINIOS_O_DIRECTORY = 00200000,
+    MINIOS_S_IFREG = 0100000,
+    MINIOS_S_IFCHR = 0020000,
 };
 
 typedef struct {
     uint64_t iov_base;
     uint64_t iov_len;
 } minios_iovec_t;
+
+typedef struct {
+    uint64_t st_dev;
+    uint64_t st_ino;
+    uint64_t st_nlink;
+    uint32_t st_mode;
+    uint32_t st_uid;
+    uint32_t st_gid;
+    uint32_t __pad0;
+    uint64_t st_rdev;
+    int64_t st_size;
+    int64_t st_blksize;
+    int64_t st_blocks;
+    uint64_t st_atime;
+    uint64_t st_atime_nsec;
+    uint64_t st_mtime;
+    uint64_t st_mtime_nsec;
+    uint64_t st_ctime;
+    uint64_t st_ctime_nsec;
+    int64_t __unused[3];
+} minios_linux_stat_t;
 
 typedef struct {
     char sysname[65];
@@ -64,6 +98,7 @@ uint64_t g_userproc_syscall_user_rsp;
 static uint64_t g_userproc_fs_base;
 static uint64_t g_userproc_gs_base;
 static uint64_t g_userproc_tid_addr;
+static mvos_vfs_file_t g_userproc_files[MINIOS_USERPROC_MAX_FDS];
 static uint8_t g_userproc_execve_stack_scratch[MINIOS_EXECVE_STACK_SCRATCH_SIZE];
 static uint8_t g_userproc_execve_kernel_stack[MINIOS_EXECVE_KERNEL_STACK_SIZE] __attribute__((aligned(16)));
 
@@ -258,6 +293,66 @@ static void userproc_legacy_print(uint64_t channel) {
     }
 }
 
+static int userproc_fd_to_index(uint64_t fd, uint64_t *out_index) {
+    if (fd < MINIOS_USERPROC_FD_BASE) {
+        return -1;
+    }
+    uint64_t index = fd - MINIOS_USERPROC_FD_BASE;
+    if (index >= MINIOS_USERPROC_MAX_FDS || !g_userproc_files[index].in_use) {
+        return -1;
+    }
+    if (out_index != NULL) {
+        *out_index = index;
+    }
+    return 0;
+}
+
+static uint64_t userproc_alloc_fd(mvos_vfs_file_t *file) {
+    if (file == NULL || !file->in_use) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    for (uint64_t i = 0; i < MINIOS_USERPROC_MAX_FDS; ++i) {
+        if (!g_userproc_files[i].in_use) {
+            g_userproc_files[i] = *file;
+            return MINIOS_USERPROC_FD_BASE + i;
+        }
+    }
+    vfs_close(file);
+    return userproc_errno(-24); /* EMFILE */
+}
+
+static void userproc_fill_stat(minios_linux_stat_t *st, const mvos_vfs_file_t *file, uint32_t mode) {
+    memset(st, 0, sizeof(*st));
+    st->st_dev = 1;
+    st->st_ino = (uint64_t)(uintptr_t)file->path;
+    st->st_nlink = 1;
+    st->st_mode = mode;
+    st->st_size = (int64_t)file->size;
+    st->st_blksize = 512;
+    st->st_blocks = (int64_t)((file->size + 511ULL) / 512ULL);
+}
+
+static uint64_t userproc_linux_read(uint64_t fd, uint64_t user_buf, uint64_t count) {
+    if (count == 0) {
+        return 0;
+    }
+    if (user_buf == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+
+    uint64_t index = 0;
+    if (userproc_fd_to_index(fd, &index) != 0) {
+        return userproc_errno(-9); /* EBADF */
+    }
+
+    uint64_t bytes = 0;
+    int rc = vfs_read(&g_userproc_files[index], (void *)(uintptr_t)user_buf, count, &bytes);
+    if (rc != 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    return bytes;
+}
+
 static uint64_t userproc_linux_write(uint64_t fd, uint64_t user_buf, uint64_t count) {
     if (fd != 1 && fd != 2) {
         return userproc_errno(-9); /* EBADF */
@@ -302,6 +397,109 @@ static uint64_t userproc_linux_writev(uint64_t fd, uint64_t user_iov, uint64_t i
         total += n;
     }
     return total;
+}
+
+static uint64_t userproc_linux_close(uint64_t fd) {
+    if (fd < MINIOS_USERPROC_FD_BASE) {
+        return 0;
+    }
+
+    uint64_t index = 0;
+    if (userproc_fd_to_index(fd, &index) != 0) {
+        return userproc_errno(-9); /* EBADF */
+    }
+    vfs_close(&g_userproc_files[index]);
+    memset(&g_userproc_files[index], 0, sizeof(g_userproc_files[index]));
+    return 0;
+}
+
+static uint64_t userproc_linux_fstat(uint64_t fd, uint64_t user_stat) {
+    if (user_stat == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+
+    minios_linux_stat_t *st = (minios_linux_stat_t *)(uintptr_t)user_stat;
+    if (fd < MINIOS_USERPROC_FD_BASE) {
+        mvos_vfs_file_t stream = {
+            .size = 0,
+            .path = "(stdio)",
+            .in_use = 1,
+        };
+        userproc_fill_stat(st, &stream, MINIOS_S_IFCHR | 0600);
+        return 0;
+    }
+
+    uint64_t index = 0;
+    if (userproc_fd_to_index(fd, &index) != 0) {
+        return userproc_errno(-9); /* EBADF */
+    }
+    userproc_fill_stat(st, &g_userproc_files[index], MINIOS_S_IFREG | 0444);
+    return 0;
+}
+
+static uint64_t userproc_linux_openat(uint64_t dirfd, uint64_t user_path, uint64_t flags, uint64_t mode) {
+    (void)mode;
+    if (user_path == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+    if ((flags & MINIOS_O_ACCMODE) != 0) {
+        return userproc_errno(-13); /* EACCES: VFS syscall bridge is read-only for now. */
+    }
+    if ((flags & MINIOS_O_DIRECTORY) != 0) {
+        return userproc_errno(-20); /* ENOTDIR */
+    }
+
+    char path_buf[MINIOS_EXECVE_MAX_PATH];
+    int64_t rc = userproc_copy_user_cstr(user_path, path_buf, sizeof(path_buf));
+    if (rc != 0) {
+        return userproc_errno(rc);
+    }
+
+    if (path_buf[0] != '/' && dirfd != (uint64_t)(int64_t)MINIOS_AT_FDCWD) {
+        return userproc_errno(-2); /* ENOENT: directory handles are not modeled yet. */
+    }
+
+    mvos_vfs_file_t file;
+    int open_rc = vfs_open(path_buf, &file);
+    if (open_rc == -2) {
+        return userproc_errno(-2); /* ENOENT */
+    }
+    if (open_rc == -3) {
+        return userproc_errno(-24); /* EMFILE */
+    }
+    if (open_rc != 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+    return userproc_alloc_fd(&file);
+}
+
+static uint64_t userproc_linux_newfstatat(uint64_t dirfd, uint64_t user_path, uint64_t user_stat, uint64_t flags) {
+    (void)flags;
+    if (user_path == 0 || user_stat == 0) {
+        return userproc_errno(-14); /* EFAULT */
+    }
+
+    char path_buf[MINIOS_EXECVE_MAX_PATH];
+    int64_t rc = userproc_copy_user_cstr(user_path, path_buf, sizeof(path_buf));
+    if (rc != 0) {
+        return userproc_errno(rc);
+    }
+    if (path_buf[0] != '/' && dirfd != (uint64_t)(int64_t)MINIOS_AT_FDCWD) {
+        return userproc_errno(-2); /* ENOENT */
+    }
+
+    mvos_vfs_file_t file;
+    int open_rc = vfs_open(path_buf, &file);
+    if (open_rc == -2) {
+        return userproc_errno(-2); /* ENOENT */
+    }
+    if (open_rc != 0) {
+        return userproc_errno(-22); /* EINVAL */
+    }
+
+    userproc_fill_stat((minios_linux_stat_t *)(uintptr_t)user_stat, &file, MINIOS_S_IFREG | 0444);
+    vfs_close(&file);
+    return 0;
 }
 
 static uint64_t userproc_linux_brk(uint64_t new_brk) {
@@ -677,7 +875,6 @@ uint64_t userproc_dispatch(uint64_t syscall,
                            uint64_t arg4,
                            uint64_t arg5,
                            uint64_t arg6) {
-    (void)arg4;
     (void)arg5;
     (void)arg6;
     if (!g_userproc_running) {
@@ -693,8 +890,14 @@ uint64_t userproc_dispatch(uint64_t syscall,
     }
 
     switch (syscall) {
+        case MINIOS_LINUX_SYSCALL_READ:
+            return userproc_linux_read(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_WRITE:
             return userproc_linux_write(arg1, arg2, arg3);
+        case MINIOS_LINUX_SYSCALL_CLOSE:
+            return userproc_linux_close(arg1);
+        case MINIOS_LINUX_SYSCALL_FSTAT:
+            return userproc_linux_fstat(arg1, arg2);
         case MINIOS_LINUX_SYSCALL_WRITEV:
             return userproc_linux_writev(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_BRK:
@@ -710,6 +913,10 @@ uint64_t userproc_dispatch(uint64_t syscall,
             return 1000 + g_userproc_current_app_id;
         case MINIOS_LINUX_SYSCALL_ARCH_PRCTL:
             return userproc_linux_arch_prctl(arg1, arg2);
+        case MINIOS_LINUX_SYSCALL_OPENAT:
+            return userproc_linux_openat(arg1, arg2, arg3, arg4);
+        case MINIOS_LINUX_SYSCALL_NEWFSTATAT:
+            return userproc_linux_newfstatat(arg1, arg2, arg3, arg4);
         case MINIOS_LINUX_SYSCALL_EXECVE: {
             mvos_userimg_report_t report;
             mvos_user_stack_layout_t layout;
@@ -830,6 +1037,49 @@ void userproc_linux_abi_probe(void) {
                             0);
     userproc_probe_print_ret("set_tid_address.ret", ret);
     userproc_probe_print_ret("set_tid_address.ptr", g_userproc_tid_addr);
+
+    static const char readme_path[] = "/boot/init/readme.txt";
+    char read_buf[80];
+    minios_linux_stat_t st;
+    uint64_t fd = userproc_dispatch(MINIOS_LINUX_SYSCALL_OPENAT,
+                                    (uint64_t)(int64_t)MINIOS_AT_FDCWD,
+                                    (uint64_t)(uintptr_t)readme_path,
+                                    0,
+                                    0,
+                                    0,
+                                    0);
+    userproc_probe_print_ret("openat.readme_fd", fd);
+    if (!userproc_is_errno(fd)) {
+        ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_FSTAT,
+                                fd,
+                                (uint64_t)(uintptr_t)&st,
+                                0,
+                                0,
+                                0,
+                                0);
+        userproc_probe_print_ret("fstat.readme_ret", ret);
+        if (!userproc_is_errno(ret)) {
+            userproc_probe_print_ret("fstat.readme_size", (uint64_t)st.st_size);
+        }
+        ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_READ,
+                                fd,
+                                (uint64_t)(uintptr_t)read_buf,
+                                sizeof(read_buf) - 1,
+                                0,
+                                0,
+                                0);
+        userproc_probe_print_ret("read.readme_ret", ret);
+        if (!userproc_is_errno(ret)) {
+            read_buf[ret] = '\0';
+            console_write_string("[linux-abi] read.readme_text=");
+            console_write_string(read_buf);
+            if (ret == 0 || read_buf[ret - 1] != '\n') {
+                console_write_string("\n");
+            }
+        }
+        ret = userproc_dispatch(MINIOS_LINUX_SYSCALL_CLOSE, fd, 0, 0, 0, 0, 0);
+        userproc_probe_print_ret("close.readme_ret", ret);
+    }
 
     static const char exec_path[] = "/bin/hello_linux_tiny";
     static const char *const exec_argv[] = {"hello_linux_tiny", "--probe", NULL};

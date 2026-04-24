@@ -1,5 +1,28 @@
 # Changelog
 
+## Phase 44 – Native Toolchain Filesystem Syscalls
+
+### Added
+- Added a first userspace file-descriptor bridge from Linux x86-64 syscalls to the miniOS VFS.
+- Added syscall coverage for `read`, `close`, `fstat`, `openat`, and `newfstatat`.
+- Extended the tiny Linux ELF demo to open and read `/boot/init/readme.txt` through real user-mode syscalls.
+- Extended execve smoke checks to require the initfs read marker from userspace.
+- Added host regression coverage for shell command parsing and CI coverage for all host regressions.
+
+### Validation
+- `make host-regressions`
+- `make test-userimg-loader`
+- `make test-elf-sample`
+- `make smoke-build`
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
+
+### Fixed
+- Fixed shell command dispatch for commands with arguments by sharing a tested parser between shell runtime and host tests.
+- Fixed stale dynamic VFS handles after remove/reuse and initialized static file checksums during `vfs_list()`.
+- Preserved callee-saved registers across the execve trampoline so user programs cannot corrupt the kernel C continuation.
+- Restored interrupts before syscall exit continuations and cleared the long-mode L bit from GDT data descriptors.
+- Honored `TEST_SMOKE_BASENAME` in smoke logs and kept ELF/Limine metadata checks active under `SKIP_SMOKE_RUN=1`.
+
 ## Phase 43 – x86-64 `syscall` Userspace Entry
 
 ### Added

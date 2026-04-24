@@ -73,7 +73,7 @@ OBJS := $(C_OBJS) $(CXX_OBJS) $(ASM_OBJS)
 
 FLAGS_MARK := $(OUTPUT_DIR)/.build-flags
 
-.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline smoke-offline-basic smoke-execve-demo prefetch-limine host-programs build-host-programs clean-host-programs test-host-programs refresh-elf-sample test-elf-sample test-vfs-rw test-scheduler-ctl test-vmm-basic test-userimg-loader FORCE
+.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline smoke-offline-basic smoke-execve-demo prefetch-limine host-programs build-host-programs clean-host-programs test-host-programs host-regressions refresh-elf-sample test-elf-sample test-vfs-rw test-scheduler-ctl test-vmm-basic test-userimg-loader test-shell-parser FORCE
 
 HOST_PROGRAMS_SRC_DIR := samples/user-programs
 HOST_PROGRAMS_OUT_DIR := $(OUTPUT_DIR)/host-programs
@@ -168,6 +168,8 @@ build-host-programs: host-programs
 test-host-programs:
 	@bash scripts/test_host_programs.sh
 
+host-regressions: test-elf-sample test-vfs-rw test-scheduler-ctl test-vmm-basic test-userimg-loader test-host-programs test-shell-parser
+
 refresh-elf-sample:
 	@bash scripts/update_elf_sample_blob.sh
 
@@ -185,6 +187,9 @@ test-vmm-basic:
 
 test-userimg-loader:
 	@bash scripts/test_userimg_loader.sh
+
+test-shell-parser:
+	@bash scripts/test_shell_parser.sh
 
 clean-host-programs:
 	rm -rf "$(HOST_PROGRAMS_OUT_DIR)"

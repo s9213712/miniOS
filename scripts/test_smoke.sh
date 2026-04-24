@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SMOKE_LOG_DIR="${TEST_SMOKE_LOG_DIR:-/tmp}"
-SMOKE_BASENAME="${SMOKE_BASENAME:-miniOS-smoke}"
+SMOKE_BASENAME="${TEST_SMOKE_BASENAME:-${SMOKE_BASENAME:-miniOS-smoke}}"
 RUN_LOG="$SMOKE_LOG_DIR/${SMOKE_BASENAME}_qemu.log"
 SERIAL_LOG="${SMOKE_LOG_DIR}/${SMOKE_BASENAME}_serial.log"
 MAKE_ISO_LOG="$SMOKE_LOG_DIR/${SMOKE_BASENAME}_make_iso.log"
@@ -26,6 +26,7 @@ EXPECTED_FAULT="\\[fault\\]"
 EXPECTED_PMM="\\[pmm\\] memory map"
 EXPECTED_EXECVE_START="\\[execve-demo\\] running linux-abi probe"
 EXPECTED_EXECVE_HELLO="hello from linux user elf"
+EXPECTED_EXECVE_INITFS="read from initfs: miniOS init filesystem"
 EXPECTED_EXECVE_RETURN="userapp execve returned"
 EXPECTED_EXECVE_DONE="\\[execve-demo\\] linux-abi probe done"
 EXPECTED_EXECVE_UNAME="\\[linux-abi\\] uname\\.sysname=miniOS release=0\\.43"
@@ -59,12 +60,6 @@ else
   make
 fi
 
-if [ "${SKIP_SMOKE_RUN:-0}" = "1" ]; then
-  echo "[test_smoke] SKIP_SMOKE_RUN=1, skipping make iso + qemu run."
-  echo "[test_smoke] Build artifacts verified successfully."
-  exit 0
-fi
-
 check_limine_conf "$LIMINE_CONF"
 
 if [ ! -f "$KERNEL_ELF" ] || [ ! -f "$KERNEL_BIN" ]; then
@@ -95,6 +90,12 @@ if (( REQUEST_START_ADDR >= REQUEST_END_ADDR )); then
   echo "[test_smoke] request_start: $REQUEST_START_ADDR"
   echo "[test_smoke] request_end:   $REQUEST_END_ADDR"
   exit 1
+fi
+
+if [ "${SKIP_SMOKE_RUN:-0}" = "1" ]; then
+  echo "[test_smoke] SKIP_SMOKE_RUN=1, skipping make iso + qemu run."
+  echo "[test_smoke] Build artifacts and Limine request metadata verified successfully."
+  exit 0
 fi
 
 make iso >"$MAKE_ISO_LOG" 2>&1 || {
@@ -189,7 +190,7 @@ fi
 echo "[test_smoke] Phase 3 memory map verified."
 
 if [ "${EXECVE_DEMO:-0}" = "1" ]; then
-  for expected in "$EXPECTED_EXECVE_START" "$EXPECTED_EXECVE_HELLO" "$EXPECTED_EXECVE_RETURN" "$EXPECTED_EXECVE_DONE" "$EXPECTED_EXECVE_UNAME"; do
+  for expected in "$EXPECTED_EXECVE_START" "$EXPECTED_EXECVE_HELLO" "$EXPECTED_EXECVE_INITFS" "$EXPECTED_EXECVE_RETURN" "$EXPECTED_EXECVE_DONE" "$EXPECTED_EXECVE_UNAME"; do
     if ! grep -q "$expected" "$SERIAL_LOG"; then
       echo "[test_smoke] Expected execve demo marker not found: $expected" >&2
       tail -n 120 "$SERIAL_LOG" >&2
