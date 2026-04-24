@@ -130,8 +130,8 @@ static void shell_print_help(void) {
     console_write_string("  gui    - draw a tiny demo window (requires graphics backend)\n");
     console_write_string("  app    - launch a tiny GUI app demo (requires graphics backend)\n");
     console_write_string("         usage: app [alt|status|list|launch <name>|info <name>]\n");
-    console_write_string("  run    - run a built-in user C app\n");
-    console_write_string("         usage: run <name>\n");
+        console_write_string("  run    - list or run built-in user apps\n");
+        console_write_string("         usage: run [name]\n");
     console_write_string("  ls     - list virtual filesystem entries\n");
     console_write_string("         usage: ls [prefix]\n");
     console_write_string("  cat    - print a virtual file content\n");
@@ -288,14 +288,18 @@ static void shell_exec(const char *line) {
         }
         if (*arg == '\0') {
             console_write_string("run usage: run <name>\n");
-            console_write_string("available: ");
+            console_write_string("available user apps:\n");
             for (uint32_t i = 0; i < userapp_count(); ++i) {
                 const char *name = userapp_name(i);
+                const char *desc = userapp_desc(i);
+                console_write_string("  ");
                 console_write_string(name == NULL ? "(unnamed)" : name);
-                console_write_string(i + 1u < userapp_count() ? ", " : "\n");
+                console_write_string(" - ");
+                console_write_string(desc == NULL ? "(no description)" : desc);
+                console_write_string("\n");
             }
             if (userapp_count() == 0) {
-                console_write_string("none\n");
+                console_write_string("  (none)\n");
             }
             return;
         }

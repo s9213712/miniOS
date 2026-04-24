@@ -138,6 +138,7 @@
 - `run scheduler`
 - `run cpp`
 - `run python`（目前僅回報 Python 尚未支援於 miniOS）
+  - `run` 無參數時會列出所有可用 app 與描述
 - `gui`
 - `reboot`
 - `halt`
