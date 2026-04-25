@@ -1482,6 +1482,23 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
+    uint8_t large_random_buf[600];
+    memset(large_random_buf, 0, sizeof(large_random_buf));
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_GETRANDOM,
+                                (uint64_t)(uintptr_t)large_random_buf,
+                                sizeof(large_random_buf),
+                                0,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != sizeof(large_random_buf) || large_random_buf[300] == 0 || large_random_buf[599] == 0) {
+        fprintf(stderr, "[test_userimg_loader] expected large getrandom full fill, rc=%lld mid=%u last=%u\n",
+                (long long)exec_rc,
+                large_random_buf[300],
+                large_random_buf[599]);
+        free(stack_mem);
+        return 1;
+    }
     uint64_t mmap_addr = userproc_dispatch(TEST_LINUX_SYSCALL_MMAP,
                                            0,
                                            8192,

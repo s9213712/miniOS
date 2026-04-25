@@ -1584,7 +1584,7 @@ static uint64_t userproc_linux_getrandom(uint64_t user_buf, uint64_t count, uint
         return userproc_errno(-14); /* EFAULT */
     }
 
-    uint64_t to_fill = (count > 256ULL) ? 256ULL : count;
+    uint64_t to_fill = count;
     uint64_t seed = 0x9e3779b97f4a7c15ULL ^ timer_ticks() ^ g_userproc_current_app_id;
     uint8_t chunk[64];
     uint64_t written = 0;
