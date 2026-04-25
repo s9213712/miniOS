@@ -29,7 +29,7 @@ Phase 仍保留在 git history 與 `CHANGELOG.md`，但日常規劃以 Stage 為
 
 ## Stage 3：Linux ABI + Minimal Exec Bring-up
 
-- 範圍：Phase 35-42（持續中）
+- 範圍：Phase 35-44（持續中）
 - 已完成：
   - Linux ABI 預覽 syscall 子集合
   - `run elf-inspect`
