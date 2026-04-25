@@ -1536,14 +1536,20 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
-    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MPROTECT, mmap_addr, 8192, TEST_PROT_READ, 0, 0, 0);
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MPROTECT, mmap_addr, 4096, TEST_PROT_READ, 0, 0, 0);
     if (exec_rc != 0) {
-        fprintf(stderr, "[test_userimg_loader] expected mprotect success, got %lld\n", (long long)exec_rc);
+        fprintf(stderr, "[test_userimg_loader] expected subrange mprotect success, got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }
     if (vmm_user_range_check(mmap_addr, 4096, MVOS_VMM_FLAG_WRITE) == 0) {
-        fprintf(stderr, "[test_userimg_loader] mmap write check unexpectedly passed after mprotect\n");
+        fprintf(stderr, "[test_userimg_loader] first mmap page write check unexpectedly passed after mprotect\n");
+        free(stack_mem);
+        return 1;
+    }
+    if (vmm_user_range_check(mmap_addr + 4096, 4096, MVOS_VMM_FLAG_WRITE) != 0) {
+        fprintf(stderr, "[test_userimg_loader] second mmap page lost write permission after subrange mprotect\n");
         free(stack_mem);
         return 1;
     }

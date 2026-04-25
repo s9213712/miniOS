@@ -14,6 +14,16 @@ int main(void) {
         fprintf(stderr, "[test_vmm_basic] kernel-only region passed user range check\n");
         return 1;
     }
+    if (vmm_protect_range(0x1000ULL,
+                          MVOS_VMM_PAGE_SIZE,
+                          MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_USER) != -3) {
+        fprintf(stderr, "[test_vmm_basic] kernel-only region protect unexpectedly succeeded\n");
+        return 1;
+    }
+    if (vmm_user_range_check(0x1000ULL, 16, MVOS_VMM_FLAG_READ) == 0) {
+        fprintf(stderr, "[test_vmm_basic] kernel-only region became user accessible after failed protect\n");
+        return 1;
+    }
     if (vmm_region_count() != 1) {
         fprintf(stderr, "[test_vmm_basic] expected 1 region after first map\n");
         return 1;
@@ -92,6 +102,49 @@ int main(void) {
     }
     if (vmm_user_range_check(0x400000ULL, 0x6000ULL, MVOS_VMM_FLAG_READ) == 0) {
         fprintf(stderr, "[test_vmm_basic] over-limit user range unexpectedly passed\n");
+        return 1;
+    }
+
+    uint32_t before_split = vmm_region_count();
+    uint64_t split_base = 0x600000ULL;
+    if (vmm_map_range(split_base,
+                      MVOS_VMM_PAGE_SIZE * 3ULL,
+                      MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_USER,
+                      "split-test") != 0) {
+        fprintf(stderr, "[test_vmm_basic] split-test map failed\n");
+        return 1;
+    }
+    if (vmm_protect_range(split_base + MVOS_VMM_PAGE_SIZE,
+                          MVOS_VMM_PAGE_SIZE,
+                          MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_USER) != 0) {
+        fprintf(stderr, "[test_vmm_basic] split-test subrange protect failed\n");
+        return 1;
+    }
+    if (vmm_region_count() != before_split + 3) {
+        fprintf(stderr, "[test_vmm_basic] expected split-test to create 3 regions, count=%u before=%u\n",
+                vmm_region_count(),
+                before_split);
+        return 1;
+    }
+    if (vmm_user_range_check(split_base, MVOS_VMM_PAGE_SIZE, MVOS_VMM_FLAG_WRITE) != 0 ||
+        vmm_user_range_check(split_base + MVOS_VMM_PAGE_SIZE * 2ULL,
+                             MVOS_VMM_PAGE_SIZE,
+                             MVOS_VMM_FLAG_WRITE) != 0) {
+        fprintf(stderr, "[test_vmm_basic] split-test outer pages lost write permission\n");
+        return 1;
+    }
+    if (vmm_user_range_check(split_base + MVOS_VMM_PAGE_SIZE,
+                             MVOS_VMM_PAGE_SIZE,
+                             MVOS_VMM_FLAG_WRITE) == 0) {
+        fprintf(stderr, "[test_vmm_basic] split-test middle page write check unexpectedly passed\n");
+        return 1;
+    }
+    if (vmm_unmap_range(split_base, MVOS_VMM_PAGE_SIZE * 3ULL) != 0) {
+        fprintf(stderr, "[test_vmm_basic] split-test whole unmap failed\n");
+        return 1;
+    }
+    if (vmm_region_count() != before_split) {
+        fprintf(stderr, "[test_vmm_basic] split-test whole unmap left stale regions\n");
         return 1;
     }
 

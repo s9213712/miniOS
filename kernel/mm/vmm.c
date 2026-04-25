@@ -279,21 +279,58 @@ int vmm_unmap_range(uint64_t vaddr, uint64_t size) {
     if (vaddr == 0 || size == 0) {
         return -1;
     }
+    if ((vaddr & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0 || (size & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
+        return -2;
+    }
+    uint64_t end = 0;
+    if (add_overflow_u64(vaddr, size, &end) != 0 || end <= vaddr) {
+        return -3;
+    }
+
+    uint64_t cursor = vaddr;
+    while (cursor < end) {
+        int found = 0;
+        for (uint32_t i = 0; i < MVOS_VMM_MAX_REGIONS; ++i) {
+            if (!g_regions[i].in_use) {
+                continue;
+            }
+            uint64_t region_end = 0;
+            if (add_overflow_u64(g_regions[i].base, g_regions[i].size, &region_end) != 0) {
+                continue;
+            }
+            if (cursor < g_regions[i].base || cursor >= region_end) {
+                continue;
+            }
+            if (g_regions[i].base < vaddr || region_end > end) {
+                return -2; /* Partial unmap splitting is not modeled yet. */
+            }
+            cursor = region_end;
+            found = 1;
+            break;
+        }
+        if (!found) {
+            return -2;
+        }
+    }
+
+    clear_user_backing_range(vaddr, size);
     for (uint32_t i = 0; i < MVOS_VMM_MAX_REGIONS; ++i) {
         if (!g_regions[i].in_use) {
             continue;
         }
-        if (g_regions[i].base == vaddr && g_regions[i].size == size) {
-            clear_user_backing_range(vaddr, size);
+        uint64_t region_end = 0;
+        if (add_overflow_u64(g_regions[i].base, g_regions[i].size, &region_end) != 0) {
+            continue;
+        }
+        if (g_regions[i].base >= vaddr && region_end <= end) {
             g_regions[i].in_use = 0;
             g_regions[i].base = 0;
             g_regions[i].size = 0;
             g_regions[i].flags = 0;
             g_regions[i].tag[0] = '\0';
-            return 0;
         }
     }
-    return -2;
+    return 0;
 }
 
 int vmm_protect_range(uint64_t vaddr, uint64_t size, uint64_t flags) {
@@ -304,15 +341,61 @@ int vmm_protect_range(uint64_t vaddr, uint64_t size, uint64_t flags) {
         return -2;
     }
 
+    uint64_t end = 0;
+    if (add_overflow_u64(vaddr, size, &end) != 0 || end <= vaddr) {
+        return -3;
+    }
+
     for (uint32_t i = 0; i < MVOS_VMM_MAX_REGIONS; ++i) {
         if (!g_regions[i].in_use) {
             continue;
         }
-        if (g_regions[i].base == vaddr && g_regions[i].size == size) {
-            g_regions[i].flags = flags;
-            protect_user_backing_range(vaddr, size, flags);
-            return 0;
+        if ((g_regions[i].flags & MVOS_VMM_FLAG_USER) == 0) {
+            continue;
         }
+        uint64_t region_end = 0;
+        if (add_overflow_u64(g_regions[i].base, g_regions[i].size, &region_end) != 0) {
+            continue;
+        }
+        if (vaddr < g_regions[i].base || end > region_end) {
+            continue;
+        }
+
+        uint64_t pre_size = vaddr - g_regions[i].base;
+        uint64_t post_size = region_end - end;
+        uint32_t free_slots[2] = {0, 0};
+        uint32_t needed_slots = ((pre_size != 0) ? 1u : 0u) + ((post_size != 0) ? 1u : 0u);
+        uint32_t found_slots = 0;
+        for (uint32_t j = 0; j < MVOS_VMM_MAX_REGIONS && found_slots < needed_slots; ++j) {
+            if (!g_regions[j].in_use) {
+                free_slots[found_slots++] = j;
+            }
+        }
+        if (found_slots < needed_slots) {
+            return -5;
+        }
+
+        mvos_vmm_region_t original = g_regions[i];
+        uint32_t slot_cursor = 0;
+        if (pre_size != 0) {
+            uint32_t slot = free_slots[slot_cursor++];
+            g_regions[slot] = original;
+            g_regions[slot].base = original.base;
+            g_regions[slot].size = pre_size;
+        }
+        if (post_size != 0) {
+            uint32_t slot = free_slots[slot_cursor++];
+            g_regions[slot] = original;
+            g_regions[slot].base = end;
+            g_regions[slot].size = post_size;
+        }
+
+        g_regions[i].base = vaddr;
+        g_regions[i].size = size;
+        g_regions[i].flags = flags;
+        copy_tag(g_regions[i].tag, sizeof(g_regions[i].tag), original.tag);
+        protect_user_backing_range(vaddr, size, flags);
+        return 0;
     }
     return -3;
 }
