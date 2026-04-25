@@ -160,7 +160,10 @@ enum {
     TEST_PROT_READ = 0x1,
     TEST_PROT_WRITE = 0x2,
     TEST_MAP_PRIVATE = 0x02,
+    TEST_MAP_FIXED = 0x10,
     TEST_MAP_ANONYMOUS = 0x20,
+    TEST_MMAP_ARENA_BASE = 0x0000400001000000ULL,
+    TEST_MMAP_ARENA_LIMIT = 0x0000400010000000ULL,
     TEST_S_IFREG = 0100000,
     TEST_S_IFDIR = 0040000,
     TEST_STATX_BASIC_STATS = 0x07ff,
@@ -1528,6 +1531,50 @@ int main(void) {
                                            0);
     if ((int64_t)mmap_addr < 0 || (mmap_addr & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
         fprintf(stderr, "[test_userimg_loader] expected page-aligned mmap addr, got %lld\n", (long long)mmap_addr);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t bad_mmap_addr = TEST_MMAP_ARENA_BASE - MVOS_VMM_PAGE_SIZE;
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MMAP,
+                               bad_mmap_addr,
+                               4096,
+                               TEST_PROT_READ | TEST_PROT_WRITE,
+                               TEST_MAP_PRIVATE | TEST_MAP_ANONYMOUS | TEST_MAP_FIXED,
+                               UINT64_MAX,
+                               0);
+    if ((int64_t)exec_rc != -22) {
+        fprintf(stderr, "[test_userimg_loader] expected fixed mmap below arena EINVAL (-22), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MMAP,
+                               TEST_MMAP_ARENA_LIMIT,
+                               4096,
+                               TEST_PROT_READ | TEST_PROT_WRITE,
+                               TEST_MAP_PRIVATE | TEST_MAP_ANONYMOUS | TEST_MAP_FIXED,
+                               UINT64_MAX,
+                               0);
+    if ((int64_t)exec_rc != -22) {
+        fprintf(stderr, "[test_userimg_loader] expected fixed mmap above arena EINVAL (-22), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t fixed_addr = TEST_MMAP_ARENA_BASE + 0x100000ULL;
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MMAP,
+                               fixed_addr,
+                               4096,
+                               TEST_PROT_READ | TEST_PROT_WRITE,
+                               TEST_MAP_PRIVATE | TEST_MAP_ANONYMOUS | TEST_MAP_FIXED,
+                               UINT64_MAX,
+                               0);
+    if ((int64_t)exec_rc != (int64_t)fixed_addr) {
+        fprintf(stderr, "[test_userimg_loader] expected fixed mmap at requested addr, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MUNMAP, fixed_addr, 4096, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected fixed mmap cleanup success, got %lld\n", (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

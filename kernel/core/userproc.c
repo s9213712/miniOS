@@ -1291,9 +1291,11 @@ static uint64_t userproc_linux_mmap(uint64_t addr,
     }
 
     uint64_t map_end = 0;
-    if (userproc_checked_add_u64(map_addr, map_len, &map_end) != 0 ||
-        map_end > MINIOS_USERPROC_MMAP_LIMIT) {
+    if (userproc_checked_add_u64(map_addr, map_len, &map_end) != 0) {
         return userproc_errno(-12); /* ENOMEM */
+    }
+    if (map_addr < MINIOS_USERPROC_MMAP_BASE || map_end > MINIOS_USERPROC_MMAP_LIMIT) {
+        return userproc_errno((flags & MINIOS_MAP_FIXED) != 0 ? -22 : -12); /* EINVAL for fixed, ENOMEM otherwise */
     }
 
     uint64_t vmm_flags = userproc_mmap_flags_from_prot(prot);
