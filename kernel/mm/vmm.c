@@ -1,3 +1,4 @@
+#include <mvos/console.h>
 #include <mvos/vmm.h>
 #include <stdint.h>
 
@@ -272,6 +273,7 @@ int vmm_map_range(uint64_t vaddr, uint64_t size, uint64_t flags, const char *tag
         copy_tag(g_regions[i].tag, sizeof(g_regions[i].tag), tag);
         return 0;
     }
+    console_write_string("[vmm] region table full (max=32)\n");
     return -5;
 }
 
