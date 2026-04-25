@@ -461,7 +461,7 @@ static int shell_read_line(char *buffer, size_t capacity) {
     size_t len = 0;
     for (;;) {
         int ch = shell_read_char();
-        if (ch == '\b') {
+        if (ch == '\b' || ch == 0x7f) {
             if (len > 0) {
                 --len;
                 console_write_char('\b');
@@ -478,7 +478,11 @@ static int shell_read_line(char *buffer, size_t capacity) {
         if (ch == 0) {
             continue;
         }
-        if (len + 1 < capacity && (char)ch >= ' ') {
+        if (ch < 0x20 && ch != '\t') {
+            continue;
+        }
+
+        if (len + 1 < capacity) {
             buffer[len++] = (char)ch;
             console_write_char((char)ch);
         }
