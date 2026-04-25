@@ -143,6 +143,10 @@ enum {
     TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
     TEST_AT_FDCWD = -100,
     TEST_O_DIRECTORY = 00200000,
+    TEST_O_RDONLY = 0,
+    TEST_O_WRONLY = 1,
+    TEST_O_CLOEXEC = 0x80000,
+    TEST_O_APPEND = 0x400,
     TEST_F_DUPFD = 0,
     TEST_F_DUPFD_CLOEXEC = 1030,
     TEST_F_GETFD = 1,
@@ -1062,8 +1066,36 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
-    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_GETFL, 0, 0, 0, 0);
+    uint64_t openat_cloexec_fd = userproc_dispatch(TEST_LINUX_SYSCALL_OPENAT,
+                                            (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                            (uint64_t)(uintptr_t)readme_path,
+                                            TEST_O_CLOEXEC,
+                                            0,
+                                            0,
+                                            0);
+    if (openat_cloexec_fd < 3 || openat_cloexec_fd > 10) {
+        fprintf(stderr, "[test_userimg_loader] expected O_CLOEXEC openat fd, got %lld\n",
+                (long long)openat_cloexec_fd);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, openat_cloexec_fd, TEST_F_GETFD, 0, 0, 0, 0);
+    if (exec_rc != TEST_FD_CLOEXEC) {
+        fprintf(stderr, "[test_userimg_loader] expected openat O_CLOEXEC fd flag, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, openat_cloexec_fd, 0, 0, 0, 0, 0);
     if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected openat O_CLOEXEC close success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_GETFL, 0, 0, 0, 0);
+    if (exec_rc != TEST_O_RDONLY) {
         fprintf(stderr, "[test_userimg_loader] expected fcntl F_GETFL readonly flags, got %lld\n",
                 (long long)exec_rc);
         free(stack_mem);
@@ -1076,9 +1108,37 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
-    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_SETFL, 0, 0, 0, 0);
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_SETFL, TEST_O_APPEND, 0, 0, 0);
     if (exec_rc != 0) {
-        fprintf(stderr, "[test_userimg_loader] expected fcntl F_SETFL success, got %lld\n",
+        fprintf(stderr, "[test_userimg_loader] expected fcntl F_SETFL append success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_GETFL, 0, 0, 0, 0);
+    if (exec_rc != (TEST_O_RDONLY | TEST_O_APPEND)) {
+        fprintf(stderr, "[test_userimg_loader] expected fcntl F_GETFL append flag, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_SETFL, TEST_O_CLOEXEC, 0, 0, 0);
+    if ((int64_t)exec_rc != -22) {
+        fprintf(stderr, "[test_userimg_loader] expected fcntl F_SETFL unsupported flag EINVAL (-22), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_SETFL, TEST_O_APPEND | TEST_O_WRONLY, 0, 0, 0);
+    if ((int64_t)exec_rc != -22) {
+        fprintf(stderr, "[test_userimg_loader] expected fcntl F_SETFL access-mode rejection EINVAL (-22), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, fd, TEST_F_SETFL, TEST_O_APPEND, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected fcntl F_SETFL reapply success, got %lld\n",
                 (long long)exec_rc);
         free(stack_mem);
         return 1;
@@ -1098,7 +1158,7 @@ int main(void) {
         return 1;
     }
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, stdout_dup, TEST_F_GETFL, 0, 0, 0, 0);
-    if (exec_rc != 1) {
+    if (exec_rc != TEST_O_WRONLY) {
         fprintf(stderr, "[test_userimg_loader] expected stdout dup O_WRONLY, got %lld\n",
                 (long long)exec_rc);
         free(stack_mem);
@@ -1387,6 +1447,13 @@ int main(void) {
         fprintf(stderr, "[test_userimg_loader] expected directory fstat, rc=%lld mode=%o\n",
                 (long long)exec_rc,
                 st.st_mode);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, dirfd, TEST_F_GETFL, 0, 0, 0, 0);
+    if (exec_rc != (TEST_O_DIRECTORY | TEST_O_RDONLY)) {
+        fprintf(stderr, "[test_userimg_loader] expected directory fcntl F_GETFL directory flags, got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

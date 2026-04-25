@@ -84,7 +84,11 @@ enum {
     MINIOS_USERPROC_ROOT_ID = 0,
     MINIOS_AT_FDCWD = -100,
     MINIOS_O_ACCMODE = 0x3,
+    MINIOS_O_RDONLY = 0,
     MINIOS_O_WRONLY = 0x1,
+    MINIOS_O_RDWR = 0x2,
+    MINIOS_O_APPEND = 0x400,
+    MINIOS_O_CLOEXEC = 0x80000,
     MINIOS_O_DIRECTORY = 00200000,
     MINIOS_PROT_READ = 0x1,
     MINIOS_PROT_WRITE = 0x2,
@@ -104,6 +108,7 @@ enum {
     MINIOS_F_GETFL = 3,
     MINIOS_F_SETFL = 4,
     MINIOS_FD_CLOEXEC = 1,
+    MINIOS_F_SETFL_WRITABLE_FLAGS = MINIOS_O_APPEND,
     MINIOS_RT_SIGSET_SIZE = 8,
     MINIOS_RT_SIGACTION_SIZE = 32,
     MINIOS_RLIMIT_DATA = 2,
@@ -281,6 +286,7 @@ static char g_userproc_exe_path[MINIOS_EXECVE_MAX_PATH];
 static minios_userproc_fd_kind_t g_userproc_fd_kinds[MINIOS_USERPROC_MAX_FDS];
 static char g_userproc_fd_paths[MINIOS_USERPROC_MAX_FDS][MINIOS_EXECVE_MAX_PATH];
 static uint8_t g_userproc_fd_owns_vfs[MINIOS_USERPROC_MAX_FDS];
+static uint32_t g_userproc_fd_flags[MINIOS_USERPROC_MAX_FDS];
 static uint8_t g_userproc_fd_cloexec[MINIOS_USERPROC_MAX_FDS];
 static uint64_t g_userproc_fd_stdio_targets[MINIOS_USERPROC_MAX_FDS];
 static mvos_vfs_file_t g_userproc_files[MINIOS_USERPROC_MAX_FDS];
@@ -603,6 +609,7 @@ static void userproc_clear_fd_index(uint64_t index) {
     g_userproc_fd_kinds[index] = MINIOS_USERPROC_FD_NONE;
     g_userproc_fd_paths[index][0] = '\0';
     g_userproc_fd_owns_vfs[index] = 0;
+    g_userproc_fd_flags[index] = 0;
     g_userproc_fd_cloexec[index] = 0;
     g_userproc_fd_stdio_targets[index] = 0;
 }
@@ -640,6 +647,23 @@ static int userproc_fd_alloc_index_from(uint64_t min_fd, uint64_t *out_index) {
     return -1;
 }
 
+static void userproc_maybe_set_open_cloexec(uint64_t fd, uint64_t flags) {
+    if ((flags & MINIOS_O_CLOEXEC) == 0) {
+        return;
+    }
+    uint64_t index = 0;
+    if (userproc_fd_to_any_index(fd, &index) == 0) {
+        g_userproc_fd_cloexec[index] = 1;
+    }
+}
+
+static void userproc_set_fd_status(uint64_t fd, uint32_t status_flags) {
+    uint64_t index = 0;
+    if (userproc_fd_to_any_index(fd, &index) == 0) {
+        g_userproc_fd_flags[index] = status_flags;
+    }
+}
+
 static uint64_t userproc_alloc_fd(mvos_vfs_file_t *file) {
     if (file == NULL || !file->in_use) {
         return userproc_errno(-22); /* EINVAL */
@@ -649,6 +673,7 @@ static uint64_t userproc_alloc_fd(mvos_vfs_file_t *file) {
         g_userproc_files[i] = *file;
         g_userproc_fd_kinds[i] = MINIOS_USERPROC_FD_FILE;
         g_userproc_fd_owns_vfs[i] = 1;
+        g_userproc_fd_flags[i] = MINIOS_O_RDONLY;
         userproc_copy_cstr(g_userproc_fd_paths[i], sizeof(g_userproc_fd_paths[i]), file->path);
         return MINIOS_USERPROC_FD_BASE + i;
     }
@@ -664,6 +689,7 @@ static uint64_t userproc_alloc_dir_fd(const char *path) {
     if (userproc_fd_alloc_index(&i) == 0) {
         memset(&g_userproc_files[i], 0, sizeof(g_userproc_files[i]));
         g_userproc_fd_kinds[i] = MINIOS_USERPROC_FD_DIR;
+        g_userproc_fd_flags[i] = MINIOS_O_RDONLY | MINIOS_O_DIRECTORY;
         userproc_copy_cstr(g_userproc_fd_paths[i], sizeof(g_userproc_fd_paths[i]), path);
         return MINIOS_USERPROC_FD_BASE + i;
     }
@@ -677,6 +703,7 @@ static int userproc_clone_fd_to_index(uint64_t oldfd, uint64_t new_index) {
     if (oldfd <= 2) {
         memset(&g_userproc_files[new_index], 0, sizeof(g_userproc_files[new_index]));
         g_userproc_fd_kinds[new_index] = MINIOS_USERPROC_FD_STDIO;
+        g_userproc_fd_flags[new_index] = MINIOS_O_WRONLY;
         g_userproc_fd_cloexec[new_index] = 0;
         g_userproc_fd_stdio_targets[new_index] = oldfd;
         userproc_copy_cstr(g_userproc_fd_paths[new_index], sizeof(g_userproc_fd_paths[new_index]), "(stdio)");
@@ -690,6 +717,7 @@ static int userproc_clone_fd_to_index(uint64_t oldfd, uint64_t new_index) {
     g_userproc_files[new_index] = g_userproc_files[old_index];
     g_userproc_fd_kinds[new_index] = g_userproc_fd_kinds[old_index];
     g_userproc_fd_owns_vfs[new_index] = 0;
+    g_userproc_fd_flags[new_index] = g_userproc_fd_flags[old_index];
     g_userproc_fd_cloexec[new_index] = 0;
     g_userproc_fd_stdio_targets[new_index] = g_userproc_fd_stdio_targets[old_index];
     userproc_copy_cstr(g_userproc_fd_paths[new_index],
@@ -1175,20 +1203,34 @@ static uint64_t userproc_linux_fcntl(uint64_t fd, uint64_t cmd, uint64_t arg) {
             return 0;
         }
         case MINIOS_F_GETFL:
-            if (fd == 1 || fd == 2) {
-                return MINIOS_O_WRONLY;
+            if (fd <= 2) {
+                return (fd == 1 || fd == 2) ? MINIOS_O_WRONLY : 0;
             }
-            if (fd >= MINIOS_USERPROC_FD_BASE) {
+            {
                 uint64_t index = 0;
-                if (userproc_fd_to_any_index(fd, &index) == 0 &&
-                    g_userproc_fd_kinds[index] == MINIOS_USERPROC_FD_STDIO &&
-                    (g_userproc_fd_stdio_targets[index] == 1 || g_userproc_fd_stdio_targets[index] == 2)) {
-                    return MINIOS_O_WRONLY;
+                if (userproc_fd_to_any_index(fd, &index) != 0) {
+                    return userproc_errno(-9); /* EBADF */
                 }
+                return g_userproc_fd_flags[index];
             }
-            return 0;
         case MINIOS_F_SETFL:
-            return 0;
+            if (fd <= 2) {
+                return 0;
+            }
+            {
+                uint64_t index = 0;
+                if (userproc_fd_to_any_index(fd, &index) != 0) {
+                    return userproc_errno(-9); /* EBADF */
+                }
+                if ((arg & (uint64_t)MINIOS_O_ACCMODE) != 0 ||
+                    (arg & ~((uint64_t)MINIOS_F_SETFL_WRITABLE_FLAGS)) != 0) {
+                    return userproc_errno(-22); /* EINVAL */
+                }
+                g_userproc_fd_flags[index] =
+                    (g_userproc_fd_flags[index] & MINIOS_O_ACCMODE) |
+                    (arg & MINIOS_F_SETFL_WRITABLE_FLAGS);
+                return 0;
+            }
         default:
             return userproc_errno(-22); /* EINVAL */
     }
@@ -1805,7 +1847,16 @@ static uint64_t userproc_linux_openat(uint64_t dirfd, uint64_t user_path, uint64
     }
 
     if (userproc_path_is_directory(path_buf)) {
-        return userproc_alloc_dir_fd(path_buf);
+        uint64_t fd = userproc_alloc_dir_fd(path_buf);
+        if (!userproc_is_errno(fd)) {
+            uint32_t dir_status = MINIOS_O_RDONLY | MINIOS_O_DIRECTORY;
+            if ((flags & MINIOS_O_APPEND) != 0) {
+                dir_status |= MINIOS_O_APPEND;
+            }
+            userproc_set_fd_status(fd, dir_status);
+            userproc_maybe_set_open_cloexec(fd, flags);
+        }
+        return fd;
     }
 
     mvos_vfs_file_t file;
@@ -1825,7 +1876,16 @@ static uint64_t userproc_linux_openat(uint64_t dirfd, uint64_t user_path, uint64
     if (open_rc != 0) {
         return userproc_errno(-22); /* EINVAL */
     }
-    return userproc_alloc_fd(&file);
+    uint64_t fd = userproc_alloc_fd(&file);
+    if (!userproc_is_errno(fd)) {
+        uint32_t file_status = MINIOS_O_RDONLY;
+        if ((flags & MINIOS_O_APPEND) != 0) {
+            file_status |= MINIOS_O_APPEND;
+        }
+        userproc_set_fd_status(fd, file_status);
+        userproc_maybe_set_open_cloexec(fd, flags);
+    }
+    return fd;
 }
 
 static uint64_t userproc_linux_newfstatat(uint64_t dirfd, uint64_t user_path, uint64_t user_stat, uint64_t flags) {
