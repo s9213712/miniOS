@@ -28,6 +28,7 @@
 - Added `sched_getaffinity` support reporting a single available CPU.
 - Added `set_robust_list`/`get_robust_list` bootstrap probes for single-threaded runtime compatibility.
 - Added a conservative `futex` fallback for wake probes and non-blocking wait failures.
+- Added `FD_CLOEXEC` tracking for `fcntl(F_GETFD/F_SETFD)` and close-on-exec descriptor cleanup.
 - Pinned default Limine bootstrap downloads to a fixed ref and keyed the default cache path by that ref.
 - Hardened framebuffer console drawing against mirror double-writes and rectangle arithmetic overflow.
 - Added defensive null handling for kernel console, serial, and string helper paths.

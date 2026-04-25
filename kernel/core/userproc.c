@@ -101,6 +101,7 @@ enum {
     MINIOS_F_SETFD = 2,
     MINIOS_F_GETFL = 3,
     MINIOS_F_SETFL = 4,
+    MINIOS_FD_CLOEXEC = 1,
     MINIOS_RT_SIGSET_SIZE = 8,
     MINIOS_RT_SIGACTION_SIZE = 32,
     MINIOS_RLIMIT_DATA = 2,
@@ -265,6 +266,7 @@ static char g_userproc_exe_path[MINIOS_EXECVE_MAX_PATH];
 static minios_userproc_fd_kind_t g_userproc_fd_kinds[MINIOS_USERPROC_MAX_FDS];
 static char g_userproc_fd_paths[MINIOS_USERPROC_MAX_FDS][MINIOS_EXECVE_MAX_PATH];
 static uint8_t g_userproc_fd_owns_vfs[MINIOS_USERPROC_MAX_FDS];
+static uint8_t g_userproc_fd_cloexec[MINIOS_USERPROC_MAX_FDS];
 static uint64_t g_userproc_fd_stdio_targets[MINIOS_USERPROC_MAX_FDS];
 static mvos_vfs_file_t g_userproc_files[MINIOS_USERPROC_MAX_FDS];
 static uint8_t g_userproc_execve_stack_scratch[MINIOS_EXECVE_STACK_SCRATCH_SIZE];
@@ -588,6 +590,7 @@ static void userproc_clear_fd_index(uint64_t index) {
     g_userproc_fd_kinds[index] = MINIOS_USERPROC_FD_NONE;
     g_userproc_fd_paths[index][0] = '\0';
     g_userproc_fd_owns_vfs[index] = 0;
+    g_userproc_fd_cloexec[index] = 0;
     g_userproc_fd_stdio_targets[index] = 0;
 }
 
@@ -640,6 +643,7 @@ static int userproc_clone_fd_to_index(uint64_t oldfd, uint64_t new_index) {
     if (oldfd <= 2) {
         memset(&g_userproc_files[new_index], 0, sizeof(g_userproc_files[new_index]));
         g_userproc_fd_kinds[new_index] = MINIOS_USERPROC_FD_STDIO;
+        g_userproc_fd_cloexec[new_index] = 0;
         g_userproc_fd_stdio_targets[new_index] = oldfd;
         userproc_copy_cstr(g_userproc_fd_paths[new_index], sizeof(g_userproc_fd_paths[new_index]), "(stdio)");
         return 0;
@@ -652,6 +656,7 @@ static int userproc_clone_fd_to_index(uint64_t oldfd, uint64_t new_index) {
     g_userproc_files[new_index] = g_userproc_files[old_index];
     g_userproc_fd_kinds[new_index] = g_userproc_fd_kinds[old_index];
     g_userproc_fd_owns_vfs[new_index] = 0;
+    g_userproc_fd_cloexec[new_index] = 0;
     g_userproc_fd_stdio_targets[new_index] = g_userproc_fd_stdio_targets[old_index];
     userproc_copy_cstr(g_userproc_fd_paths[new_index],
                        sizeof(g_userproc_fd_paths[new_index]),
@@ -704,6 +709,14 @@ static uint64_t userproc_linux_dup3(uint64_t oldfd, uint64_t newfd, uint64_t fla
         return userproc_errno(-22); /* EINVAL: close-on-exec is not modeled yet. */
     }
     return userproc_linux_dup2(oldfd, newfd);
+}
+
+static void userproc_close_cloexec_fds(void) {
+    for (uint64_t i = 0; i < MINIOS_USERPROC_MAX_FDS; ++i) {
+        if (g_userproc_fd_cloexec[i]) {
+            userproc_clear_fd_index(i);
+        }
+    }
 }
 
 static void userproc_fill_stat(minios_linux_stat_t *st, const mvos_vfs_file_t *file, uint32_t mode) {
@@ -1030,16 +1043,32 @@ static uint64_t userproc_linux_rt_sigprocmask(uint64_t how,
 }
 
 static uint64_t userproc_linux_fcntl(uint64_t fd, uint64_t cmd, uint64_t arg) {
-    (void)arg;
     if (!userproc_fd_is_valid(fd)) {
         return userproc_errno(-9); /* EBADF */
     }
 
     switch (cmd) {
-        case MINIOS_F_GETFD:
+        case MINIOS_F_GETFD: {
+            if (fd < MINIOS_USERPROC_FD_BASE) {
+                return 0;
+            }
+            uint64_t index = 0;
+            if (userproc_fd_to_any_index(fd, &index) != 0) {
+                return userproc_errno(-9); /* EBADF */
+            }
+            return g_userproc_fd_cloexec[index] ? MINIOS_FD_CLOEXEC : 0;
+        }
+        case MINIOS_F_SETFD: {
+            if (fd < MINIOS_USERPROC_FD_BASE) {
+                return 0;
+            }
+            uint64_t index = 0;
+            if (userproc_fd_to_any_index(fd, &index) != 0) {
+                return userproc_errno(-9); /* EBADF */
+            }
+            g_userproc_fd_cloexec[index] = ((arg & MINIOS_FD_CLOEXEC) != 0) ? 1 : 0;
             return 0;
-        case MINIOS_F_SETFD:
-            return 0;
+        }
         case MINIOS_F_GETFL:
             if (fd == 1 || fd == 2) {
                 return MINIOS_O_WRONLY;
@@ -2000,6 +2029,7 @@ static int64_t userproc_linux_execve(uint64_t user_path,
         return -8; /* ENOEXEC */
     }
 
+    userproc_close_cloexec_fds();
     userproc_copy_cstr(g_userproc_exe_path, sizeof(g_userproc_exe_path), exec_path);
     *out_report = report;
     *out_layout = layout;

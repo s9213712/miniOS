@@ -147,6 +147,7 @@ enum {
     TEST_F_SETFD = 2,
     TEST_F_GETFL = 3,
     TEST_F_SETFL = 4,
+    TEST_FD_CLOEXEC = 1,
     TEST_RT_SIGSET_SIZE = 8,
     TEST_RT_SIGACTION_SIZE = 32,
     TEST_RLIMIT_STACK = 3,
@@ -493,10 +494,45 @@ int main(void) {
     const char exec_path[] = "/bin/hello_linux_tiny";
     const char *exec_argv[] = {"hello_linux_tiny", "--host-test", NULL};
     const char *exec_envp[] = {"TERM=minios", NULL};
+    uint64_t exec_rc = 0;
     g_userproc_running = 1;
     g_userproc_current_app_id = 41;
+    const char readme_path[] = "/boot/init/readme.txt";
+    uint64_t cloexec_fd = userproc_dispatch(TEST_LINUX_SYSCALL_OPENAT,
+                                            (uint64_t)(int64_t)TEST_AT_FDCWD,
+                                            (uint64_t)(uintptr_t)readme_path,
+                                            0,
+                                            0,
+                                            0,
+                                            0);
+    if (cloexec_fd < 3 || cloexec_fd > 10) {
+        fprintf(stderr, "[test_userimg_loader] expected cloexec test fd, got %lld\n",
+                (long long)cloexec_fd);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL,
+                                cloexec_fd,
+                                TEST_F_SETFD,
+                                TEST_FD_CLOEXEC,
+                                0,
+                                0,
+                                0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected cloexec F_SETFD success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, cloexec_fd, TEST_F_GETFD, 0, 0, 0, 0);
+    if (exec_rc != TEST_FD_CLOEXEC) {
+        fprintf(stderr, "[test_userimg_loader] expected cloexec F_GETFD flag, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
     uint32_t enter_count_before_execve = g_enter_execve_count;
-    uint64_t exec_rc = userproc_dispatch(
+    exec_rc = userproc_dispatch(
         TEST_LINUX_SYSCALL_EXECVE,
         (uint64_t)(uintptr_t)exec_path,
         (uint64_t)(uintptr_t)exec_argv,
@@ -506,6 +542,13 @@ int main(void) {
         0);
     if (exec_rc != 1ULL) {
         fprintf(stderr, "[test_userimg_loader] expected execve scaffold success signal (1), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, cloexec_fd, TEST_F_GETFD, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != -9) {
+        fprintf(stderr, "[test_userimg_loader] expected cloexec fd closed after execve, got %lld\n",
                 (long long)exec_rc);
         free(stack_mem);
         return 1;
@@ -826,7 +869,6 @@ int main(void) {
         return 1;
     }
 
-    const char readme_path[] = "/boot/init/readme.txt";
     uint64_t fd = userproc_dispatch(TEST_LINUX_SYSCALL_OPENAT,
                                     (uint64_t)(int64_t)TEST_AT_FDCWD,
                                     (uint64_t)(uintptr_t)readme_path,
