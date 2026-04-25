@@ -109,6 +109,12 @@ static void task_a(uint64_t tick) {
     if ((tick & 0xff) != 0) {
         return;
     }
+    static uint64_t last_seen_tick = UINT64_MAX;
+    if (tick == last_seen_tick) {
+        return;
+    }
+    last_seen_tick = tick;
+
     klog("[sched] task-a tick=");
     klog_u64(tick);
     klog(" run=");

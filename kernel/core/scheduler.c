@@ -26,8 +26,8 @@ struct task {
 static struct task g_tasks[MAX_TASKS];
 static uint32_t g_task_count;
 static uint32_t g_current_task;
-static uint64_t g_ticks;
-static uint64_t g_ticks_until_switch;
+static volatile uint64_t g_ticks;
+static volatile uint64_t g_ticks_until_switch;
 
 static int streq(const char *a, const char *b) {
     uint64_t i = 0;
