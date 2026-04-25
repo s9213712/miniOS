@@ -154,7 +154,7 @@ smoke-execve-demo:
 
 host-programs:
 	@if [ ! -d "$(HOST_PROGRAMS_SRC_DIR)" ]; then \
-	  echo "[build-host-programs] source directory missing: $(HOST_PROGRAMS_SRC_DIR)"; \
+	  echo "[host-programs] source directory missing: $(HOST_PROGRAMS_SRC_DIR)"; \
 	  exit 1; \
 	fi
 	@$(PYTHON) scripts/build_user_programs.py \
