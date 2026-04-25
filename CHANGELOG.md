@@ -1,5 +1,15 @@
 # Changelog
 
+## Phase 48 – Build/Runtime Version Alignment
+
+### Added
+- Bumped userspace-visible `uname` metadata to `release=0.47` and `version` to Stage 4 Phase 47 messaging.
+- Updated shell `version`/banner output and smoke regex/docs to match the current phase wording.
+- Synced README Stage 4 status phrasing to reflect syscall fd behavior convergence work.
+
+### Validation
+- `make host-regressions`
+
 ## Phase 47 – fcntl dupfd Variants
 
 ### Added

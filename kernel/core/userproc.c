@@ -2010,8 +2010,8 @@ static uint64_t userproc_linux_uname(uint64_t user_buf) {
     minios_utsname_t u;
     userproc_copy_cstr(u.sysname, sizeof(u.sysname), "miniOS");
     userproc_copy_cstr(u.nodename, sizeof(u.nodename), "miniOS-node");
-    userproc_copy_cstr(u.release, sizeof(u.release), "0.43");
-    userproc_copy_cstr(u.version, sizeof(u.version), "Stage3 phase43 x86-64 syscall entry");
+    userproc_copy_cstr(u.release, sizeof(u.release), "0.47");
+    userproc_copy_cstr(u.version, sizeof(u.version), "Stage4 phase47 fcntl dupfd variants");
     userproc_copy_cstr(u.machine, sizeof(u.machine), "x86_64");
     userproc_copy_cstr(u.domainname, sizeof(u.domainname), "miniOS.local");
     return userproc_errno(userproc_copy_to_user(user_buf, &u, sizeof(u)));

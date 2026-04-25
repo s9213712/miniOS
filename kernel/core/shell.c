@@ -696,7 +696,7 @@ static void shell_exec(const char *line) {
         return;
     }
     if (cmd_len == 7 && shell_streq(trimmed_line, "version")) {
-        console_write_string("MiniOS Stage 3 (Phase 44: native userspace fs/syscall expansion)\n");
+        console_write_string("MiniOS Stage 4 (Phase 47: fcntl dupfd variants)\n");
         return;
     }
     if (cmd_len == 4 && shell_streq(trimmed_line, "echo")) {
@@ -725,7 +725,7 @@ static void shell_exec(const char *line) {
 
 void shell_run(void) {
     static char line[SHELL_BUFFER_LEN];
-    console_write_string("MiniOS shell (stage 4, phase 45)\n");
+    console_write_string("MiniOS shell (stage 4, phase 47)\n");
     shell_print_help();
     for (;;) {
         shell_print_prompt();

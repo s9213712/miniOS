@@ -14,7 +14,7 @@ miniOS 是 x86_64 教學型作業系統專案，主線目標是：
 | Stage 3 | Linux ABI + ELF loader + Minimal `execve` bring-up | 完成 |
 | Stage 4 | 系統完整化（FS/網路/安全 + Linux userspace 相容） | 進行中 |
 
-目前所在：`Stage 4 (execve 狀態隔離收斂)`
+目前所在：`Stage 4 (syscall fd 行為收斂)`
 Phase 細節歷史保留在 `CHANGELOG.md`，Stage 視角主文件如下：
 - `docs/roadmap.md`
 - `docs/linux-parity-goals.md`
