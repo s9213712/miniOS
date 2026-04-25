@@ -62,17 +62,54 @@ static inline void shell_io_wait(void) {
     __asm__ volatile("pause");
 }
 
-static int shell_read_char(void) {
-    for (;;) {
-        int c = keyboard_read_char_nonblocking();
-        if (c >= 0) {
-            return c;
+static int shell_read_char_raw(void) {
+    int c = keyboard_read_char_nonblocking();
+    if (c >= 0) {
+        return c;
+    }
+    return serial_read_char_nonblocking();
+}
+
+static void shell_discard_ansi_escape(void) {
+    int c = shell_read_char_raw();
+    if (c < 0) {
+        for (int timeout = 0; timeout < 1024; ++timeout) {
+            shell_io_wait();
+            c = shell_read_char_raw();
+            if (c >= 0) {
+                break;
+            }
         }
-        c = serial_read_char_nonblocking();
-        if (c >= 0) {
-            return c;
+    }
+    if (c != '[') {
+        return;
+    }
+
+    for (int timeout = 0; timeout < 1024; ++timeout) {
+        c = shell_read_char_raw();
+        if (c < 0) {
+            shell_io_wait();
+            continue;
+        }
+        if ((c >= '@' && c <= '~')) {
+            return;
         }
         shell_io_wait();
+    }
+}
+
+static int shell_read_char(void) {
+    for (;;) {
+        int c = shell_read_char_raw();
+        if (c < 0) {
+            shell_io_wait();
+            continue;
+        }
+        if (c == 0x1b) {
+            shell_discard_ansi_escape();
+            continue;
+        }
+        return c;
     }
 }
 
