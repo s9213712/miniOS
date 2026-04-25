@@ -670,3 +670,30 @@ uint64_t vmm_user_brk_set(uint64_t new_brk) {
 uint64_t vmm_user_brk_limit(void) {
     return g_user_heap_limit;
 }
+
+void vmm_reset_user_state(void) {
+    for (uint32_t i = 0; i < MVOS_VMM_MAX_REGIONS; ++i) {
+        if (!g_regions[i].in_use) {
+            continue;
+        }
+        if ((g_regions[i].flags & MVOS_VMM_FLAG_USER) == 0) {
+            continue;
+        }
+        clear_user_backing_range(g_regions[i].base, g_regions[i].size);
+        g_regions[i] = (mvos_vmm_region_t){0};
+    }
+
+    if (!g_user_heap_ready) {
+        return;
+    }
+
+    if (g_user_heap_base != 0) {
+        g_user_heap_mapped_end = g_user_heap_base;
+        g_user_brk = g_user_heap_base;
+    } else {
+        g_user_heap_mapped_end = 0;
+        g_user_heap_base = 0;
+        g_user_heap_limit = 0;
+        g_user_brk = 0;
+    }
+}

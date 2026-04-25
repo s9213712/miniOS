@@ -1,5 +1,16 @@
 # Changelog
 
+## Phase 45 – Execve State Isolation
+
+### Added
+- Added `vmm_reset_user_state()` to clear all current user mappings and reset `brk` tracking during process replacement.
+- Wired `execve` success path to reset userspace state before reloading the next image, preventing stale `mmap`/`userimg` mappings from persisting across replacements.
+- Extended host `test_userimg_loader` to verify that `execve` creates a clean `mmap` arena and that stale `mmap` regions cannot be unmapped after a subsequent `execve`.
+
+### Validation
+- `make test-vmm-basic`
+- `make test-userimg-loader`
+
 ## Phase 44 – Native Toolchain Filesystem Syscalls
 
 ### Added

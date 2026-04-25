@@ -668,6 +668,19 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
+    uint64_t lingering_mmap = userproc_dispatch(TEST_LINUX_SYSCALL_MMAP,
+                                                 0,
+                                                 8192,
+                                                 TEST_PROT_READ | TEST_PROT_WRITE,
+                                                 TEST_MAP_PRIVATE | TEST_MAP_ANONYMOUS,
+                                                 UINT64_MAX,
+                                                 0);
+    if ((int64_t)lingering_mmap < 0 || (lingering_mmap & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected lingering mmap addr before second execve, got %lld\n",
+                (long long)lingering_mmap);
+        free(stack_mem);
+        return 1;
+    }
 
     exec_rc = userproc_dispatch(
         TEST_LINUX_SYSCALL_EXECVE,
@@ -679,6 +692,15 @@ int main(void) {
         0);
     if ((int64_t)exec_rc != 1) {
         fprintf(stderr, "[test_userimg_loader] expected second execve scaffold success signal (1), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MUNMAP, lingering_mmap, 8192, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != -22) {
+        fprintf(stderr,
+                "[test_userimg_loader] expected lingering mmap removed by execve, got %lld\n",
+                (long long)exec_rc);
         free(stack_mem);
         return 1;
     }

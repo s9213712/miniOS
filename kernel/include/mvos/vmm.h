@@ -32,3 +32,4 @@ void vmm_user_heap_init(uint64_t base, uint64_t reserve_bytes, uint64_t max_byte
 uint64_t vmm_user_brk_get(void);
 uint64_t vmm_user_brk_set(uint64_t new_brk);
 uint64_t vmm_user_brk_limit(void);
+void vmm_reset_user_state(void);

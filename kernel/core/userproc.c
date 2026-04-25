@@ -2047,18 +2047,28 @@ static int64_t userproc_linux_execve(uint64_t user_path,
 
     mvos_userimg_report_t report;
     mvos_userimg_result_t img_rc = userimg_prepare_image((const uint8_t *)exec_file.data, exec_file.size, &report);
-    vfs_close(&exec_file);
     if (img_rc != MVOS_USERIMG_OK) {
+        vfs_close(&exec_file);
         return -8; /* ENOEXEC */
     }
 
     if (userproc_handoff_dry_run(report.mapped_entry, report.stack_top) != 0) {
+        vfs_close(&exec_file);
         return -8; /* ENOEXEC */
     }
 
     if (report.stack_size > MINIOS_EXECVE_STACK_SCRATCH_SIZE) {
+        vfs_close(&exec_file);
         return -12; /* ENOMEM */
     }
+
+    vmm_reset_user_state();
+    img_rc = userimg_prepare_image((const uint8_t *)exec_file.data, exec_file.size, &report);
+    if (img_rc != MVOS_USERIMG_OK) {
+        vfs_close(&exec_file);
+        return -8; /* ENOEXEC */
+    }
+    vfs_close(&exec_file);
 
     g_userproc_mmap_next = MINIOS_USERPROC_MMAP_BASE;
     g_userproc_robust_list_head = 0;

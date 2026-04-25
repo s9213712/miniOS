@@ -1,6 +1,6 @@
 # miniOS Roadmap（Stage 版）
 
-最後更新：2026-04-24（目前 Stage 3）
+最後更新：2026-04-25（目前 Stage 4）
 
 這份文件改用 `Stage` 管理進度，避免長期只看 Phase 編號造成閱讀負擔。  
 Phase 仍保留在 git history 與 `CHANGELOG.md`，但日常規劃以 Stage 為主。
@@ -37,7 +37,7 @@ Phase 仍保留在 git history 與 `CHANGELOG.md`，但日常規劃以 Stage 為
   - `execve` syscall scaffold（路徑驗證 + 內嵌 ELF 載入 + stack prep）
   - `execve("/bin/hello_linux_tiny", ...)` 最小實執行鏈路（ring3 entry、x86-64 `syscall`、tiny ELF output、`exit_group` return）
   - `make test-userimg-loader`
-- 狀態：進行中（最小 `execve` 實執行已完成，下一步補齊一般化與隔離）
+- 狀態：完成（最小 `execve` 已穩定運作，為 Stage 4 提供基礎）
 
 ## Stage 4：System Completeness
 
@@ -47,7 +47,13 @@ Phase 仍保留在 git history 與 `CHANGELOG.md`，但日常規劃以 Stage 為
   - network stack
   - 權限與安全模型
   - 更完整 Linux userspace 相容能力
-- 狀態：待開始
+- 狀態：進行中
+
+### Stage 4（目前）
+
+- 已完成：
+  - `execve` 成功換映像前會清除前一次 userspace 映射，避免殘留 mmap/userimg 資源污染新的流程。
+  - 加入 host regression 保證 `execve` 後舊 `mmap` 區域不會留存（舊位址在新 `execve` 後 unmap 會失敗）。
 
 ## Stage 通用規範
 

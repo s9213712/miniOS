@@ -1,4 +1,4 @@
-# MinimalOS v1 (Stage 3, 教學型專案)
+# MinimalOS v1 (Stage 4, 教學型專案)
 
 miniOS 是 x86_64 教學型作業系統專案，主線目標是：
 - 維持可開機、可驗證的核心基線
@@ -11,10 +11,10 @@ miniOS 是 x86_64 教學型作業系統專案，主線目標是：
 | --- | --- | --- |
 | Stage 1 | Boot + Kernel 基線（Limine/serial/smoke + 核心基本子系統） | 完成 |
 | Stage 2 | 開發者體驗 + 核心擴充（host tooling、回歸、VFS/tmp、scheduler control） | 完成 |
-| Stage 3 | Linux ABI + ELF loader + Minimal `execve` bring-up（目前） | 進行中 |
-| Stage 4 | 系統完整化（FS/網路/安全 + Linux userspace 相容） | 待開始 |
+| Stage 3 | Linux ABI + ELF loader + Minimal `execve` bring-up | 完成 |
+| Stage 4 | 系統完整化（FS/網路/安全 + Linux userspace 相容） | 進行中 |
 
-目前所在：`Stage 3 (Phase 44: native userspace FS/syscall expansion)`
+目前所在：`Stage 4 (execve 狀態隔離收斂)`
 Phase 細節歷史保留在 `CHANGELOG.md`，Stage 視角主文件如下：
 - `docs/roadmap.md`
 - `docs/linux-parity-goals.md`
@@ -30,6 +30,7 @@ Phase 細節歷史保留在 `CHANGELOG.md`，Stage 視角主文件如下：
   - handoff dry-run
   - `argc/argv/envp/auxv` 初始 stack scaffold
 - `execve("/bin/hello_linux_tiny", ...)` 可載入內嵌 tiny static ELF、進入 ring3、印出訊息並經 `exit_group` 返回 kernel probe。
+- 成功的 `execve` 會清理前次 userspace 狀態，避免新流程沿用舊 `mmap`/`userimg` mapping。
 
 ## 尚未做到（和 Linux 的差距）
 
@@ -74,9 +75,9 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
 - `ENABLE_SHELL=1 make run`
 - `python3 scripts/dev_status.py --build`
 
-## 目前 Stage 3 的下一步
+## 目前 Stage 4 的下一步
 
-目標是把 Stage 3 的最小 `execve` 路徑穩定化，之後再進入 Stage 4：
+目標是把 Stage 4 的 userspace 隔離機制繼續深化，逐步進入更完整的 Linux-like 行為：
 - 擴充 ELF/user memory 邊界檢查
 - 增加更多 syscall 與錯誤分類
 - 補齊每行程 address space 與資源回收
