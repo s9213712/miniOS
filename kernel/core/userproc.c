@@ -241,6 +241,19 @@ typedef struct {
     uint32_t mem_unit;
 } minios_sysinfo_t;
 
+_Static_assert(offsetof(minios_sysinfo_t, uptime) == 0,
+               "minios_sysinfo_t.uptime offset must match Linux ABI");
+_Static_assert(offsetof(minios_sysinfo_t, procs) == 80,
+               "minios_sysinfo_t.procs offset must match Linux ABI");
+_Static_assert(offsetof(minios_sysinfo_t, totalhigh) == 88,
+               "minios_sysinfo_t.totalhigh offset must match Linux ABI");
+_Static_assert(offsetof(minios_sysinfo_t, freehigh) == 96,
+               "minios_sysinfo_t.freehigh offset must match Linux ABI");
+_Static_assert(offsetof(minios_sysinfo_t, mem_unit) == 104,
+               "minios_sysinfo_t.mem_unit offset must match Linux ABI");
+_Static_assert(sizeof(minios_sysinfo_t) == 112,
+               "minios_sysinfo_t size must match Linux ABI");
+
 typedef enum {
     MINIOS_USERPROC_FD_NONE = 0,
     MINIOS_USERPROC_FD_FILE = 1,
@@ -461,14 +474,12 @@ static int64_t userproc_copy_user_cstr(uint64_t user_ptr, char *dst, uint64_t ca
         return -14; /* EFAULT */
     }
 
-    const volatile char *src = (const volatile char *)(uintptr_t)user_ptr;
     for (uint64_t i = 0; i + 1 < cap; ++i) {
-        uint64_t addr = 0;
-        if (userproc_checked_add_u64(user_ptr, i, &addr) != 0 ||
-            !userproc_user_range_ok(addr, 1, MVOS_VMM_FLAG_READ)) {
-            return -14; /* EFAULT */
+        char ch = 0;
+        int64_t rc = userproc_copy_from_user(&ch, user_ptr + i, sizeof(ch));
+        if (rc != 0) {
+            return rc;
         }
-        char ch = src[i];
         dst[i] = ch;
         if (ch == '\0') {
             return 0;
@@ -951,12 +962,31 @@ static uint64_t userproc_linux_read(uint64_t fd, uint64_t user_buf, uint64_t cou
         return userproc_errno(-9); /* EBADF */
     }
 
-    uint64_t bytes = 0;
-    int rc = vfs_read(&g_userproc_files[index], (void *)(uintptr_t)user_buf, count, &bytes);
-    if (rc != 0) {
-        return userproc_errno(-14); /* EFAULT */
+    uint8_t buffer[256];
+    uint64_t bytes_left = count;
+    uint64_t total = 0;
+    while (bytes_left > 0) {
+        uint64_t chunk = (bytes_left < sizeof(buffer)) ? bytes_left : (uint64_t)sizeof(buffer);
+        uint64_t bytes = 0;
+        int rc = vfs_read(&g_userproc_files[index], buffer, chunk, &bytes);
+        if (rc != 0) {
+            return (total > 0) ? total : userproc_errno(-14); /* EFAULT */
+        }
+        if (bytes == 0) {
+            return total;
+        }
+
+        int64_t copy_rc = userproc_copy_to_user(user_buf + total, buffer, bytes);
+        if (copy_rc != 0) {
+            return (total > 0) ? total : userproc_errno(copy_rc);
+        }
+        bytes_left -= (bytes_left < bytes) ? bytes_left : bytes;
+        total += bytes;
+        if (bytes < chunk) {
+            break;
+        }
     }
-    return bytes;
+    return total;
 }
 
 static uint64_t userproc_linux_pread64(uint64_t fd, uint64_t user_buf, uint64_t count, uint64_t offset) {
@@ -988,12 +1018,31 @@ static uint64_t userproc_linux_pread64(uint64_t fd, uint64_t user_buf, uint64_t 
         return userproc_errno(-22); /* EINVAL */
     }
 
-    uint64_t bytes = 0;
-    int rc = vfs_read(&cursor, (void *)(uintptr_t)user_buf, count, &bytes);
-    if (rc != 0) {
-        return userproc_errno(-14); /* EFAULT */
+    uint8_t buffer[256];
+    uint64_t bytes_left = count;
+    uint64_t total = 0;
+    while (bytes_left > 0) {
+        uint64_t chunk = (bytes_left < sizeof(buffer)) ? bytes_left : (uint64_t)sizeof(buffer);
+        uint64_t bytes = 0;
+        int rc = vfs_read(&cursor, buffer, chunk, &bytes);
+        if (rc != 0) {
+            return (total > 0) ? total : userproc_errno(-14); /* EFAULT */
+        }
+        if (bytes == 0) {
+            return total;
+        }
+
+        int64_t copy_rc = userproc_copy_to_user(user_buf + total, buffer, bytes);
+        if (copy_rc != 0) {
+            return (total > 0) ? total : userproc_errno(copy_rc);
+        }
+        bytes_left -= (bytes_left < bytes) ? bytes_left : bytes;
+        total += bytes;
+        if (bytes < chunk) {
+            break;
+        }
     }
-    return bytes;
+    return total;
 }
 
 static uint64_t userproc_linux_ioctl(uint64_t fd, uint64_t request, uint64_t argp) {
@@ -1124,16 +1173,24 @@ static uint64_t userproc_linux_write(uint64_t fd, uint64_t user_buf, uint64_t co
         return userproc_errno(-14); /* EFAULT */
     }
 
-    uint64_t to_write = count;
-    if (to_write > 512) {
-        to_write = 512;
+    uint64_t to_write = (count < 512ULL) ? count : 512ULL;
+    uint8_t buffer[256];
+    uint64_t written = 0;
+    while (written < to_write) {
+        uint64_t chunk = to_write - written;
+        if (chunk > sizeof(buffer)) {
+            chunk = sizeof(buffer);
+        }
+        int64_t copy_rc = userproc_copy_from_user(buffer, user_buf + written, chunk);
+        if (copy_rc != 0) {
+            return (written > 0) ? written : userproc_errno(copy_rc);
+        }
+        for (uint64_t i = 0; i < chunk; ++i) {
+            console_write_char((char)buffer[i]);
+        }
+        written += chunk;
     }
-
-    const volatile char *buf = (const volatile char *)(uintptr_t)user_buf;
-    for (uint64_t i = 0; i < to_write; ++i) {
-        console_write_char(buf[i]);
-    }
-    return to_write;
+    return written;
 }
 
 static uint64_t userproc_linux_writev(uint64_t fd, uint64_t user_iov, uint64_t iovcnt) {

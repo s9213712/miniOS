@@ -7,8 +7,10 @@
 #include <stddef.h>
 #include <limits.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define MVOS_PAGE_SIZE 4096ULL
+#define MVOS_PMM_MAX_RELEASED_PAGES 2048ULL
 
 static uint64_t g_hhdm_offset;
 static uint64_t g_cursor;
@@ -17,6 +19,32 @@ static uint64_t g_region_base;
 static bool g_initialized;
 static uint64_t g_total_pages;
 static uint64_t g_allocated_pages;
+static uint64_t g_released_pages[MVOS_PMM_MAX_RELEASED_PAGES];
+static uint64_t g_released_page_count;
+
+static int pmm_is_released(uint64_t phys_page) {
+    for (uint64_t i = 0; i < g_released_page_count; ++i) {
+        if (g_released_pages[i] == phys_page) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static void pmm_push_released(uint64_t phys_page) {
+    if (g_released_page_count >= MVOS_PMM_MAX_RELEASED_PAGES) {
+        return;
+    }
+    g_released_pages[g_released_page_count++] = phys_page;
+}
+
+static int pmm_pop_released(uint64_t *out_page) {
+    if (g_released_page_count == 0 || out_page == NULL) {
+        return 0;
+    }
+    *out_page = g_released_pages[--g_released_page_count];
+    return 1;
+}
 
 static uint64_t align_up(uint64_t value, uint64_t align) {
     if (align == 0) {
@@ -107,6 +135,7 @@ void pmm_init(const struct limine_memmap_response *response, uint64_t hhdm_offse
     g_limit = best_limit;
     g_total_pages = (best_limit - g_cursor) / MVOS_PAGE_SIZE;
     g_allocated_pages = 0;
+    g_released_page_count = 0;
     g_initialized = true;
 
     klog("[pmm] selected region base=");
@@ -142,6 +171,20 @@ void *pmm_allocate_pages(uint64_t page_count) {
         return NULL;
     }
 
+    if (page_count == 1) {
+        uint64_t phys = 0;
+        while (pmm_pop_released(&phys) != 0) {
+            if ((phys & (MVOS_PAGE_SIZE - 1ULL)) != 0 ||
+                phys < g_region_base || phys >= g_limit) {
+                continue;
+            }
+            void *page = to_virt(phys);
+            memset(page, 0, MVOS_PAGE_SIZE);
+            g_allocated_pages += 1;
+            return page;
+        }
+    }
+
     if (page_count > (UINTPTR_MAX / MVOS_PAGE_SIZE)) {
         return NULL;
     }
@@ -158,6 +201,32 @@ void *pmm_allocate_pages(uint64_t page_count) {
     g_cursor = start + needed;
     g_allocated_pages += page_count;
     return to_virt(start);
+}
+
+void pmm_release_pages(void *start, uint64_t page_count) {
+    if (!g_initialized || start == NULL || page_count == 0) {
+        return;
+    }
+
+    uint64_t phys = (uint64_t)(uintptr_t)start;
+    if (phys < g_hhdm_offset || (phys - g_hhdm_offset) & (MVOS_PAGE_SIZE - 1ULL)) {
+        return;
+    }
+    uint64_t page = (phys - g_hhdm_offset);
+
+    for (uint64_t i = 0; i < page_count; ++i) {
+        uint64_t candidate = page + i * MVOS_PAGE_SIZE;
+        if ((candidate & (MVOS_PAGE_SIZE - 1ULL)) != 0 ||
+            candidate < g_region_base || candidate >= g_limit ||
+            pmm_is_released(candidate)) {
+            continue;
+        }
+        memset(to_virt(candidate), 0, MVOS_PAGE_SIZE);
+        pmm_push_released(candidate);
+        if (g_allocated_pages > 0) {
+            g_allocated_pages -= 1;
+        }
+    }
 }
 
 void *pmm_alloc(size_t bytes) {

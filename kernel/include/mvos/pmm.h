@@ -12,3 +12,4 @@ uint64_t pmm_allocated_pages(void);
 
 void *pmm_allocate_pages(uint64_t page_count);
 void *pmm_alloc(size_t bytes);
+void pmm_release_pages(void *start, uint64_t page_count);

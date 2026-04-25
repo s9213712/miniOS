@@ -10,6 +10,7 @@
 #define MVOS_VMM_PTE_ADDR_MASK 0x000FFFFFFFFFF000ULL
 
 extern void *pmm_allocate_pages(uint64_t page_count) __attribute__((weak));
+extern void pmm_release_pages(void *start, uint64_t page_count) __attribute__((weak));
 
 typedef struct {
     int in_use;
@@ -165,6 +166,10 @@ static void clear_user_backing_range(uint64_t vaddr, uint64_t size) {
         }
         uint64_t *pt = phys_to_kernel_virt(pde & MVOS_VMM_PTE_ADDR_MASK);
         if ((pt[pt_i] & MVOS_VMM_PTE_PRESENT) != 0) {
+            if (pmm_release_pages != 0) {
+                uint64_t phys = pt[pt_i] & MVOS_VMM_PTE_ADDR_MASK;
+                pmm_release_pages((void *)(uintptr_t)(phys + g_hhdm_offset), 1);
+            }
             pt[pt_i] = 0;
             flush_user_page(page);
         }
