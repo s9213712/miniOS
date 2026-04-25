@@ -9,6 +9,7 @@
 #include <mvos/vmm.h>
 #include <mvos/interrupt.h>
 #include <mvos/panic.h>
+#include <mvos/serial.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -55,6 +56,24 @@ static void shell_print_app_info(const char *app_name) {
     console_write_string("unknown app: ");
     console_write_string(app_name);
     console_write_string("\n");
+}
+
+static inline void shell_io_wait(void) {
+    __asm__ volatile("pause");
+}
+
+static int shell_read_char(void) {
+    for (;;) {
+        int c = keyboard_read_char_nonblocking();
+        if (c >= 0) {
+            return c;
+        }
+        c = serial_read_char_nonblocking();
+        if (c >= 0) {
+            return c;
+        }
+        shell_io_wait();
+    }
 }
 
 static int shell_parse_u32(const char *s, uint32_t *out) {
@@ -441,7 +460,7 @@ static void shell_halt(void) {
 static int shell_read_line(char *buffer, size_t capacity) {
     size_t len = 0;
     for (;;) {
-        int ch = keyboard_read_char();
+        int ch = shell_read_char();
         if (ch == '\b') {
             if (len > 0) {
                 --len;

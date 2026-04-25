@@ -16,6 +16,10 @@ static inline int serial_is_transmit_empty(void) {
     return inb(0x3fd) & 0x20;
 }
 
+static inline int serial_is_data_ready(void) {
+    return inb(0x3fd) & 0x01;
+}
+
 void serial_init(void) {
     outb(0x3f9, 0x00);
     outb(0x3fb, 0x00);
@@ -56,4 +60,25 @@ void serial_write_u64(uint64_t value) {
     for (int i = 60; i >= 0; i -= 4) {
         serial_write_char(hex[(value >> i) & 0xf]);
     }
+}
+
+int serial_read_char_nonblocking(void) {
+    if (!serial_is_data_ready()) {
+        return -1;
+    }
+
+    int c = (int)inb(0x3f8);
+    if (c == '\r') {
+        return '\n';
+    }
+    return c;
+}
+
+int serial_read_char(void) {
+    int c;
+    do {
+        c = serial_read_char_nonblocking();
+        __asm__ volatile("pause");
+    } while (c < 0);
+    return c;
 }
