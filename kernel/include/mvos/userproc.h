@@ -27,6 +27,7 @@ uint64_t userproc_enter_execve_and_wait(uint64_t entry,
                                         uint64_t envp_user);
 void userproc_set_return_context(uint64_t return_rip, uint64_t return_stack);
 void userproc_set_current_app_id(uint64_t app_id);
+void userproc_set_exe_path(const char *path);
 void userproc_syscall_init(void);
 uint64_t userproc_dispatch(uint64_t syscall,
                            uint64_t arg1,

@@ -174,6 +174,7 @@ static void userapp_fallback_elf_load(void) {
         console_write_string(" used=");
         console_write_u64(stack_layout.used_bytes);
         console_write_string("\n");
+        userproc_set_exe_path("/boot/init/hello_linux_tiny");
     }
 }
 

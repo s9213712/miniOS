@@ -457,6 +457,26 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
+    const char initial_self_exe_path[] = "/proc/self/exe";
+    const char initial_expected_exe_path[] = "/boot/init/hello_linux_tiny";
+    char initial_link_buf[64];
+    userproc_set_exe_path(initial_expected_exe_path);
+    memset(initial_link_buf, 0, sizeof(initial_link_buf));
+    uint64_t initial_link_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READLINK,
+                                                 (uint64_t)(uintptr_t)initial_self_exe_path,
+                                                 (uint64_t)(uintptr_t)initial_link_buf,
+                                                 sizeof(initial_link_buf),
+                                                 0,
+                                                 0,
+                                                 0);
+    if (initial_link_rc != strlen(initial_expected_exe_path) ||
+        memcmp(initial_link_buf, initial_expected_exe_path, initial_link_rc) != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected initial readlink self exe, rc=%lld text=%s\n",
+                (long long)initial_link_rc,
+                initial_link_buf);
+        free(stack_mem);
+        return 1;
+    }
 
     uint8_t tiny_stack[64];
     stack_rc = userproc_prepare_exec_stack(

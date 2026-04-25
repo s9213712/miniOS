@@ -2030,7 +2030,7 @@ static int64_t userproc_linux_execve(uint64_t user_path,
     }
 
     userproc_close_cloexec_fds();
-    userproc_copy_cstr(g_userproc_exe_path, sizeof(g_userproc_exe_path), exec_path);
+    userproc_set_exe_path(exec_path);
     *out_report = report;
     *out_layout = layout;
     return 0;
@@ -2043,6 +2043,14 @@ void userproc_set_return_context(uint64_t return_rip, uint64_t return_stack) {
 
 void userproc_set_current_app_id(uint64_t app_id) {
     g_userproc_current_app_id = app_id;
+}
+
+void userproc_set_exe_path(const char *path) {
+    if (path == NULL) {
+        g_userproc_exe_path[0] = '\0';
+        return;
+    }
+    userproc_copy_cstr(g_userproc_exe_path, sizeof(g_userproc_exe_path), path);
 }
 
 void userproc_syscall_init(void) {
