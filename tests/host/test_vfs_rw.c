@@ -75,6 +75,14 @@ int main(void) {
         return 1;
     }
 
+    uint64_t initial_used = 0;
+    uint64_t initial_capacity = 0;
+    if (vfs_disk_usage(&initial_used, &initial_capacity) != 0 || initial_capacity == 0 || initial_used > initial_capacity) {
+        fprintf(stderr, "[test_vfs_rw] invalid disk usage baseline used=%llu capacity=%llu\n",
+                (unsigned long long)initial_used, (unsigned long long)initial_capacity);
+        return 1;
+    }
+
     if (read_file_exact("/boot/init/readme.txt", buffer, sizeof(buffer)) != 0) {
         fprintf(stderr, "[test_vfs_rw] failed to read static initfs file\n");
         return 1;
@@ -153,6 +161,20 @@ int main(void) {
         fprintf(stderr, "[test_vfs_rw] remove failed\n");
         return 1;
     }
+
+    uint64_t final_used = 0;
+    uint64_t final_capacity = 0;
+    if (vfs_disk_usage(&final_used, &final_capacity) != 0 || final_capacity != initial_capacity) {
+        fprintf(stderr, "[test_vfs_rw] disk capacity changed unexpectedly used=%llu capacity=%llu\n",
+                (unsigned long long)final_used, (unsigned long long)final_capacity);
+        return 1;
+    }
+    if (final_used > final_capacity) {
+        fprintf(stderr, "[test_vfs_rw] unexpected final used disk bytes=%llu initial=%llu\n",
+                (unsigned long long)final_used, (unsigned long long)initial_used);
+        return 1;
+    }
+
     mvos_vfs_file_t file;
     if (vfs_open("/tmp/note.txt", &file) == 0) {
         fprintf(stderr, "[test_vfs_rw] removed file still openable\n");

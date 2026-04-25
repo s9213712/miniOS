@@ -5,6 +5,7 @@
 #include <mvos/keyboard.h>
 #include <mvos/pmm.h>
 #include <mvos/scheduler.h>
+#include <mvos/vfs.h>
 #include <mvos/userapp.h>
 #include <mvos/vmm.h>
 #include <mvos/interrupt.h>
@@ -132,6 +133,142 @@ static int shell_parse_u32(const char *s, uint32_t *out) {
     }
     *out = (uint32_t)value;
     return 0;
+}
+
+static void shell_print_meter(const char *label, int has_sample, uint64_t percent) {
+    const uint64_t bar_width = 24;
+    uint64_t clamped = has_sample ? (percent > 100 ? 100 : percent) : 0;
+    console_write_string(label);
+    console_write_string(" ");
+    console_write_string("[");
+    for (uint64_t i = 0; i < bar_width; ++i) {
+        console_write_char(i < (clamped * bar_width) / 100 ? '#' : '.');
+    }
+    console_write_string("] ");
+    if (!has_sample) {
+        console_write_string("n/a ");
+    } else {
+        if (clamped < 100) {
+            console_write_char(' ');
+        }
+        if (clamped < 10) {
+            console_write_char(' ');
+        }
+        console_write_u64(clamped);
+        console_write_string("% ");
+    }
+}
+
+static uint64_t shell_sum_task_runs(void) {
+    uint32_t task_count = scheduler_task_count();
+    uint64_t total = 0;
+    for (uint32_t i = 0; i < task_count; ++i) {
+        total += scheduler_task_runs(i);
+    }
+    return total;
+}
+
+static uint64_t g_htop_last_ticks;
+static uint64_t g_htop_last_task_runs;
+static int g_htop_has_history;
+
+static void shell_cmd_htop(const char *arg) {
+    arg = shell_skip_spaces(arg);
+    if (arg[0] != '\0') {
+        console_write_string("htop usage: htop\n");
+        return;
+    }
+
+    uint64_t current_ticks = timer_ticks();
+    uint64_t current_task_runs = shell_sum_task_runs();
+    uint64_t delta_ticks = 0;
+    uint64_t delta_runs = 0;
+    uint64_t cpu_percent = 0;
+    int cpu_sample_ready = 0;
+
+    if (g_htop_has_history) {
+        if (current_ticks >= g_htop_last_ticks) {
+            delta_ticks = current_ticks - g_htop_last_ticks;
+        }
+        if (current_task_runs >= g_htop_last_task_runs) {
+            delta_runs = current_task_runs - g_htop_last_task_runs;
+        }
+        if (delta_ticks > 0 && delta_runs > 0) {
+            cpu_percent = (delta_runs * 100ULL) / delta_ticks;
+            if (cpu_percent > 100) {
+                cpu_percent = 100;
+            }
+            cpu_sample_ready = 1;
+        }
+        if (delta_ticks > 0 && delta_runs == 0) {
+            cpu_percent = 0;
+            cpu_sample_ready = 1;
+        }
+    }
+
+    g_htop_last_ticks = current_ticks;
+    g_htop_last_task_runs = current_task_runs;
+    g_htop_has_history = 1;
+
+    uint64_t free_pages = pmm_free_pages();
+    uint64_t total_pages = pmm_total_pages();
+    uint64_t used_pages = pmm_allocated_pages();
+    uint64_t ram_percent = (total_pages == 0) ? 0 : (used_pages * 100ULL) / total_pages;
+
+    int gpu_enabled = console_graphics_enabled();
+    uint64_t gpu_percent = gpu_enabled ? 100 : 0;
+
+    uint64_t disk_used = 0;
+    uint64_t disk_capacity = 0;
+    int disk_ok = vfs_disk_usage(&disk_used, &disk_capacity);
+    uint64_t disk_percent = 0;
+    int disk_sample_ready = 0;
+    if (disk_ok == 0 && disk_capacity > 0) {
+        disk_sample_ready = 1;
+        disk_percent = (disk_used * 100ULL) / disk_capacity;
+        if (disk_percent > 100) {
+            disk_percent = 100;
+        }
+    }
+
+    console_write_string("miniOS monitor (htop-style)\n");
+    shell_print_meter("CPU", cpu_sample_ready, cpu_percent);
+    if (cpu_sample_ready) {
+        console_write_string("window=");
+        console_write_u64(delta_runs);
+        console_write_string("/");
+        console_write_u64(delta_ticks);
+        console_write_string(" ");
+    } else {
+        console_write_string("run twice for live usage\n");
+        if (delta_ticks == 0 && delta_runs > 0) {
+            console_write_string("run twice soon for a stable sample\n");
+        }
+    }
+    console_write_string("\n");
+
+    shell_print_meter("RAM", 1, ram_percent);
+    console_write_string("used=");
+    console_write_u64(used_pages);
+    console_write_string(" free=");
+    console_write_u64(free_pages);
+    console_write_string(" total=");
+    console_write_u64(total_pages);
+    console_write_string(" pages\n");
+
+    shell_print_meter("GPU", 1, gpu_percent);
+    console_write_string(gpu_enabled ? "enabled\n" : "disabled\n");
+
+    shell_print_meter("DISK", disk_sample_ready, disk_percent);
+    if (disk_sample_ready) {
+        console_write_string("used=");
+        console_write_u64(disk_used);
+        console_write_string(" total=");
+        console_write_u64(disk_capacity);
+        console_write_string(" bytes\n");
+        return;
+    }
+    console_write_string("n/a (vfs statistics unavailable)\n");
 }
 
 static void shell_tasks_list(void) {
@@ -450,6 +587,8 @@ static void shell_print_help(void) {
     console_write_string("  gui    - draw a tiny demo window (requires graphics backend)\n");
     console_write_string("  app    - launch a tiny GUI app demo (requires graphics backend)\n");
     console_write_string("         usage: app [alt|status|list|launch <name>|info <name>]\n");
+    console_write_string("  htop   - show quick system monitor with CPU/RAM/GPU/DISK bars\n");
+    console_write_string("  sysmon - alias of htop\n");
     console_write_string("  run    - list or run built-in user apps\n");
     console_write_string("         usage: run [list|status|help|--help|<name>]\n");
     console_write_string("  cap    - print capability matrix for current miniOS build\n");
@@ -553,6 +692,11 @@ static void shell_exec(const char *line) {
         }
         if (shell_streq(arg, "vmm")) {
             console_write_string("vmm usage: vmm [list|status]\n");
+            return;
+        }
+        if (shell_streq(arg, "htop") || shell_streq(arg, "sysmon")) {
+            console_write_string("htop - show a quick 4-metric monitor\n");
+            console_write_string("command: htop\n");
             return;
         }
         console_write_string("unknown help topic: ");
@@ -722,6 +866,11 @@ static void shell_exec(const char *line) {
             return;
         }
         console_write_string("GUI app usage: app [alt|list|status|launch <name>|info <name>]\n");
+        return;
+    }
+    if ((cmd_len == 4 && shell_streq(trimmed_line, "htop")) ||
+        (cmd_len == 6 && shell_streq(trimmed_line, "sysmon"))) {
+        shell_cmd_htop(arg);
         return;
     }
     if (cmd_len == 2 && shell_streq(trimmed_line, "ls")) {

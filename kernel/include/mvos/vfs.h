@@ -27,3 +27,4 @@ int vfs_remove_file(const char *path);
 void vfs_diagnostic_list(void);
 void vfs_diagnostic_read_file(void);
 void vfs_diagnostic_missing(void);
+int vfs_disk_usage(uint64_t *used_bytes, uint64_t *capacity_bytes);

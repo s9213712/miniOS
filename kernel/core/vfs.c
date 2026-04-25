@@ -183,6 +183,29 @@ static vfs_dynamic_node_t *alloc_dynamic_node(const char *path) {
     return NULL;
 }
 
+static uint64_t vfs_total_static_bytes(void) {
+    uint64_t bytes = 0;
+    init_file_checksums();
+    for (uint64_t i = 0; i < sizeof(g_nodes) / sizeof(g_nodes[0]); ++i) {
+        bytes += static_node_size(&g_nodes[i]);
+    }
+    return bytes;
+}
+
+static uint64_t vfs_used_tmp_bytes(void) {
+    uint64_t bytes = 0;
+    for (uint64_t i = 0; i < MAX_DYNAMIC_FILES; ++i) {
+        if (g_dynamic_nodes[i].in_use) {
+            bytes += g_dynamic_nodes[i].size;
+        }
+    }
+    return bytes;
+}
+
+static uint64_t vfs_tmp_capacity_bytes(void) {
+    return (uint64_t)MAX_DYNAMIC_FILES * sizeof(g_dynamic_nodes[0].data);
+}
+
 int vfs_open(const char *path, mvos_vfs_file_t *file) {
     /* Phase-6 entry point: allocate one slot from fixed open table, bind node data.
      * Return code policy:
@@ -342,6 +365,16 @@ void vfs_close(mvos_vfs_file_t *file) {
         }
     }
     file->in_use = 0;
+}
+
+int vfs_disk_usage(uint64_t *used_bytes, uint64_t *capacity_bytes) {
+    if (used_bytes == NULL || capacity_bytes == NULL) {
+        return -1;
+    }
+
+    *used_bytes = vfs_total_static_bytes() + vfs_used_tmp_bytes();
+    *capacity_bytes = vfs_total_static_bytes() + vfs_tmp_capacity_bytes();
+    return 0;
 }
 
 uint64_t vfs_list(mvos_vfs_list_visitor_t visitor, const char *prefix, void *user_data) {
