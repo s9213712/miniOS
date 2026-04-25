@@ -650,6 +650,61 @@ int main(void) {
         return 1;
     }
 
+    uint64_t execve_probe_mmap = userproc_dispatch(TEST_LINUX_SYSCALL_MMAP,
+                                                   0,
+                                                   8192,
+                                                   TEST_PROT_READ | TEST_PROT_WRITE,
+                                                   TEST_MAP_PRIVATE | TEST_MAP_ANONYMOUS,
+                                                   UINT64_MAX,
+                                                   0);
+    if ((int64_t)execve_probe_mmap < 0 || (execve_probe_mmap & (MVOS_VMM_PAGE_SIZE - 1ULL)) != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected execve probe mmap addr, got %lld\n", (long long)execve_probe_mmap);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MUNMAP, execve_probe_mmap, 8192, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected execve probe mmap cleanup success, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+
+    exec_rc = userproc_dispatch(
+        TEST_LINUX_SYSCALL_EXECVE,
+        (uint64_t)(uintptr_t)"/bin/hello_linux_tiny",
+        (uint64_t)(uintptr_t)exec_argv,
+        (uint64_t)(uintptr_t)exec_envp,
+        0,
+        0,
+        0);
+    if ((int64_t)exec_rc != 1) {
+        fprintf(stderr, "[test_userimg_loader] expected second execve scaffold success signal (1), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+
+    uint64_t post_execve_mmap = userproc_dispatch(TEST_LINUX_SYSCALL_MMAP,
+                                                  0,
+                                                  8192,
+                                                  TEST_PROT_READ | TEST_PROT_WRITE,
+                                                  TEST_MAP_PRIVATE | TEST_MAP_ANONYMOUS,
+                                                  UINT64_MAX,
+                                                  0);
+    if ((int64_t)post_execve_mmap != (int64_t)TEST_MMAP_ARENA_BASE) {
+        fprintf(stderr,
+                "[test_userimg_loader] expected mmap arena to reset on execve to 0x%llx, got %lld\n",
+                (unsigned long long)TEST_MMAP_ARENA_BASE,
+                (long long)post_execve_mmap);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_MUNMAP, post_execve_mmap, 8192, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected post-execve mmap cleanup success, got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_EXECVE, 0, 0, 0, 0, 0, 0);
     if ((int64_t)exec_rc != -14) {
         fprintf(stderr, "[test_userimg_loader] expected execve EFAULT (-14), got %lld\n", (long long)exec_rc);

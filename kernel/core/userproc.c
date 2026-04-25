@@ -2003,6 +2003,8 @@ static int64_t userproc_linux_execve(uint64_t user_path,
         return -12; /* ENOMEM */
     }
 
+    g_userproc_mmap_next = MINIOS_USERPROC_MMAP_BASE;
+
     mvos_user_stack_layout_t layout;
     int stack_rc = userproc_prepare_exec_stack(
         g_userproc_execve_stack_scratch,
