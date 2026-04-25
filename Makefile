@@ -113,10 +113,10 @@ $(OUTPUT_DIR)/%.o: %.cpp $(FLAGS_MARK)
 	@echo "[CXX] $<"
 	@$(CXX) $(CXXFLAGS) -c $< -o $@
 
-run: $(KERNEL_ELF)
+run: iso
 	bash scripts/run_qemu.sh
 
-debug: $(KERNEL_ELF)
+debug: iso
 	bash scripts/debug_qemu.sh
 
 iso: $(KERNEL_ELF)
