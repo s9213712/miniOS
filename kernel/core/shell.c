@@ -725,7 +725,7 @@ static void shell_exec(const char *line) {
 
 void shell_run(void) {
     static char line[SHELL_BUFFER_LEN];
-    console_write_string("MiniOS shell (stage 3, phase 44)\n");
+    console_write_string("MiniOS shell (stage 4, phase 45)\n");
     shell_print_help();
     for (;;) {
         shell_print_prompt();

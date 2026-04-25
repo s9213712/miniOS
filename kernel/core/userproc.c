@@ -716,10 +716,18 @@ static uint64_t userproc_linux_dup3(uint64_t oldfd, uint64_t newfd, uint64_t fla
     if (oldfd == newfd) {
         return userproc_errno(-22); /* EINVAL */
     }
-    if (flags != 0) {
-        return userproc_errno(-22); /* EINVAL: close-on-exec is not modeled yet. */
+    if ((flags & (uint64_t)MINIOS_FD_CLOEXEC) != flags) {
+        return userproc_errno(-22); /* EINVAL: unsupported flag bits. */
     }
-    return userproc_linux_dup2(oldfd, newfd);
+    uint64_t dup_rc = userproc_linux_dup2(oldfd, newfd);
+    if (userproc_is_errno(dup_rc)) {
+        return dup_rc;
+    }
+    uint64_t index = dup_rc - MINIOS_USERPROC_FD_BASE;
+    if (index < MINIOS_USERPROC_MAX_FDS) {
+        g_userproc_fd_cloexec[index] = (flags & MINIOS_FD_CLOEXEC) != 0;
+    }
+    return dup_rc;
 }
 
 static void userproc_close_cloexec_fds(void) {

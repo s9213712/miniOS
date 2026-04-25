@@ -1379,6 +1379,53 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
+    uint64_t dir_dup3_cloexec = userproc_dispatch(TEST_LINUX_SYSCALL_DUP3, dirfd, 9, TEST_FD_CLOEXEC, 0, 0, 0);
+    if (dir_dup3_cloexec != 9) {
+        fprintf(stderr, "[test_userimg_loader] expected dup3 cloexec fd 9, got %lld\n",
+                (long long)dir_dup3_cloexec);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, dir_dup3_cloexec, TEST_F_GETFD, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != TEST_FD_CLOEXEC) {
+        fprintf(stderr, "[test_userimg_loader] expected dup3 FD_CLOEXEC flag, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint32_t pre_execve_count = g_enter_execve_count;
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_EXECVE,
+                               (uint64_t)(uintptr_t)"/bin/hello_linux_tiny",
+                               (uint64_t)(uintptr_t)exec_argv,
+                               (uint64_t)(uintptr_t)exec_envp,
+                               0,
+                               0,
+                               0);
+    if (exec_rc != 1ULL) {
+        fprintf(stderr, "[test_userimg_loader] expected dup3 cloexec execve scaffold success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, dir_dup3_cloexec, TEST_F_GETFD, 0, 0, 0, 0);
+    if ((int64_t)exec_rc != -9) {
+        fprintf(stderr, "[test_userimg_loader] expected dup3 cloexec fd closed after execve, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    if (g_enter_execve_count != pre_execve_count + 1) {
+        fprintf(stderr, "[test_userimg_loader] expected dup3 cloexec execve to enter userspace handoff\n");
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_DUP3, dirfd, 10, 0x80000000u, 0, 0, 0);
+    if ((int64_t)exec_rc != -22) {
+        fprintf(stderr, "[test_userimg_loader] expected dup3 invalid flag to return EINVAL (-22), got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, dirfd, 0, 0, 0, 0, 0);
     if (exec_rc != 0) {
         fprintf(stderr, "[test_userimg_loader] expected close dirfd success, got %lld\n",

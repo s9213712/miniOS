@@ -1,5 +1,15 @@
 # Changelog
 
+## Phase 46 – FD_CLOEXEC in dup3
+
+### Added
+- Implemented `dup3` flag handling for `O_CLOEXEC` and propagate close-on-exec state to the duplicated descriptor.
+- Added host regression coverage for `dup3` `FD_CLOEXEC` behavior (descriptor flag visibility and descriptor close-on-exec after `execve`).
+- Added `dup3` invalid flag regression (`EINVAL`) coverage.
+
+### Validation
+- `make host-regressions`
+
 ## Phase 45 – Execve State Isolation
 
 ### Added
