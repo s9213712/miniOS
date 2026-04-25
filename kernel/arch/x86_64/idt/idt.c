@@ -59,7 +59,7 @@ void idt_init(void) {
     idt_set_gate(13, isr_general_protection, 0x8E);
     idt_set_gate(14, isr_page_fault, 0x8E);
     idt_set_gate(32, isr_timer, 0x8E);
-    idt_set_gate(0x80, isr_user_syscall, 0xEE);
+    idt_set_gate(0x80, isr_user_syscall, 0xEF);
 
     idt_ptr.limit = (uint16_t)(sizeof(idt) - 1);
     idt_ptr.base = (uint64_t)&idt;

@@ -1,4 +1,3 @@
-#include <mvos/console.h>
 #include <mvos/vmm.h>
 #include <stdint.h>
 
@@ -28,6 +27,13 @@ static uint64_t g_user_heap_mapped_end;
 static uint64_t g_user_heap_limit;
 static uint64_t g_user_brk;
 static int g_user_heap_ready;
+
+static void vmm_log_region_full(void) {
+    extern void console_write_string(const char *msg) __attribute__((weak));
+    if (console_write_string) {
+        console_write_string("[vmm] region table full (max=32)\n");
+    }
+}
 
 static uint64_t align_up_u64(uint64_t value, uint64_t align) {
     if (align == 0) {
@@ -273,7 +279,7 @@ int vmm_map_range(uint64_t vaddr, uint64_t size, uint64_t flags, const char *tag
         copy_tag(g_regions[i].tag, sizeof(g_regions[i].tag), tag);
         return 0;
     }
-    console_write_string("[vmm] region table full (max=32)\n");
+    vmm_log_region_full();
     return -5;
 }
 

@@ -1514,7 +1514,7 @@ static uint64_t userproc_linux_sched_getaffinity(uint64_t pid, uint64_t cpusetsi
     if (rc != 0) {
         return userproc_errno(rc);
     }
-    return sizeof(mask);
+    return 0;
 }
 
 static uint64_t userproc_linux_set_robust_list(uint64_t head, uint64_t len) {
@@ -2004,6 +2004,8 @@ static int64_t userproc_linux_execve(uint64_t user_path,
     }
 
     g_userproc_mmap_next = MINIOS_USERPROC_MMAP_BASE;
+    g_userproc_robust_list_head = 0;
+    g_userproc_robust_list_len = 0;
 
     mvos_user_stack_layout_t layout;
     int stack_rc = userproc_prepare_exec_stack(

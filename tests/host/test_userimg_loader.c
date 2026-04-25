@@ -750,7 +750,7 @@ int main(void) {
                                 0,
                                 0,
                                 0);
-    if (exec_rc != sizeof(cpu_mask) || cpu_mask != 1) {
+    if (exec_rc != 0 || cpu_mask != 1) {
         fprintf(stderr, "[test_userimg_loader] expected sched_getaffinity CPU0 mask, rc=%lld mask=%llu\n",
                 (long long)exec_rc,
                 (unsigned long long)cpu_mask);
