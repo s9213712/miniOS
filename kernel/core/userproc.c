@@ -99,6 +99,8 @@ enum {
     MINIOS_CLOCK_MONOTONIC = 1,
     MINIOS_F_GETFD = 1,
     MINIOS_F_SETFD = 2,
+    MINIOS_F_DUPFD = 0,
+    MINIOS_F_DUPFD_CLOEXEC = 1030,
     MINIOS_F_GETFL = 3,
     MINIOS_F_SETFL = 4,
     MINIOS_FD_CLOEXEC = 1,
@@ -617,6 +619,27 @@ static int userproc_fd_alloc_index(uint64_t *out_index) {
     return -1;
 }
 
+static int userproc_fd_alloc_index_from(uint64_t min_fd, uint64_t *out_index) {
+    if (min_fd < MINIOS_USERPROC_FD_BASE) {
+        return -2;
+    }
+
+    uint64_t start = min_fd - MINIOS_USERPROC_FD_BASE;
+    if (start >= MINIOS_USERPROC_MAX_FDS) {
+        return -2;
+    }
+
+    for (uint64_t i = start; i < MINIOS_USERPROC_MAX_FDS; ++i) {
+        if (g_userproc_fd_kinds[i] == MINIOS_USERPROC_FD_NONE) {
+            if (out_index != NULL) {
+                *out_index = i;
+            }
+            return 0;
+        }
+    }
+    return -1;
+}
+
 static uint64_t userproc_alloc_fd(mvos_vfs_file_t *file) {
     if (file == NULL || !file->in_use) {
         return userproc_errno(-22); /* EINVAL */
@@ -1105,6 +1128,31 @@ static uint64_t userproc_linux_fcntl(uint64_t fd, uint64_t cmd, uint64_t arg) {
     }
 
     switch (cmd) {
+        case MINIOS_F_DUPFD:
+        case MINIOS_F_DUPFD_CLOEXEC: {
+            if ((int64_t)arg < 0) {
+                return userproc_errno(-22); /* EINVAL */
+            }
+            uint64_t new_index = 0;
+            int alloc_rc = userproc_fd_alloc_index_from((uint64_t)arg, &new_index);
+            if (alloc_rc == -2) {
+                return userproc_errno(-22); /* EINVAL */
+            }
+            if (alloc_rc != 0) {
+                return userproc_errno(-24); /* EMFILE */
+            }
+            int dup_rc = userproc_clone_fd_to_index(fd, new_index);
+            if (dup_rc != 0) {
+                return userproc_errno(dup_rc);
+            }
+            uint64_t dup_fd = MINIOS_USERPROC_FD_BASE + new_index;
+            if (cmd == MINIOS_F_DUPFD_CLOEXEC) {
+                g_userproc_fd_cloexec[new_index] = 1;
+            } else {
+                g_userproc_fd_cloexec[new_index] = 0;
+            }
+            return dup_fd;
+        }
         case MINIOS_F_GETFD: {
             if (fd < MINIOS_USERPROC_FD_BASE) {
                 return 0;

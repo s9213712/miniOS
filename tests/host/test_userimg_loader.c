@@ -143,6 +143,8 @@ enum {
     TEST_LINUX_SYSCALL_UNIMPLEMENTED = 999,
     TEST_AT_FDCWD = -100,
     TEST_O_DIRECTORY = 00200000,
+    TEST_F_DUPFD = 0,
+    TEST_F_DUPFD_CLOEXEC = 1030,
     TEST_F_GETFD = 1,
     TEST_F_SETFD = 2,
     TEST_F_GETFL = 3,
@@ -543,6 +545,68 @@ int main(void) {
                                 0);
     if (exec_rc != 0) {
         fprintf(stderr, "[test_userimg_loader] expected cloexec F_SETFD success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t dupfd = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, cloexec_fd, TEST_F_DUPFD, 5, 0, 0, 0);
+    if (dupfd < 5 || dupfd > 10) {
+        fprintf(stderr, "[test_userimg_loader] expected dupfd >=5 result, got %lld\n",
+                (long long)dupfd);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, dupfd, TEST_F_GETFD, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected dupfd close-on-exec clear, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    uint64_t dupfd_cloexec = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL,
+                                              cloexec_fd,
+                                              TEST_F_DUPFD_CLOEXEC,
+                                              6,
+                                              0,
+                                              0,
+                                              0);
+    if (dupfd_cloexec < 6 || dupfd_cloexec > 10) {
+        fprintf(stderr, "[test_userimg_loader] expected dupfd cloexec >=6 result, got %lld\n",
+                (long long)dupfd_cloexec);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, dupfd_cloexec, TEST_F_GETFD, 0, 0, 0, 0);
+    if (exec_rc != TEST_FD_CLOEXEC) {
+        fprintf(stderr, "[test_userimg_loader] expected dupfd cloexec flag, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, dupfd_cloexec, TEST_F_SETFD, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected clear cloexec via F_SETFD success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, dupfd, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected dupfd close success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, dupfd_cloexec, 0, 0, 0, 0, 0);
+    if (exec_rc != 0) {
+        fprintf(stderr, "[test_userimg_loader] expected dupfd_cloexec close success, got %lld\n",
+                (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_FCNTL, cloexec_fd, TEST_F_DUPFD_CLOEXEC, 1, 0, 0, 0);
+    if ((int64_t)exec_rc != -22) {
+        fprintf(stderr, "[test_userimg_loader] expected invalid fcntl dupfd cloexec arg to fail, got %lld\n",
                 (long long)exec_rc);
         free(stack_mem);
         return 1;
@@ -1097,16 +1161,16 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
-    uint64_t dupfd = userproc_dispatch(TEST_LINUX_SYSCALL_DUP, fd, 0, 0, 0, 0, 0);
-    if (dupfd < 3 || dupfd > 10 || dupfd == fd) {
+    uint64_t dupfd_via_dup = userproc_dispatch(TEST_LINUX_SYSCALL_DUP, fd, 0, 0, 0, 0, 0);
+    if (dupfd_via_dup < 3 || dupfd_via_dup > 10 || dupfd_via_dup == fd) {
         fprintf(stderr, "[test_userimg_loader] expected file dup fd, got %lld\n",
-                (long long)dupfd);
+                (long long)dupfd_via_dup);
         free(stack_mem);
         return 1;
     }
     memset(read_buf, 0, sizeof(read_buf));
     exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_READ,
-                                dupfd,
+                                dupfd_via_dup,
                                 (uint64_t)(uintptr_t)read_buf,
                                 3,
                                 0,
@@ -1126,7 +1190,7 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
-    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, dupfd, 0, 0, 0, 0, 0);
+    exec_rc = userproc_dispatch(TEST_LINUX_SYSCALL_CLOSE, dupfd_via_dup, 0, 0, 0, 0, 0);
     if (exec_rc != 0) {
         fprintf(stderr, "[test_userimg_loader] expected dup fd close success, got %lld\n",
                 (long long)exec_rc);

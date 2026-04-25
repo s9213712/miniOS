@@ -1,5 +1,17 @@
 # Changelog
 
+## Phase 47 – fcntl dupfd Variants
+
+### Added
+- Implemented `fcntl(F_DUPFD)` and `fcntl(F_DUPFD_CLOEXEC)` syscall behavior for lowest-available descriptor allocation.
+- Added descriptor-flag semantics:
+  - `F_DUPFD` clones descriptors with clear `FD_CLOEXEC`.
+  - `F_DUPFD_CLOEXEC` clones descriptors with `FD_CLOEXEC` set.
+- Added host regression coverage for `fcntl` dupfd success paths, flag inheritance/clearance, and invalid minimum-fd error handling.
+
+### Validation
+- `make host-regressions`
+
 ## Phase 46 – FD_CLOEXEC in dup3
 
 ### Added
