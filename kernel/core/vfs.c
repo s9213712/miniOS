@@ -38,12 +38,18 @@ static const uint8_t init_file_readme_txt[] =
     "miniOS init filesystem\n"
     "used for phase 6 smoke diagnostics.\n";
 
+static const uint8_t init_file_1a2b_py[] =
+    "print(\"1A2B Python version (miniOS mini-python)\")\n"
+    "play_1a2b()\n"
+    "print(\"Python game done\")\n";
+
 /* In-memory manifest is intentionally tiny and deterministic for smoke testing.
  * Node metadata is computed once lazily during first open.
  */
 static vfs_node_t g_nodes[] = {
     {"/boot/init/boot.txt", init_file_boot_txt, sizeof(init_file_boot_txt) - 1, 0},
     {"/boot/init/readme.txt", init_file_readme_txt, sizeof(init_file_readme_txt) - 1, 0},
+    {"/boot/init/1a2b.py", init_file_1a2b_py, sizeof(init_file_1a2b_py) - 1, 0},
     {"/boot/init/hello_linux_tiny", g_linux_user_elf_sample, 0, 0},
 };
 

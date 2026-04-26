@@ -4,6 +4,8 @@
 #include <mvos/log.h>
 #include <mvos/scheduler.h>
 #include <mvos/interrupt.h>
+#include <mvos/keyboard.h>
+#include <mvos/serial.h>
 #include <mvos/elf.h>
 #include <mvos/userimg.h>
 #include <stdint.h>
@@ -76,11 +78,215 @@ static void userapp_fallback_cpp(void) {
     console_write_string(")\n");
 }
 
+static int userapp_1a2b_read_char(void) {
+    for (;;) {
+        int c = keyboard_read_char_nonblocking();
+        if (c >= 0) {
+            return c;
+        }
+        c = serial_read_char_nonblocking();
+        if (c >= 0) {
+            return c;
+        }
+        __asm__ volatile("pause");
+    }
+}
+
+static int userapp_1a2b_read_line(char *line, size_t cap, const char *prompt) {
+    if (line == NULL || cap == 0) {
+        return -1;
+    }
+    if (prompt != NULL) {
+        console_write_string(prompt);
+    }
+    size_t len = 0;
+    line[0] = '\0';
+    while (1) {
+        int c = userapp_1a2b_read_char();
+        if (c == '\r' || c == '\n') {
+            console_write_char('\n');
+            line[len] = '\0';
+            return 0;
+        }
+        if (c == '\b' || c == 0x7f) {
+            if (len == 0) {
+                continue;
+            }
+            --len;
+            line[len] = '\0';
+            console_write_char('\b');
+            console_write_char(' ');
+            console_write_char('\b');
+            continue;
+        }
+        if (c < 32 || c >= 127) {
+            continue;
+        }
+        if (len + 1 >= cap) {
+            continue;
+        }
+        line[len++] = (char)c;
+        line[len] = '\0';
+        console_write_char((char)c);
+    }
+}
+
+static int userapp_1a2b_parse_guess(const char *line, int guess[4]) {
+    int seen[10] = {0};
+    for (uint32_t i = 0; i < 4; ++i) {
+        if (line == NULL || line[i] == '\0') {
+            return -1;
+        }
+        char ch = line[i];
+        if (ch < '0' || ch > '9') {
+            return -1;
+        }
+        int digit = (int)(ch - '0');
+        if (seen[digit]) {
+            return -1;
+        }
+        seen[digit] = 1;
+        guess[i] = digit;
+    }
+    return line[4] == '\0' ? 0 : -1;
+}
+
+static void userapp_1a2b_write_int(uint64_t value) {
+    char text[32];
+    int len = 0;
+    if (value == 0) {
+        console_write_char('0');
+        return;
+    }
+    while (value > 0 && len < (int)(sizeof(text) - 1)) {
+        text[len++] = (char)('0' + (value % 10u));
+        value /= 10u;
+    }
+    while (len > 0) {
+        --len;
+        console_write_char(text[len]);
+    }
+}
+
+static void userapp_1a2b_print_result(uint64_t a, uint64_t b) {
+    userapp_1a2b_write_int(a);
+    console_write_string("A");
+    userapp_1a2b_write_int(b);
+    console_write_string("B\n");
+}
+
+static uint64_t g_userapp_1a2b_rng_state = 0ULL;
+
+static uint64_t userapp_1a2b_rng_next(void) {
+    if (g_userapp_1a2b_rng_state == 0ULL) {
+        g_userapp_1a2b_rng_state = 0x1234abcdULL ^ timer_ticks();
+    }
+    g_userapp_1a2b_rng_state = (g_userapp_1a2b_rng_state * 6364136223846793005ULL) + 1ULL;
+    return g_userapp_1a2b_rng_state;
+}
+
+static void userapp_1a2b_seed_rng(uint64_t seed) {
+    g_userapp_1a2b_rng_state ^= seed | 1ULL;
+    if (g_userapp_1a2b_rng_state == 0ULL) {
+        g_userapp_1a2b_rng_state = 0x9e3779b97f4a7c15ULL;
+    }
+}
+
+static void userapp_1a2b_init_secret(int secret[4]) {
+    int used[10] = {0};
+    uint32_t generated = 0;
+    userapp_1a2b_seed_rng(timer_ticks() * 1103515245ULL + 12345ULL);
+    while (generated < 4) {
+        int digit = (int)(userapp_1a2b_rng_next() % 10ULL);
+        if (used[digit]) {
+            continue;
+        }
+        used[digit] = 1;
+        secret[generated++] = digit;
+    }
+}
+
+static void userapp_1a2b_print_secret(const int secret[4]) {
+    for (uint32_t i = 0; i < 4; ++i) {
+        console_write_char((char)('0' + secret[i]));
+    }
+    console_write_char('\n');
+}
+
+static void userapp_1a2b_evaluate_guess(const int secret[4], const int guess[4], uint64_t *a_out, uint64_t *b_out) {
+    uint64_t a = 0;
+    uint64_t b = 0;
+    for (uint32_t i = 0; i < 4; ++i) {
+        if (secret[i] == guess[i]) {
+            ++a;
+            continue;
+        }
+        for (uint32_t j = 0; j < 4; ++j) {
+            if (i == j) {
+                continue;
+            }
+            if (guess[i] == secret[j]) {
+                ++b;
+                break;
+            }
+        }
+    }
+    *a_out = a;
+    *b_out = b;
+}
+
+static void userapp_fallback_1a2b(void) {
+    int secret[4];
+    char line[16];
+    int guess[4];
+    int attempts = 0;
+    int solved = 0;
+    userapp_1a2b_init_secret(secret);
+
+    console_write_string("1A2B Game (C version)\n");
+    console_write_string("Secret: 4 distinct digits (0-9), max 8 tries.\n");
+    console_write_string("Input 'q' to quit.\n");
+
+    while (attempts < 8 && !solved) {
+        if (userapp_1a2b_read_line(line, sizeof(line), "guess> ") != 0) {
+            return;
+        }
+        if (line[0] == 'q' && line[1] == '\0') {
+            break;
+        }
+        if (userapp_1a2b_parse_guess(line, guess) != 0) {
+            console_write_string("invalid input: please input exactly 4 distinct digits (0-9).\n");
+            continue;
+        }
+        ++attempts;
+        uint64_t a = 0;
+        uint64_t b = 0;
+        userapp_1a2b_evaluate_guess(secret, guess, &a, &b);
+        userapp_1a2b_print_result(a, b);
+        if (a == 4) {
+            solved = 1;
+            console_write_string("You win! secret=");
+            userapp_1a2b_print_secret(secret);
+        }
+    }
+
+    if (!solved && attempts >= 8) {
+        console_write_string("Game over. answer=");
+        userapp_1a2b_print_secret(secret);
+    }
+    if (!solved && line[0] == 'q') {
+        console_write_string("game quit.\n");
+    }
+}
+
 static void userapp_fallback_python(void) {
-    console_write_string("Python not available in miniOS runtime yet. ");
-    console_write_string("Use host-side execution, e.g.:\n");
-    console_write_string("  python3 scripts/dev_status.py\n");
-    console_write_string("You can still run C/C++ built-ins via `run <name>`.\n");
+    console_write_string("mini-python subset is available via `run python <path>`.\n");
+    console_write_string("Mini syntax supported:\n");
+    console_write_string("- print('text')\n");
+    console_write_string("- print(name_or_expr)\n");
+    console_write_string("- variable = expr\n");
+    console_write_string("- +, -, *, / operators\n");
+    console_write_string("- parentheses in expressions, e.g. 2*(3+1)\n");
 }
 
 static void userapp_fallback_linux_abi(void) {
@@ -185,8 +391,10 @@ static const mvos_userapp_t g_userapps[] = {
     {"elf-inspect", "inspect embedded linux-user ELF metadata (kernel mode)", userapp_fallback_elf_inspect, 0, false},
     {"elf-load", "prepare embedded linux-user ELF VMM layout (kernel mode)", userapp_fallback_elf_load, 0, false},
     {"cpp", "print C++ demo result (kernel mode demo)", userapp_fallback_cpp, 0, false},
+    {"1a2b", "play 1A2B guessing game (C logic, kernel mode)", userapp_fallback_1a2b, 0, false},
+    {"1a2b-c", "play 1A2B guessing game (C logic, kernel mode)", userapp_fallback_1a2b, 0, false},
     {"scheduler", "print scheduler snapshot (kernel mode)", userapp_scheduler, 0, false},
-    {"python", "print Python availability notice", userapp_fallback_python, 0, false},
+    {"python", "run mini-python subset runner on VFS script", userapp_fallback_python, 0, false},
 };
 
 static const uint64_t g_userapp_count = sizeof(g_userapps) / sizeof(g_userapps[0]);

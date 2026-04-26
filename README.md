@@ -18,6 +18,7 @@ miniOS 是 x86_64 教學型作業系統專案，主線目標是：
 Phase 細節歷史保留在 `CHANGELOG.md`，Stage 視角主文件如下：
 - `docs/roadmap.md`
 - `docs/linux-parity-goals.md`
+- `docs/python-c-practice.md`（miniOS 內 Python 測試腳本與主機端 C 編譯範例）
 
 ## 目前可做的事
 
@@ -65,6 +66,7 @@ make test-vmm-basic
 make test-userimg-loader
 make test-host-programs
 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
+make pre-push
 ```
 
 常用命令：
@@ -73,7 +75,10 @@ LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
 - `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
 - `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline-basic`（boot-only 快速檢查）
 - `ENABLE_SHELL=1 make run`
+- `./minios.sh`（建議用一鍵腳本，預設 TTY + shell）
+- `./minios.sh -g`（GUI 模式）
 - `python3 scripts/dev_status.py --build`
+- `make pre-push`（推前建議標準流程）
 
 ## 目前 Stage 4 的下一步
 

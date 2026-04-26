@@ -55,10 +55,50 @@ echo "[test_host_programs] dynamic mode build"
 make -C "$ROOT_DIR" clean-host-programs >/dev/null
 make -C "$ROOT_DIR" host-programs >/dev/null
 validate_manifest "dynamic" "0"
+make -C "$ROOT_DIR" host-programs >/dev/null
+python3 - "$MANIFEST" <<'PY'
+import json
+import sys
+
+manifest_path = sys.argv[1]
+data = json.loads(open(manifest_path, "r", encoding="utf-8").read())
+programs = data.get("programs", [])
+if not programs:
+    raise SystemExit("[test_host_programs] no programs to verify cache behavior")
+
+for entry in programs:
+    if entry.get("status") != "ok" or not entry.get("cached"):
+        raise SystemExit(
+            "[test_host_programs] expected cache hit for unchanged dynamic build: "
+            f"{entry.get('name')} / {entry.get('language')}"
+        )
+
+print("[test_host_programs] dynamic incremental cache check ok")
+PY
 
 echo "[test_host_programs] static mode build"
 make -C "$ROOT_DIR" clean-host-programs >/dev/null
 MHOST_STATIC=1 make -C "$ROOT_DIR" host-programs >/dev/null
 validate_manifest "static" "1"
+MHOST_STATIC=1 make -C "$ROOT_DIR" host-programs >/dev/null
+python3 - "$MANIFEST" <<'PY'
+import json
+import sys
+
+manifest_path = sys.argv[1]
+data = json.loads(open(manifest_path, "r", encoding="utf-8").read())
+programs = data.get("programs", [])
+if not programs:
+    raise SystemExit("[test_host_programs] no programs to verify static cache behavior")
+
+for entry in programs:
+    if entry.get("status") != "ok" or not entry.get("cached"):
+        raise SystemExit(
+            "[test_host_programs] expected cache hit for unchanged static build: "
+            f"{entry.get('name')} / {entry.get('language')}"
+        )
+
+print("[test_host_programs] static incremental cache check ok")
+PY
 
 echo "[test_host_programs] PASS"

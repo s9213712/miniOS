@@ -7,7 +7,7 @@
 > cd /home/s92137/miniOS
 > ```
 
-> 目前進度摘要：專案已重整為 Stage 管理，當前位於 `Stage 4`。`smoke` 主線穩定，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`、`run elf-load`。`run hello` 僅以 kernel fallback 執行。`run python` 已提供「未支援/需主機執行」提示。Linux 應用（如 transmission/htop/nano）尚未支援；`EXECVE_DEMO=1` 可跑內嵌 tiny static ELF 的最小 execve userspace demo。`execve` 成功換映像時已清除舊 userspace 映射，確保 mmap 狀態隔離。
+> 目前進度摘要：專案已重整為 Stage 管理，當前位於 `Stage 4`。`smoke` 主線穩定，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`、`run elf-load`。`run hello` 僅以 kernel fallback 執行。`run python` 現在提供 mini Python 子集（`print`、整數變數、`+/-` 表達式）執行；完整 Python 尚未支援。Linux 應用（如 transmission/htop/nano）尚未支援；`EXECVE_DEMO=1` 可跑內嵌 tiny static ELF 的最小 execve userspace demo。`execve` 成功換映像時已清除舊 userspace 映射，確保 mmap 狀態隔離。
 
 ---
 
@@ -31,6 +31,8 @@
   ```bash
   rg --files
   ```
+
+> 快速上手：`test.py` 與 `test.c` 的實作流程請參考 [python-c-practice](./python-c-practice.md)
 
 ---
 
@@ -72,6 +74,10 @@
   ```bash
   make test-userimg-loader
   ```
+- 推前完整檢查（建議每次推版都跑）：
+  ```bash
+  make pre-push
+  ```
 - 主機端編譯腳本（可用來驗證輸出）：
   ```bash
   python3 scripts/build_user_programs.py --source-dir samples/user-programs --out-dir build/host-programs
@@ -83,6 +89,11 @@
   MHOST_COMMON_FLAGS="-fno-pie -fstack-protector-strong" make host-programs
   MHOST_CFLAGS="-DDEMO_HOST=1 -g" make host-programs
   MHOST_CXXFLAGS="-O0 -g" make host-programs
+  MHOST_NO_CACHE=1 make host-programs   # 禁用增量快取，強制重編
+  ```
+- `scripts/build_user_programs.py` 可加 `--no-cache` 直接關閉快取：
+  ```bash
+  python3 scripts/build_user_programs.py --no-cache --source-dir samples/user-programs --out-dir build/host-programs
   ```
 - 清除 `build/` 再建置：
   ```bash
@@ -196,10 +207,13 @@
   - `append <path> <text>`（僅允許 `/tmp/*`）
   - `touch <path>`（僅允許 `/tmp/*`）
   - `rm <path>`（僅允許移除 `/tmp/*`）
+  - `nano <path>`（類似 nano 的即時文字編輯器，儲存 Ctrl+S、離開 Ctrl+Q）
   - `app`
   - `app launch <name>`
   - `app info <name>`
   - `app alt`
+  - `c-compile`（顯示主機端 C/C++ 編譯模式）
+  - `c-compile default|static|nocache|full|script`
   - `run`
   - `run hello`
   - `run ticks`
@@ -208,7 +222,7 @@
   - `run linux-abi`（Linux x86_64 syscall 子集合預覽：write/writev/brk/uname/getpid/gettid/set_tid_address/arch_prctl/execve/exit_group）
   - `run elf-inspect`（檢查內嵌 Linux ELF64 樣本 metadata）
   - `run elf-load`（把內嵌 Linux ELF64 的 `PT_LOAD` 佈局 + user stack 映射到 VMM metadata）
-  - `run python`（目前僅回報 Python 尚未支援於 miniOS）
+  - `run python <path>`（mini Python 子集執行器）
   - `cap` / `capabilities`：列出 miniOS 當前能力矩陣與限制
   - `run --help` 列出 `run` 可用子選項
   - `run -h` 同 `run --help`
@@ -220,13 +234,53 @@
 - `reboot`
 - `halt`
 
-- miniOS 本體目前沒有 Python 直譯器（不能直接執行 `.py`），如需 Python 檢查請使用 host 的 `scripts/dev_status.py`。
+- miniOS 本體目前沒有完整 Python 直譯器；可直接在 miniOS 內執行 `run python <path>` 測試 mini 子集語法。
+- `c-compile` 是主機端編譯輔助，建議使用：
+  - `c-compile`：列出預設模式與可用編譯選項
+  - `c-compile static`：`MHOST_STATIC=1 make host-programs`
+  - `c-compile nocache`：`MHOST_NO_CACHE=1 make host-programs`
+  - `c-compile full`：`MHOST_STATIC=1 MHOST_NO_CACHE=1 make host-programs`
+  - `c-compile script`：直接印出腳本執行方式
 - C 應用是直接編譯進 miniOS 核心，透過 `run <name>` 在 shell 內叫用（例如 `run hello`、`run cpp`）。
-- `run python` 目前僅回傳：
-  `Python not available in miniOS runtime yet. Use host-side execution, e.g.:
-  python3 scripts/dev_status.py`
-- `ls` 與 `cat` 目前只支援 initfs 內建唯讀節點，無法建立或修改檔案。
-- 新增 `/tmp` overlay 後，`write/append/touch/rm` 可對 `/tmp/*` 做 in-memory 檔案操作；`/boot/init/*` 仍是唯讀。
+- `run python <path>` 支援 mini python 子集（可直接於 VFS script 測試）：
+  - `print("文字")`
+  - `x = 1`
+  - `x = y + 2`
+  - `print(x + 3)`
+  - `print(2 * (x - 1) / 3)`
+  - 僅支援整數、`+`、`-`、`*`、`/`、括號、單行註解 `#`，非完整 Python
+  - 範例腳本（儲存到 `/tmp/mini_demo.py`）：
+    ```text
+    x = 10
+    y = x + 5
+    print("start")
+    print(y - 3)
+    # 單行註解可忽略
+    ```
+    寫入與執行方式：
+    ```bash
+    touch /tmp/mini_demo.py
+    nano /tmp/mini_demo.py
+    ```
+    ```bash
+    cat /tmp/mini_demo.py
+    run python /tmp/mini_demo.py
+    ```
+- miniOS 內建 1A2B 猜數字遊戲有兩種版本可測：
+  - `run 1a2b`（C 邏輯）
+  - `run 1a2b-c`（C 邏輯，舊名稱，保留相容）
+  - `run python /boot/init/1a2b.py`（mini Python 版）
+- 兩者使用同一組提示/規則：
+  - 每輪 secret 會重新隨機產生，不會固定為 1234
+  - 輸入 4 個不重複數字，每輪最多 8 次
+  - 會回報 `A/B`（例如 `4A0B`）
+  - 輸入 `q` 可離開
+- miniOS 的 VFS 目前是「最小虛擬檔案系統」：
+  - `/boot/init/*`：唯讀 bootstrap 節點（如 `readme.txt`, `hello_linux_tiny`）
+  - `/tmp/*`：可寫入的記憶體節點（`write`/`append`/`touch`/`rm`/`ls`/`cat`）
+- `ls` 預設列出 `/` 下全部註冊節點；可用 `ls <prefix>` 過濾（如 `ls /tmp`）。
+- `cat` 可讀取所有可開啟節點，包括 `/tmp` 內的動態檔案。
+- `write/append/touch/rm` 僅能操作 `/tmp/*`；`/boot/init/*` 仍保持唯讀。
 - `task start/stop/reset/list` 可直接控制 scheduler 任務狀態與 run counter；`tasks` 會顯示 active/stopped。
 - `vmm` 可檢視目前 VMM region 與 user brk/limit（目前為教學型 metadata 骨架，尚未是完整 ring3 分頁切換）。
 - `run cpp` 為目前 C++ 使用者應用示範，仍以 kernel-mode fallback 路徑實作。

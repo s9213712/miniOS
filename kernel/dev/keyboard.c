@@ -25,12 +25,32 @@ void keyboard_init(void) {
 }
 
 int keyboard_read_char_nonblocking(void) {
+    static int extended = 0;
+
     if (!(inb(0x64) & 0x01)) {
         return -1;
     }
 
     uint8_t scancode = inb(0x60);
     if (scancode == 0xe0) {
+        extended = 1;
+        return -1;
+    }
+
+    if (extended) {
+        extended = 0;
+        switch (scancode) {
+            case 0x48:
+                return KEY_UP;
+            case 0x50:
+                return KEY_DOWN;
+            case 0x4b:
+                return KEY_LEFT;
+            case 0x4d:
+                return KEY_RIGHT;
+            default:
+                break;
+        }
         return -1;
     }
 

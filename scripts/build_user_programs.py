@@ -77,6 +77,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="print each compiler invocation",
     )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="disable manifest-based incremental build cache",
+    )
     return parser.parse_args()
 
 
@@ -85,7 +90,65 @@ def collect_sources(source_dir: Path) -> list[Path]:
     return sources
 
 
-def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose: bool) -> int:
+def _split_flags(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return shlex.split(value)
+
+
+def _load_existing_manifest(manifest_path: Path) -> dict[str, dict]:
+    if not manifest_path.exists():
+        return {}
+    try:
+        data = json.loads(manifest_path.read_text())
+        programs = data.get("programs")
+        if not isinstance(programs, list):
+            return {}
+    except Exception:
+        return {}
+
+    index: dict[str, dict] = {}
+    for entry in programs:
+        if not isinstance(entry, dict):
+            continue
+        source = entry.get("source")
+        status = entry.get("status")
+        if isinstance(source, str) and isinstance(status, str):
+            index[source] = entry
+    return index
+
+
+def _flags_unchanged(old: object, new: list[str]) -> bool:
+    return old == new
+
+
+def _can_reuse_entry(
+    entry: dict,
+    source_path: str,
+    source_sha: str,
+    compiler: str,
+    flags: list[str],
+    link_mode: str,
+    output: Path,
+) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    if entry.get("status") != "ok":
+        return False
+    if entry.get("source") != source_path:
+        return False
+    if entry.get("source_sha") != source_sha:
+        return False
+    if entry.get("compiler") != compiler:
+        return False
+    if not _flags_unchanged(entry.get("flags"), flags):
+        return False
+    if entry.get("link_mode") != link_mode:
+        return False
+    return output.exists()
+
+
+def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose: bool, use_cache: bool) -> int:
     c_compiler = os.environ.get("CC") or detect_compiler(
         ("gcc", "clang", "x86_64-none-elf-gcc", "x86_64-elf-gcc"),
         "gcc",
@@ -120,12 +183,34 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
         print(f"[build_user_programs] using C++ compiler: {cpp_compiler}")
 
     built_at = datetime.now(timezone.utc).isoformat()
+    existing_entries = _load_existing_manifest(manifest_path) if use_cache else {}
+
     for src in c_sources:
         out = out_dir / f"{src.stem}_c"
-        ok, msg = run_compile(src, out, c_compiler, c_flags, verbose)
+        source_sha = file_sha256(src)
+        can_reuse = _can_reuse_entry(
+            existing_entries.get(str(src)),
+            str(src),
+            source_sha,
+            c_compiler,
+            c_flags,
+            link_mode,
+            out,
+        )
+        ok = False
+        msg = ""
+        if can_reuse:
+            ok = True
+            if verbose:
+                print(f"[build_user_programs] cache hit: {src.name}")
+        else:
+            ok, msg = run_compile(src, out, c_compiler, c_flags, verbose)
         if ok:
             if verbose:
-                print(f"[build_user_programs] compile ok: {src.name} -> {out}")
+                if can_reuse:
+                    print(f"[build_user_programs] cache ok: {src.name} -> {out}")
+                else:
+                    print(f"[build_user_programs] compile ok: {src.name} -> {out}")
             entries.append(
                 {
                     "name": src.name,
@@ -135,8 +220,10 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
                     "compiler": c_compiler,
                     "flags": c_flags,
                     "status": "ok",
+                    "cached": can_reuse,
                     "built_at": built_at,
                     "link_mode": link_mode,
+                    "source_sha": source_sha,
                     "size": out.stat().st_size,
                     "sha256": file_sha256(out),
                 }
@@ -160,10 +247,30 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
 
     for src in cpp_sources:
         out = out_dir / f"{src.stem}_cpp"
-        ok, msg = run_compile(src, out, cpp_compiler, cpp_flags, verbose)
+        source_sha = file_sha256(src)
+        can_reuse = _can_reuse_entry(
+            existing_entries.get(str(src)),
+            str(src),
+            source_sha,
+            cpp_compiler,
+            cpp_flags,
+            link_mode,
+            out,
+        )
+        ok = False
+        msg = ""
+        if can_reuse:
+            ok = True
+            if verbose:
+                print(f"[build_user_programs] cache hit: {src.name}")
+        else:
+            ok, msg = run_compile(src, out, cpp_compiler, cpp_flags, verbose)
         if ok:
             if verbose:
-                print(f"[build_user_programs] compile ok: {src.name} -> {out}")
+                if can_reuse:
+                    print(f"[build_user_programs] cache ok: {src.name} -> {out}")
+                else:
+                    print(f"[build_user_programs] compile ok: {src.name} -> {out}")
             entries.append(
                 {
                     "name": src.name,
@@ -173,8 +280,10 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
                     "compiler": cpp_compiler,
                     "flags": cpp_flags,
                     "status": "ok",
+                    "cached": can_reuse,
                     "built_at": built_at,
                     "link_mode": link_mode,
+                    "source_sha": source_sha,
                     "size": out.stat().st_size,
                     "sha256": file_sha256(out),
                 }
@@ -212,13 +321,6 @@ def build_programs(source_dir: Path, out_dir: Path, manifest_path: Path, verbose
     print(f"[build_user_programs] built {len(entries)} programs into {out_dir}")
     return status_code
 
-
-def _split_flags(value: str | None) -> list[str]:
-    if not value:
-        return []
-    return shlex.split(value)
-
-
 def _print_summary(manifest: Path) -> None:
     try:
         data = json.loads(manifest.read_text())
@@ -227,6 +329,10 @@ def _print_summary(manifest: Path) -> None:
         print(
             f"[build_user_programs] summary: total={program_count} ok={ok_count} "
             f"error={program_count - ok_count}"
+        )
+        cache_count = sum(1 for p in data.get("programs", []) if p.get("cached"))
+        print(
+            f"[build_user_programs] cache: hit={cache_count} miss={program_count - cache_count}"
         )
         print(f"[build_user_programs] manifest: {manifest}")
     except Exception as exc:  # pragma: no cover - defensive for malformed manifest
@@ -265,7 +371,13 @@ def main() -> int:
         )
         return 0
 
-    status = build_programs(source_dir, out_dir, manifest_path, verbose)
+    use_cache = not args.no_cache and os.environ.get("MHOST_NO_CACHE", "0") not in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    status = build_programs(source_dir, out_dir, manifest_path, verbose, use_cache)
     _print_summary(manifest_path)
     if args.verbose:
         with manifest_path.open("r", encoding="utf-8") as f:
