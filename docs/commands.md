@@ -7,7 +7,7 @@
 > cd /home/s92137/miniOS
 > ```
 
-> 目前進度摘要：專案已重整為 Stage 管理，當前位於 `Stage 4`。`smoke` 主線穩定，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`、`run elf-load`。`run hello` 仍是 kernel-mode demo；`run linux-abi` 保留較完整的 kernel probe + `execve` 教學路徑。`run python` 現在提供 mini Python 子集（`print`、整數變數、`+/-` 表達式）執行；完整 Python 尚未支援。Linux 應用（如 transmission/htop/nano）尚未支援；目前真正的 ring-3 userspace 驗證仍以 `EXECVE_DEMO=1` 的 tiny static ELF 路徑為主。`execve` 成功換映像時已清除舊 userspace 映射，確保 mmap 狀態隔離。
+> 目前進度摘要：專案已重整為 Stage 管理，當前位於 `Stage 4`。`smoke` 主線穩定，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`、`run elf-load`。`run hello` / `run ticks` 已是 direct ring-3 userapp；`run linux-abi` 保留較完整的 kernel probe + `execve` 教學路徑。`run python` 現在提供 mini Python 子集（`print`、整數變數、`+/-` 表達式）執行；完整 Python 尚未支援。Linux 應用（如 transmission/htop/nano）尚未支援；目前 ring-3 userspace 驗證同時涵蓋 direct userapp 與 `EXECVE_DEMO=1` 的 tiny static ELF 路徑。`execve` 成功換映像時已清除舊 userspace 映射，確保 mmap 狀態隔離。
 
 ---
 
@@ -190,6 +190,10 @@
   ENABLE_SHELL=1 make run
   ENABLE_SHELL=1 LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline
   ```
+- 驗證 direct ring-3 userapp boot demo：
+  ```bash
+  LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline-basic PHASE20_DEMO=1
+  ```
 
 - shell 常用命令（互動模式）：
   - `help`
@@ -241,7 +245,7 @@
   - `c-compile nocache`：`MHOST_NO_CACHE=1 make host-programs`
   - `c-compile full`：`MHOST_STATIC=1 MHOST_NO_CACHE=1 make host-programs`
   - `c-compile script`：直接印出腳本執行方式
-- C 應用是直接編譯進 miniOS 核心，透過 `run <name>` 在 shell 內叫用（例如 `run hello`、`run cpp`）。
+- C 應用是直接編譯進 miniOS 核心，透過 `run <name>` 在 shell 內叫用；其中 `run hello` / `run ticks` 會先映射成 direct ring-3 userapp，而 `run cpp` 仍是 kernel-mode demo。
 - `run python <path>` 支援 mini python 子集（可直接於 VFS script 測試）：
   - `print("文字")`
   - `x = 1`
@@ -283,8 +287,10 @@
 - `write/append/touch/rm` 僅能操作 `/tmp/*`；`/boot/init/*` 仍保持唯讀。
 - `task start/stop/reset/list` 可直接控制 scheduler 任務狀態與 run counter；`tasks` 會顯示 active/stopped。
 - `vmm` 可檢視目前 VMM region 與 user brk/limit（目前為教學型 metadata 骨架，尚未是完整 ring3 分頁切換）。
+- `run hello` 會映射一個最小 userspace text blob 到 user pages，從 ring-3 透過 Linux `write` + `exit_group` 返回 kernel。
+- `run ticks` 會映射一個最小 userspace text blob 到 user pages，從 ring-3 透過 demo syscall 請 kernel 輸出 `ticks=` 後再 `exit_group` 返回。
 - `run cpp` 為目前 C++ 使用者應用示範，仍以 kernel-mode fallback 路徑實作。
-- `run linux-abi` 為 Linux ABI 教學預覽，會輸出一組 fallback probe 結果；probe 內的 `execve("/bin/hello_linux_tiny", ...)` 可載入內嵌 tiny static ELF、進入 ring3，透過 x86-64 `syscall` 指令呼叫 kernel，並經 `exit_group` 返回。尚不支援動態連結與 glibc userspace。
+- `run linux-abi` 為 Linux ABI 教學預覽，會輸出一組 kernel probe 結果；probe 內的 `execve("/bin/hello_linux_tiny", ...)` 可載入內嵌 tiny static ELF、進入 ring3，透過 x86-64 `syscall` 指令呼叫 kernel，並經 `exit_group` 返回。尚不支援動態連結與 glibc userspace。
 - `run elf-inspect` 會輸出內嵌 Linux user ELF 的 entry、program header 數與 load/file range，供 loader 前置驗證。
 - `run elf-load` 會輸出 mapped entry/range、mapped region 統計、stack 規劃、handoff dry-run 與 exec stack prep 狀態；它仍是診斷路徑，真正執行由 `run linux-abi` probe 的 `execve` 路徑驗證。
 - `make test-elf-sample` 會重新產生 blob 並檢查 ELF magic、必要符號與最小 byte 數，適合每次調整 loader/ELF 邏輯後回歸。

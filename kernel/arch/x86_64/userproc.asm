@@ -7,7 +7,9 @@ global userproc_execve_trampoline_asm
 global isr_user_syscall
 global syscall_entry
 global minios_userapp_hello
+global minios_userapp_hello_end
 global minios_userapp_ticks
+global minios_userapp_ticks_end
 global minios_userapp_scheduler
 global minios_userapp_linux_abi
 
@@ -95,29 +97,33 @@ userproc_execve_trampoline_asm:
     pop rbx
     ret
 
-userapp_hello_syscall_loop:
+minios_userapp_hello:
     mov eax, 1
     mov edi, 1
+    lea rsi, [rel userapp_hello_msg]
+    mov edx, userapp_hello_msg_len
+    syscall
+    mov eax, 231
+    xor edi, edi
     xor esi, esi
     xor edx, edx
     syscall
-    mov eax, 60
-    xor edi, edi
-    syscall
-
-minios_userapp_hello:
-    nop
-    jmp userapp_hello_syscall_loop
+userapp_hello_msg:
+    db "[ring3] hello from direct userapp", 10
+userapp_hello_msg_len equ $ - userapp_hello_msg
+align 16
+minios_userapp_hello_end:
 
 minios_userapp_ticks:
-    mov eax, 1
-    mov edi, 2
+    mov eax, 0x1000
+    syscall
+    mov eax, 231
+    xor edi, edi
     xor esi, esi
     xor edx, edx
     syscall
-    mov eax, 60
-    xor edi, edi
-    syscall
+align 16
+minios_userapp_ticks_end:
 
 minios_userapp_scheduler:
     mov eax, 1

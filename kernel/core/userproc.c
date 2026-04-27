@@ -63,6 +63,7 @@ enum {
     MINIOS_LINUX_SYSCALL_PRLIMIT64 = 302,
     MINIOS_LINUX_SYSCALL_GETRANDOM = 318,
     MINIOS_LINUX_SYSCALL_STATX = 332,
+    MINIOS_USERAPP_SYSCALL_PRINT_TICKS = 0x1000,
     MINIOS_SYSCALL_USER_PRINT = 1
 };
 
@@ -2484,6 +2485,11 @@ uint64_t userproc_dispatch(uint64_t syscall,
     }
 
     switch (syscall) {
+        case MINIOS_USERAPP_SYSCALL_PRINT_TICKS:
+            console_write_string("[ring3] ticks=");
+            console_write_u64(timer_ticks());
+            console_write_string("\n");
+            return 0;
         case MINIOS_LINUX_SYSCALL_READ:
             return userproc_linux_read(arg1, arg2, arg3);
         case MINIOS_LINUX_SYSCALL_WRITE:

@@ -23,6 +23,8 @@
 - `make test-host-programs` 通過（manifest `default_link_mode` / `link_mode` 回歸）
 - `make smoke-offline` 輸出 `Execve demo verified.`
 - execve smoke serial 包含 `[linux-abi] uname.sysname=miniOS release=0.47`
+- `PHASE20_DEMO=1 make smoke-offline-basic` 輸出 `Phase20 direct userapp demo verified.`
+- phase20 smoke serial 包含 `[ring3] hello from direct userapp` 與 `[ring3] ticks=`
 
 ## 失敗診斷要點
 - 若 timeout：  

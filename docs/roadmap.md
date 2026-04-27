@@ -55,7 +55,8 @@ Phase 仍保留在 git history 與 `CHANGELOG.md`，但日常規劃以 Stage 為
   - `execve` 成功換映像前會清除前一次 userspace 映射，避免殘留 mmap/userimg 資源污染新的流程。
   - 加入 host regression 保證 `execve` 後舊 `mmap` 區域不會留存（舊位址在新 `execve` 後 unmap 會失敗）。
   - `execve` runtime 改為每次呼叫各自配置 stack scratch / syscall kernel stack，不再依賴單一全域靜態 buffer。
-  - `run linux-abi` 留作 kernel probe + `execve` 教學驗證；direct userapp ring-3 入口則維持 roadmap 項，不再假裝已完成。
+  - `run hello` / `run ticks` 已改成 direct ring-3 userapp：kernel 會先建立 user text + user stack mapping，再經 `syscall` trampoline 返回。
+  - `run linux-abi` 留作 kernel probe + `execve` 教學驗證；較完整的 Linux ABI 仍主要沿用 `execve` 路徑，而不是把 probe 本身改成 direct blob。
 
 ## Stage 通用規範
 

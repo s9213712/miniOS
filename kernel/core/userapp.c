@@ -2,39 +2,199 @@
 #include <mvos/userproc.h>
 #include <mvos/console.h>
 #include <mvos/log.h>
+#include <mvos/heap.h>
 #include <mvos/scheduler.h>
 #include <mvos/interrupt.h>
 #include <mvos/keyboard.h>
 #include <mvos/serial.h>
 #include <mvos/elf.h>
 #include <mvos/userimg.h>
+#include <mvos/vmm.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
 
-extern void minios_userapp_hello(void);
-extern void minios_userapp_ticks(void);
+extern const uint8_t minios_userapp_hello[];
+extern const uint8_t minios_userapp_hello_end[];
+extern const uint8_t minios_userapp_ticks[];
+extern const uint8_t minios_userapp_ticks_end[];
 extern void minios_userapp_scheduler(void);
 extern void minios_userapp_linux_abi(void);
 extern uint64_t minios_userapp_cpp_magic(void);
 
-#define MINIOS_USERAPP_STACK_SIZE 4096
 #define MINIOS_USERIMG_STACK_SCRATCH_SIZE 65536
 
 #ifndef MINIOS_PHASE20_USER_MODE
-#define MINIOS_PHASE20_USER_MODE 0
+#define MINIOS_PHASE20_USER_MODE 1
 #endif
 
-static uint8_t g_userapp_user_stack[MINIOS_USERAPP_STACK_SIZE] __attribute__((aligned(16)));
 static uint8_t g_userimg_stack_scratch[MINIOS_USERIMG_STACK_SCRATCH_SIZE] __attribute__((aligned(16)));
+
+enum {
+    MINIOS_USERAPP_IMAGE_BASE = 0x0000400000800000ULL,
+    MINIOS_USERAPP_STACK_GAP_BYTES = 0x100000ULL,
+    MINIOS_USERAPP_STACK_SIZE = 0x10000ULL,
+    MINIOS_USERAPP_KERNEL_STACK_SIZE = 16384ULL,
+};
 
 typedef struct {
     const char *name;
     const char *description;
     mvos_userapp_entry_t kernel_entry;
-    uint64_t user_entry;
+    const uint8_t *user_image;
+    const uint8_t *user_image_end;
+    const char *exe_path;
     bool user_mode;
 } mvos_userapp_t;
+
+static int userapp_checked_add_u64(uint64_t a, uint64_t b, uint64_t *out) {
+    if (a > UINT64_MAX - b) {
+        return -1;
+    }
+    *out = a + b;
+    return 0;
+}
+
+static int userapp_align_up_u64(uint64_t value, uint64_t align, uint64_t *out) {
+    if (align == 0) {
+        *out = value;
+        return 0;
+    }
+    uint64_t mask = align - 1ULL;
+    if (value > UINT64_MAX - mask) {
+        return -1;
+    }
+    *out = (value + mask) & ~mask;
+    return 0;
+}
+
+static int userapp_back_user_range(uint64_t base, uint64_t size, uint64_t flags) {
+    uint64_t end = 0;
+    if (userapp_checked_add_u64(base, size, &end) != 0) {
+        return -1;
+    }
+    for (uint64_t page = base; page < end; page += MVOS_VMM_PAGE_SIZE) {
+        void *backing = NULL;
+        if (vmm_map_user_backed_page(page, flags, &backing) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int userapp_prepare_user_image(const mvos_userapp_t *app,
+                                      uint64_t *out_entry,
+                                      uint64_t *out_stack_top) {
+    if (app == NULL || out_entry == NULL || out_stack_top == NULL ||
+        app->user_image == NULL || app->user_image_end == NULL ||
+        app->user_image_end <= app->user_image) {
+        return -1;
+    }
+
+    uint64_t image_size = (uint64_t)((uintptr_t)app->user_image_end - (uintptr_t)app->user_image);
+    uint64_t code_size = 0;
+    if (userapp_align_up_u64(image_size, MVOS_VMM_PAGE_SIZE, &code_size) != 0) {
+        return -1;
+    }
+
+    vmm_reset_user_state();
+
+    if (vmm_map_range(MINIOS_USERAPP_IMAGE_BASE,
+                      code_size,
+                      MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_EXEC | MVOS_VMM_FLAG_USER,
+                      "userimg-load") != 0) {
+        vmm_reset_user_state();
+        return -2;
+    }
+    if (userapp_back_user_range(MINIOS_USERAPP_IMAGE_BASE,
+                                code_size,
+                                MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_EXEC | MVOS_VMM_FLAG_USER) != 0) {
+        vmm_reset_user_state();
+        return -3;
+    }
+    if (vmm_copy_to_user(MINIOS_USERAPP_IMAGE_BASE, app->user_image, image_size) != 0) {
+        vmm_reset_user_state();
+        return -4;
+    }
+    if (vmm_protect_range(MINIOS_USERAPP_IMAGE_BASE,
+                          code_size,
+                          MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_EXEC | MVOS_VMM_FLAG_USER) != 0) {
+        vmm_reset_user_state();
+        return -5;
+    }
+
+    uint64_t stack_base = 0;
+    if (userapp_checked_add_u64(MINIOS_USERAPP_IMAGE_BASE, code_size, &stack_base) != 0 ||
+        userapp_checked_add_u64(stack_base, MINIOS_USERAPP_STACK_GAP_BYTES, &stack_base) != 0 ||
+        userapp_align_up_u64(stack_base, MVOS_VMM_PAGE_SIZE, &stack_base) != 0) {
+        vmm_reset_user_state();
+        return -6;
+    }
+
+    uint64_t stack_top = 0;
+    if (userapp_checked_add_u64(stack_base, MINIOS_USERAPP_STACK_SIZE, &stack_top) != 0) {
+        vmm_reset_user_state();
+        return -6;
+    }
+
+    if (vmm_map_range(stack_base,
+                      MINIOS_USERAPP_STACK_SIZE,
+                      MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_USER,
+                      "userimg-stack") != 0) {
+        vmm_reset_user_state();
+        return -7;
+    }
+    if (userapp_back_user_range(stack_base,
+                                MINIOS_USERAPP_STACK_SIZE,
+                                MVOS_VMM_FLAG_READ | MVOS_VMM_FLAG_WRITE | MVOS_VMM_FLAG_USER) != 0) {
+        vmm_reset_user_state();
+        return -8;
+    }
+
+    *out_entry = MINIOS_USERAPP_IMAGE_BASE;
+    *out_stack_top = stack_top;
+    return 0;
+}
+
+static int userapp_run_user_mode(const mvos_userapp_t *app, uint64_t app_id) {
+    if (app == NULL) {
+        return -1;
+    }
+
+    uint8_t *kernel_stack = (uint8_t *)kmalloc(MINIOS_USERAPP_KERNEL_STACK_SIZE);
+    if (kernel_stack == NULL) {
+        return -2;
+    }
+
+    uint64_t entry = 0;
+    uint64_t stack_top = 0;
+    int prep_rc = userapp_prepare_user_image(app, &entry, &stack_top);
+    if (prep_rc != 0) {
+        kfree(kernel_stack);
+        return prep_rc;
+    }
+
+    if (userproc_handoff_dry_run(entry, stack_top) != 0) {
+        vmm_reset_user_state();
+        kfree(kernel_stack);
+        return -3;
+    }
+
+    userproc_set_current_app_id(app_id);
+    userproc_set_exe_path(app->exe_path != NULL ? app->exe_path : app->name);
+    uint64_t enter_rc = userproc_enter_execve_and_wait(
+        entry,
+        stack_top,
+        0,
+        0,
+        0,
+        (uint64_t)(uintptr_t)(kernel_stack + MINIOS_USERAPP_KERNEL_STACK_SIZE));
+    userproc_set_current_app_id(0);
+
+    vmm_reset_user_state();
+    kfree(kernel_stack);
+    return enter_rc == 1 ? 0 : -4;
+}
 
 static void userapp_scheduler(void) {
     console_write_string("[userapp] scheduler app\n");
@@ -380,16 +540,34 @@ static void userapp_fallback_elf_load(void) {
 }
 
 static const mvos_userapp_t g_userapps[] = {
-    {"hello", "print hello from app demo (kernel mode)", userapp_fallback_hello, (uint64_t)minios_userapp_hello, false},
-    {"ticks", "print current timer ticks via app demo (kernel mode)", userapp_fallback_ticks, (uint64_t)minios_userapp_ticks, false},
-    {"linux-abi", "preview Linux x86_64 syscall subset with tiny execve ELF demo (kernel probe)", userapp_fallback_linux_abi, (uint64_t)minios_userapp_linux_abi, false},
-    {"elf-inspect", "inspect embedded linux-user ELF metadata (kernel mode)", userapp_fallback_elf_inspect, 0, false},
-    {"elf-load", "prepare embedded linux-user ELF VMM layout (kernel mode)", userapp_fallback_elf_load, 0, false},
-    {"cpp", "print C++ demo result (kernel mode demo)", userapp_fallback_cpp, 0, false},
-    {"1a2b", "play 1A2B guessing game (C logic, kernel mode)", userapp_fallback_1a2b, 0, false},
-    {"1a2b-c", "play 1A2B guessing game (C logic, kernel mode)", userapp_fallback_1a2b, 0, false},
-    {"scheduler", "print scheduler snapshot (kernel mode)", userapp_scheduler, 0, false},
-    {"python", "run mini-python subset runner on VFS script", userapp_fallback_python, 0, false},
+    {"hello",
+     "print hello from direct ring-3 userapp",
+     userapp_fallback_hello,
+     minios_userapp_hello,
+     minios_userapp_hello_end,
+     "/userapp/hello",
+     true},
+    {"ticks",
+     "print current timer ticks via ring-3 syscall demo",
+     userapp_fallback_ticks,
+     minios_userapp_ticks,
+     minios_userapp_ticks_end,
+     "/userapp/ticks",
+     true},
+    {"linux-abi",
+     "preview Linux x86_64 syscall subset with tiny execve ELF demo (kernel probe)",
+     userapp_fallback_linux_abi,
+     NULL,
+     NULL,
+     NULL,
+     false},
+    {"elf-inspect", "inspect embedded linux-user ELF metadata (kernel mode)", userapp_fallback_elf_inspect, NULL, NULL, NULL, false},
+    {"elf-load", "prepare embedded linux-user ELF VMM layout (kernel mode)", userapp_fallback_elf_load, NULL, NULL, NULL, false},
+    {"cpp", "print C++ demo result (kernel mode demo)", userapp_fallback_cpp, NULL, NULL, NULL, false},
+    {"1a2b", "play 1A2B guessing game (C logic, kernel mode)", userapp_fallback_1a2b, NULL, NULL, NULL, false},
+    {"1a2b-c", "play 1A2B guessing game (C logic, kernel mode)", userapp_fallback_1a2b, NULL, NULL, NULL, false},
+    {"scheduler", "print scheduler snapshot (kernel mode)", userapp_scheduler, NULL, NULL, NULL, false},
+    {"python", "run mini-python subset runner on VFS script", userapp_fallback_python, NULL, NULL, NULL, false},
 };
 
 static const uint64_t g_userapp_count = sizeof(g_userapps) / sizeof(g_userapps[0]);
@@ -449,16 +627,7 @@ int userapp_run(const char *name) {
                         app->kernel_entry();
                         return 0;
                     }
-                    uint64_t return_stack = 0;
-                    __asm__ volatile("mov %%rsp, %0" : "=r"(return_stack));
-                    userproc_set_return_context((uint64_t)&&user_mode_return, return_stack);
-                    userproc_set_current_app_id(i + 1);
-                    userproc_enter(app->user_entry,
-                                   (uint64_t)(g_userapp_user_stack + MINIOS_USERAPP_STACK_SIZE),
-                                   (uint64_t)&&user_mode_return,
-                                   return_stack);
-user_mode_return:
-                    return 0;
+                    return userapp_run_user_mode(app, i + 1);
                 }
                 if (app->kernel_entry == NULL) {
                     return -3;

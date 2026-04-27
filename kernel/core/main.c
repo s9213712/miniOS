@@ -289,6 +289,12 @@ void kmain(void) {
     } else {
         klogln("[phase20] demo user app hello done");
     }
+    klogln("[phase20] demo: running user app ticks");
+    if (userapp_run("ticks") != 0) {
+        klogln("[phase20] demo user app ticks failed");
+    } else {
+        klogln("[phase20] demo user app ticks done");
+    }
 #endif
 
 #ifdef MINIOS_EXECVE_DEMO

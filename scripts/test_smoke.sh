@@ -30,6 +30,9 @@ EXPECTED_EXECVE_INITFS="read from initfs: miniOS init filesystem"
 EXPECTED_EXECVE_RETURN="userapp execve returned"
 EXPECTED_EXECVE_DONE="\\[execve-demo\\] linux-abi probe done"
 EXPECTED_EXECVE_UNAME="\\[linux-abi\\] uname\\.sysname=miniOS release=0\\.47"
+EXPECTED_PHASE20_HELLO="\\[ring3\\] hello from direct userapp"
+EXPECTED_PHASE20_TICKS="\\[ring3\\] ticks="
+EXPECTED_PHASE20_DONE="\\[phase20\\] demo user app ticks done"
 EXPECTED_PROTO_LOWER="^protocol[[:space:]]*:[[:space:]]*limine$"
 EXPECTED_PROTO_UPPER="^PROTOCOL[[:space:]]*=[[:space:]]*limine$"
 EXPECTED_PATH_UPPER="^KERNEL_PATH[[:space:]]*=[[:space:]]*boot:///boot/mvos\\.bin$"
@@ -203,6 +206,22 @@ if [ "${EXECVE_DEMO:-0}" = "1" ]; then
     exit 1
   fi
   echo "[test_smoke] Execve demo verified."
+fi
+
+if [ "${PHASE20_DEMO:-0}" = "1" ]; then
+  for expected in "$EXPECTED_PHASE20_HELLO" "$EXPECTED_PHASE20_TICKS" "$EXPECTED_PHASE20_DONE"; do
+    if ! grep -q "$expected" "$SERIAL_LOG"; then
+      echo "[test_smoke] Expected phase20 direct-userapp marker not found: $expected" >&2
+      tail -n 120 "$SERIAL_LOG" >&2
+      exit 1
+    fi
+  done
+  if grep -q "\[fault\]\|\[panic\]" "$SERIAL_LOG"; then
+    echo "[test_smoke] Phase20 direct userapp demo produced fault/panic marker." >&2
+    tail -n 120 "$SERIAL_LOG" >&2
+    exit 1
+  fi
+  echo "[test_smoke] Phase20 direct userapp demo verified."
 fi
 
 if [ -n "${PANIC_TEST:-}" ]; then

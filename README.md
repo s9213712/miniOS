@@ -25,7 +25,8 @@ Phase 細節歷史保留在 `CHANGELOG.md`，Stage 視角主文件如下：
 - 可穩定開機並通過 smoke（serial 8 秒內可見 `hello from kernel`）。
 - 有基本 kernel 子系統：PMM/heap、interrupt/timer、scheduler、VFS、shell。
 - 有 Linux ABI 預覽子集合（`write/writev/brk/uname/getpid/gettid/...`），userspace 透過 x86-64 `syscall` 指令進 kernel。
-- `run linux-abi` 保留為較完整的 kernel probe + `execve` 教學路徑；目前 ring-3 userspace 證據仍以 tiny ELF `execve` demo 為主。
+- `run hello`、`run ticks` 現在會把 userspace blob 映射到 user pages，透過 ring-3 + `syscall` trampoline 執行，不再是假 kernel-mode fallback。
+- `run linux-abi` 保留為較完整的 kernel probe + `execve` 教學路徑；它不是 direct userapp，但仍是較完整的 Linux ABI demo。
 - 有 ELF 載入與最小 `execve` demo：`run elf-inspect`、`run elf-load`、`EXECVE_DEMO=1` boot probe。
 - `run elf-load` 現在可驗證：
   - load+stack 映射
@@ -75,6 +76,7 @@ make pre-push
 - `make refresh-elf-sample`
 - `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline`
 - `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline-basic`（boot-only 快速檢查）
+- `LIMINE_LOCAL_DIR=/tmp/limine-bin make smoke-offline-basic PHASE20_DEMO=1`（驗證 direct ring-3 `run hello` / `run ticks`）
 - `ENABLE_SHELL=1 make run`
 - `./minios.sh`（建議用一鍵腳本，預設 TTY + shell）
 - `./minios.sh -g`（GUI 模式）
