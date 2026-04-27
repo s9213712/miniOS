@@ -19,13 +19,10 @@ static uint64_t g_enter_execve_argv;
 static uint64_t g_enter_execve_envp;
 static uint32_t g_enter_execve_count;
 static int g_run_strict_userptr_probe;
-static int g_run_execve_reentry_probe;
 static int64_t g_strict_write_probe_rc;
 static int64_t g_strict_uname_probe_rc;
-static int64_t g_reentry_execve_rc;
-static uint64_t g_probe_exec_path;
-static uint64_t g_probe_exec_argv;
-static uint64_t g_probe_exec_envp;
+static uint32_t g_kmalloc_calls;
+static uint32_t g_kfree_calls;
 
 enum {
     HOST_TEST_SYSCALL_WRITE = 1,
@@ -45,6 +42,18 @@ void console_write_u64(uint64_t value) {
 
 void console_write_char(char ch) {
     (void)ch;
+}
+
+void *kmalloc(size_t size) {
+    g_kmalloc_calls++;
+    return malloc(size);
+}
+
+void kfree(void *ptr) {
+    if (ptr != NULL) {
+        g_kfree_calls++;
+    }
+    free(ptr);
 }
 
 void klog(const char *msg) {
@@ -119,16 +128,6 @@ uint64_t userproc_execve_trampoline_asm(uint64_t entry,
                                                              0,
                                                              0,
                                                              0);
-    }
-    if (g_run_execve_reentry_probe) {
-        g_run_execve_reentry_probe = 0;
-        g_reentry_execve_rc = (int64_t)userproc_dispatch(HOST_TEST_SYSCALL_EXECVE,
-                                                         g_probe_exec_path,
-                                                         g_probe_exec_argv,
-                                                         g_probe_exec_envp,
-                                                         0,
-                                                         0,
-                                                         0);
     }
     return 1;
 }
@@ -665,14 +664,11 @@ int main(void) {
         return 1;
     }
     uint32_t enter_count_before_execve = g_enter_execve_count;
+    uint32_t kmalloc_before_execve = g_kmalloc_calls;
+    uint32_t kfree_before_execve = g_kfree_calls;
     g_run_strict_userptr_probe = 1;
-    g_run_execve_reentry_probe = 1;
     g_strict_write_probe_rc = 0;
     g_strict_uname_probe_rc = 0;
-    g_reentry_execve_rc = 0;
-    g_probe_exec_path = (uint64_t)(uintptr_t)exec_path;
-    g_probe_exec_argv = (uint64_t)(uintptr_t)exec_argv;
-    g_probe_exec_envp = (uint64_t)(uintptr_t)exec_envp;
     exec_rc = userproc_dispatch(
         TEST_LINUX_SYSCALL_EXECVE,
         (uint64_t)(uintptr_t)exec_path,
@@ -695,7 +691,7 @@ int main(void) {
         return 1;
     }
     if (g_enter_execve_count != enter_count_before_execve + 1) {
-        fprintf(stderr, "[test_userimg_loader] expected execve to enter userspace handoff\n");
+        fprintf(stderr, "[test_userimg_loader] expected execve to enter userspace handoff once\n");
         free(stack_mem);
         return 1;
     }
@@ -707,9 +703,13 @@ int main(void) {
         free(stack_mem);
         return 1;
     }
-    if (g_reentry_execve_rc != -16) {
-        fprintf(stderr, "[test_userimg_loader] expected nested execve to fail with EBUSY (-16), got %lld\n",
-                (long long)g_reentry_execve_rc);
+    if (g_kmalloc_calls != kmalloc_before_execve + 2 || g_kfree_calls != kfree_before_execve + 2) {
+        fprintf(stderr,
+                "[test_userimg_loader] expected execve buffers to allocate+free cleanly, kmalloc=%u kfree=%u delta_alloc=%u delta_free=%u\n",
+                g_kmalloc_calls,
+                g_kfree_calls,
+                g_kmalloc_calls - kmalloc_before_execve,
+                g_kfree_calls - kfree_before_execve);
         free(stack_mem);
         return 1;
     }
@@ -824,6 +824,16 @@ int main(void) {
         0);
     if ((int64_t)exec_rc != 1) {
         fprintf(stderr, "[test_userimg_loader] expected second execve scaffold success signal (1), got %lld\n", (long long)exec_rc);
+        free(stack_mem);
+        return 1;
+    }
+    if (g_kmalloc_calls != kmalloc_before_execve + 6 || g_kfree_calls != kfree_before_execve + 6) {
+        fprintf(stderr,
+                "[test_userimg_loader] expected failed+second execve to release their own buffers too, kmalloc=%u kfree=%u delta_alloc=%u delta_free=%u\n",
+                g_kmalloc_calls,
+                g_kfree_calls,
+                g_kmalloc_calls - kmalloc_before_execve,
+                g_kfree_calls - kfree_before_execve);
         free(stack_mem);
         return 1;
     }

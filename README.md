@@ -25,6 +25,7 @@ Phase 細節歷史保留在 `CHANGELOG.md`，Stage 視角主文件如下：
 - 可穩定開機並通過 smoke（serial 8 秒內可見 `hello from kernel`）。
 - 有基本 kernel 子系統：PMM/heap、interrupt/timer、scheduler、VFS、shell。
 - 有 Linux ABI 預覽子集合（`write/writev/brk/uname/getpid/gettid/...`），userspace 透過 x86-64 `syscall` 指令進 kernel。
+- `run linux-abi` 保留為較完整的 kernel probe + `execve` 教學路徑；目前 ring-3 userspace 證據仍以 tiny ELF `execve` demo 為主。
 - 有 ELF 載入與最小 `execve` demo：`run elf-inspect`、`run elf-load`、`EXECVE_DEMO=1` boot probe。
 - `run elf-load` 現在可驗證：
   - load+stack 映射

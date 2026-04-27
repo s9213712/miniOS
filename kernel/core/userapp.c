@@ -21,11 +21,6 @@ extern uint64_t minios_userapp_cpp_magic(void);
 #define MINIOS_USERAPP_STACK_SIZE 4096
 #define MINIOS_USERIMG_STACK_SCRATCH_SIZE 65536
 
-/* Phase 20 guard:
- * Current teaching environment loads the kernel as supervisor-only pages.
- * Keeping a kernel-mode fallback avoids unstable crashes while keeping the
- * user-mode entry code for future iterations.
- */
 #ifndef MINIOS_PHASE20_USER_MODE
 #define MINIOS_PHASE20_USER_MODE 0
 #endif
@@ -290,7 +285,7 @@ static void userapp_fallback_python(void) {
 }
 
 static void userapp_fallback_linux_abi(void) {
-    console_write_string("linux abi preview: user-mode path disabled, running fallback\n");
+    console_write_string("linux abi preview: kernel probe path\n");
     console_write_string("supported preview syscalls: read/write/writev/close/fstat/lseek/mmap/mprotect/munmap/brk/access/getcwd/uname/getpid/gettid/set_tid_address/arch_prctl/clock_gettime/execve/exit_group/openat/newfstatat/faccessat/getrandom\n");
     userproc_linux_abi_probe();
 }
@@ -385,9 +380,9 @@ static void userapp_fallback_elf_load(void) {
 }
 
 static const mvos_userapp_t g_userapps[] = {
-    {"hello", "print hello from user app (user mode)", userapp_fallback_hello, (uint64_t)minios_userapp_hello, true},
-    {"ticks", "print current timer ticks via user syscall", userapp_fallback_ticks, (uint64_t)minios_userapp_ticks, true},
-    {"linux-abi", "preview Linux x86_64 syscall subset with tiny execve ELF demo", userapp_fallback_linux_abi, (uint64_t)minios_userapp_linux_abi, true},
+    {"hello", "print hello from app demo (kernel mode)", userapp_fallback_hello, (uint64_t)minios_userapp_hello, false},
+    {"ticks", "print current timer ticks via app demo (kernel mode)", userapp_fallback_ticks, (uint64_t)minios_userapp_ticks, false},
+    {"linux-abi", "preview Linux x86_64 syscall subset with tiny execve ELF demo (kernel probe)", userapp_fallback_linux_abi, (uint64_t)minios_userapp_linux_abi, false},
     {"elf-inspect", "inspect embedded linux-user ELF metadata (kernel mode)", userapp_fallback_elf_inspect, 0, false},
     {"elf-load", "prepare embedded linux-user ELF VMM layout (kernel mode)", userapp_fallback_elf_load, 0, false},
     {"cpp", "print C++ demo result (kernel mode demo)", userapp_fallback_cpp, 0, false},

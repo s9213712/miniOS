@@ -20,9 +20,13 @@ QEMU := qemu-system-x86_64
 INCLUDES := -I$(CURDIR)/kernel/include/mvos -I$(CURDIR)/kernel/include -I$(CURDIR)/libc
 
 CFLAGS := -std=c11 -ffreestanding -fno-pic -fno-pie -fno-stack-protector -fno-builtin \
+          -fno-omit-frame-pointer \
+          -mstack-protector-guard=global \
           -fno-asynchronous-unwind-tables -m64 -mno-red-zone -mcmodel=large -O2 -g -mgeneral-regs-only \
           -Wall -Wextra -Wno-unused-parameter -Werror=implicit-function-declaration $(INCLUDES)
 CXXFLAGS := -std=c++17 -ffreestanding -fno-pic -fno-pie -fno-exceptions -fno-rtti -fno-stack-protector \
+            -fno-omit-frame-pointer \
+            -mstack-protector-guard=global \
             -fno-builtin -fno-asynchronous-unwind-tables -m64 -mno-red-zone -mcmodel=large -O2 -g \
             -mgeneral-regs-only -Wall -Wextra -Wno-unused-parameter $(INCLUDES)
 CFLAGS := $(filter-out -fno-stack-protector,$(CFLAGS)) -fstack-protector-strong
@@ -104,6 +108,8 @@ $(OUTPUT_DIR)/%.o: %.c $(FLAGS_MARK)
 	@mkdir -p $(dir $@)
 	@echo "[CC] $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
+
+$(OUTPUT_DIR)/kernel/arch/x86_64/interrupt/interrupt.o: CFLAGS := $(filter-out -fno-omit-frame-pointer,$(CFLAGS)) -fomit-frame-pointer
 
 $(OUTPUT_DIR)/%.o: %.asm $(FLAGS_MARK)
 	@mkdir -p $(dir $@)

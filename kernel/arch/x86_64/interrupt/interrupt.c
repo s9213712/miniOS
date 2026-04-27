@@ -159,6 +159,8 @@ static void fault_log_and_panic(const char *name, uint64_t vector, uint64_t erro
             .ss = frame->ss,
         };
     }
+    klog("[fault] ");
+    klogln(name);
     panic_with_context(name, &context);
 }
 
@@ -213,6 +215,7 @@ void __attribute__((interrupt)) isr_page_fault(struct interrupt_frame *frame, ui
             .ss = frame->ss,
         };
     }
+    klogln("[fault] Page Fault");
     panic_with_context("Page Fault", &context);
 }
 

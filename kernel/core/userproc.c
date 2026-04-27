@@ -1,6 +1,7 @@
 #include <mvos/userproc.h>
 #include <mvos/console.h>
 #include <mvos/gdt.h>
+#include <mvos/heap.h>
 #include <mvos/interrupt.h>
 #include <mvos/userimg.h>
 #include <mvos/vfs.h>
@@ -79,6 +80,7 @@ enum {
     MINIOS_EXECVE_MAX_ARG_STR = 128,
     MINIOS_EXECVE_STACK_SCRATCH_SIZE = 65536,
     MINIOS_EXECVE_KERNEL_STACK_SIZE = 16384,
+    MINIOS_USERPROC_SYSCALL_STACK_SIZE = 16384,
     MINIOS_USERPROC_MAX_FDS = 8,
     MINIOS_USERPROC_FD_BASE = 3,
     MINIOS_USERPROC_ROOT_ID = 0,
@@ -290,9 +292,12 @@ static uint32_t g_userproc_fd_flags[MINIOS_USERPROC_MAX_FDS];
 static uint8_t g_userproc_fd_cloexec[MINIOS_USERPROC_MAX_FDS];
 static uint64_t g_userproc_fd_stdio_targets[MINIOS_USERPROC_MAX_FDS];
 static mvos_vfs_file_t g_userproc_files[MINIOS_USERPROC_MAX_FDS];
-static uint8_t g_userproc_execve_stack_scratch[MINIOS_EXECVE_STACK_SCRATCH_SIZE];
-static uint8_t g_userproc_execve_kernel_stack[MINIOS_EXECVE_KERNEL_STACK_SIZE] __attribute__((aligned(16)));
-static uint8_t g_userproc_execve_in_progress;
+static uint8_t g_userproc_syscall_stack[MINIOS_USERPROC_SYSCALL_STACK_SIZE] __attribute__((aligned(16)));
+
+typedef struct {
+    uint8_t *stack_scratch;
+    uint8_t *kernel_stack;
+} minios_execve_runtime_t;
 
 enum {
     MINIOS_MSR_EFER = 0xC0000080,
@@ -324,6 +329,39 @@ static int userproc_streq(const char *a, const char *b) {
         ++i;
     }
     return a[i] == '\0' && b[i] == '\0';
+}
+
+static void userproc_execve_runtime_release(minios_execve_runtime_t *runtime) {
+    if (runtime == NULL) {
+        return;
+    }
+    if (runtime->kernel_stack != NULL) {
+        kfree(runtime->kernel_stack);
+        runtime->kernel_stack = NULL;
+    }
+    if (runtime->stack_scratch != NULL) {
+        kfree(runtime->stack_scratch);
+        runtime->stack_scratch = NULL;
+    }
+}
+
+static int64_t userproc_execve_runtime_acquire(minios_execve_runtime_t *runtime) {
+    if (runtime == NULL) {
+        return -14; /* EFAULT */
+    }
+
+    runtime->stack_scratch = (uint8_t *)kmalloc(MINIOS_EXECVE_STACK_SCRATCH_SIZE);
+    if (runtime->stack_scratch == NULL) {
+        return -12; /* ENOMEM */
+    }
+
+    runtime->kernel_stack = (uint8_t *)kmalloc(MINIOS_EXECVE_KERNEL_STACK_SIZE);
+    if (runtime->kernel_stack == NULL) {
+        userproc_execve_runtime_release(runtime);
+        return -12; /* ENOMEM */
+    }
+
+    return 0;
 }
 
 static int userproc_region_contains(const mvos_vmm_region_info_t *region, uint64_t addr) {
@@ -2078,6 +2116,7 @@ static uint64_t userproc_linux_arch_prctl(uint64_t code, uint64_t arg) {
 static int64_t userproc_linux_execve(uint64_t user_path,
                                      uint64_t user_argv,
                                      uint64_t user_envp,
+                                     const minios_execve_runtime_t *runtime,
                                      mvos_userimg_report_t *out_report,
                                      mvos_user_stack_layout_t *out_layout) {
     if (out_report == NULL || out_layout == NULL) {
@@ -2148,6 +2187,10 @@ static int64_t userproc_linux_execve(uint64_t user_path,
         return -8; /* ENOEXEC */
     }
 
+    if (runtime == NULL || runtime->stack_scratch == NULL) {
+        vfs_close(&exec_file);
+        return -12; /* ENOMEM */
+    }
     if (report.stack_size > MINIOS_EXECVE_STACK_SCRATCH_SIZE) {
         vfs_close(&exec_file);
         return -12; /* ENOMEM */
@@ -2167,7 +2210,7 @@ static int64_t userproc_linux_execve(uint64_t user_path,
 
     mvos_user_stack_layout_t layout;
     int stack_rc = userproc_prepare_exec_stack(
-        g_userproc_execve_stack_scratch,
+        runtime->stack_scratch,
         report.stack_size,
         report.stack_base,
         report.stack_top,
@@ -2189,7 +2232,7 @@ static int64_t userproc_linux_execve(uint64_t user_path,
         }
     }
 
-    if (vmm_copy_to_user(report.stack_base, g_userproc_execve_stack_scratch, report.stack_size) != 0) {
+    if (vmm_copy_to_user(report.stack_base, runtime->stack_scratch, report.stack_size) != 0) {
         return -8; /* ENOEXEC */
     }
 
@@ -2227,8 +2270,8 @@ void userproc_syscall_init(void) {
     userproc_wrmsr(MINIOS_MSR_LSTAR, (uint64_t)(uintptr_t)syscall_entry);
     userproc_wrmsr(MINIOS_MSR_SFMASK, MINIOS_RFLAGS_IF);
 
-    g_userproc_syscall_stack_top = (uint64_t)(uintptr_t)(g_userproc_execve_kernel_stack +
-                                                        MINIOS_EXECVE_KERNEL_STACK_SIZE);
+    g_userproc_syscall_stack_top = (uint64_t)(uintptr_t)(g_userproc_syscall_stack +
+                                                        MINIOS_USERPROC_SYSCALL_STACK_SIZE);
 }
 
 const char *userproc_handoff_result_name(int rc) {
@@ -2536,18 +2579,19 @@ uint64_t userproc_dispatch(uint64_t syscall,
         case MINIOS_LINUX_SYSCALL_STATX:
             return userproc_linux_statx(arg1, arg2, arg3, arg4, arg5);
         case MINIOS_LINUX_SYSCALL_EXECVE: {
-            if (g_userproc_execve_in_progress) {
-                return userproc_errno(-16); /* EBUSY: shared execve scratch/kernel stack already in use. */
+            minios_execve_runtime_t execve_runtime = {0};
+            int64_t runtime_rc = userproc_execve_runtime_acquire(&execve_runtime);
+            if (runtime_rc != 0) {
+                return userproc_errno(runtime_rc);
             }
-            g_userproc_execve_in_progress = 1;
             mvos_userimg_report_t report;
             mvos_user_stack_layout_t layout;
-            int64_t exec_rc = userproc_linux_execve(arg1, arg2, arg3, &report, &layout);
+            int64_t exec_rc = userproc_linux_execve(arg1, arg2, arg3, &execve_runtime, &report, &layout);
             if (exec_rc != 0) {
                 console_write_string("userapp execve scaffold failed errno=");
                 console_write_u64((uint64_t)exec_rc);
                 console_write_string("\n");
-                g_userproc_execve_in_progress = 0;
+                userproc_execve_runtime_release(&execve_runtime);
                 return userproc_errno(exec_rc);
             }
 
@@ -2563,9 +2607,11 @@ uint64_t userproc_dispatch(uint64_t syscall,
                                                                layout.initial_rsp,
                                                                layout.argc,
                                                                layout.argv_user,
-                                                               layout.envp_user);
+                                                               layout.envp_user,
+                                                               (uint64_t)(uintptr_t)(execve_runtime.kernel_stack +
+                                                                                     MINIOS_EXECVE_KERNEL_STACK_SIZE));
             console_write_string("userapp execve returned\n");
-            g_userproc_execve_in_progress = 0;
+            userproc_execve_runtime_release(&execve_runtime);
             return enter_rc;
         }
         case MINIOS_LINUX_SYSCALL_EXIT:
@@ -2829,7 +2875,6 @@ void userproc_enter(uint64_t entry, uint64_t user_stack_top, uint64_t return_rip
     g_userproc_running = true;
     g_userproc_strict_user_memory = true;
     userproc_set_return_context(return_rip, return_stack);
-    g_userproc_current_app_id = 0;
     userproc_enter_asm(entry, user_stack_top);
     g_userproc_strict_user_memory = false;
 }
@@ -2852,16 +2897,17 @@ uint64_t userproc_enter_execve_and_wait(uint64_t entry,
                                         uint64_t user_stack_top,
                                         uint64_t argc,
                                         uint64_t argv_user,
-                                        uint64_t envp_user) {
+                                        uint64_t envp_user,
+                                        uint64_t kernel_stack_top) {
     uint64_t previous_rsp0 = gdt_get_rsp0();
-    uint64_t execve_rsp0 = (uint64_t)(uintptr_t)(g_userproc_execve_kernel_stack +
-                                                MINIOS_EXECVE_KERNEL_STACK_SIZE);
+    uint64_t previous_syscall_stack_top = g_userproc_syscall_stack_top;
     g_userproc_running = true;
     g_userproc_strict_user_memory = true;
-    g_userproc_syscall_stack_top = execve_rsp0;
-    gdt_set_rsp0(execve_rsp0);
+    g_userproc_syscall_stack_top = kernel_stack_top;
+    gdt_set_rsp0(kernel_stack_top);
     uint64_t rc = userproc_execve_trampoline_asm(entry, user_stack_top, argc, argv_user, envp_user);
     g_userproc_strict_user_memory = false;
+    g_userproc_syscall_stack_top = previous_syscall_stack_top;
     gdt_set_rsp0(previous_rsp0);
     return rc;
 }

@@ -27,6 +27,7 @@ typedef struct {
 
 void panic(const char *message);
 void panic_with_context(const char *message, const mvos_panic_context_t *context);
+void panic_dump_backtrace(void);
 void kassert_fail(const char *expr, const char *file, int line, const char *func);
 
 #define kassert(expr) ((expr) ? (void)0 : kassert_fail(#expr, __FILE__, __LINE__, __func__))

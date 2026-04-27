@@ -7,7 +7,7 @@
 > cd /home/s92137/miniOS
 > ```
 
-> 目前進度摘要：專案已重整為 Stage 管理，當前位於 `Stage 4`。`smoke` 主線穩定，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`、`run elf-load`。`run hello` 僅以 kernel fallback 執行。`run python` 現在提供 mini Python 子集（`print`、整數變數、`+/-` 表達式）執行；完整 Python 尚未支援。Linux 應用（如 transmission/htop/nano）尚未支援；`EXECVE_DEMO=1` 可跑內嵌 tiny static ELF 的最小 execve userspace demo。`execve` 成功換映像時已清除舊 userspace 映射，確保 mmap 狀態隔離。
+> 目前進度摘要：專案已重整為 Stage 管理，當前位於 `Stage 4`。`smoke` 主線穩定，並支援 `run`、`ls`、`cat`、`write`、`append`、`touch`、`rm`、`tasks`、`task start/stop/reset/list`、`vmm`、`app`、`run cpp`、`run linux-abi`、`run elf-inspect`、`run elf-load`。`run hello` 仍是 kernel-mode demo；`run linux-abi` 保留較完整的 kernel probe + `execve` 教學路徑。`run python` 現在提供 mini Python 子集（`print`、整數變數、`+/-` 表達式）執行；完整 Python 尚未支援。Linux 應用（如 transmission/htop/nano）尚未支援；目前真正的 ring-3 userspace 驗證仍以 `EXECVE_DEMO=1` 的 tiny static ELF 路徑為主。`execve` 成功換映像時已清除舊 userspace 映射，確保 mmap 狀態隔離。
 
 ---
 

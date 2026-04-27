@@ -13,6 +13,7 @@
 ## Panic path
 - Call `panic("message")` to print an explicit marker and halt in an infinite `cli; hlt` loop.
 - Assertions route to `kassert_fail(...)` and use the same halt path.
+- panic 目前會附帶 kernel frame-pointer backtrace，便於快速定位 fault/panic call chain。
 
 ## Fault path
 - Exception handlers for divide-by-zero, invalid opcode, general-protection, and page fault are installed by IDT setup.
@@ -21,7 +22,9 @@
   - fault name
   - vector number
   - error code (if present)
-  - RIP
+  - RIP / RSP / CS / SS / RFLAGS
+  - CR2（Page Fault）
+  - kernel backtrace
 - The handler then calls `panic()` and halts.
 - Test commands:
   - `FAULT_TEST=div0 make run`
