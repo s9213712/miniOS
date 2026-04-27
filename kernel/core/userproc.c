@@ -292,6 +292,7 @@ static uint64_t g_userproc_fd_stdio_targets[MINIOS_USERPROC_MAX_FDS];
 static mvos_vfs_file_t g_userproc_files[MINIOS_USERPROC_MAX_FDS];
 static uint8_t g_userproc_execve_stack_scratch[MINIOS_EXECVE_STACK_SCRATCH_SIZE];
 static uint8_t g_userproc_execve_kernel_stack[MINIOS_EXECVE_KERNEL_STACK_SIZE] __attribute__((aligned(16)));
+static uint8_t g_userproc_execve_in_progress;
 
 enum {
     MINIOS_MSR_EFER = 0xC0000080,
@@ -531,32 +532,6 @@ static int64_t userproc_collect_user_strv(uint64_t user_vec,
     }
 
     return -7; /* E2BIG: too many argv/envp entries */
-}
-
-static void userproc_legacy_print(uint64_t channel) {
-    const char *msg = "userapp";
-    console_write_string("userapp #");
-    console_write_u64(g_userproc_current_app_id);
-    console_write_string(" syscall ");
-    console_write_u64(channel);
-    console_write_string(": ");
-    switch ((uint8_t)channel) {
-        case 1:
-            console_write_string("hello from user app\n");
-            break;
-        case 2:
-            console_write_string("ticks=");
-            console_write_u64(timer_ticks());
-            console_write_string("\n");
-            break;
-        case 3:
-            console_write_string("scheduler not exposed to user yet\n");
-            break;
-        default:
-            console_write_string(msg);
-            console_write_string(" print request\n");
-            break;
-    }
 }
 
 static int userproc_fd_to_index(uint64_t fd, uint64_t *out_index) {
@@ -2465,14 +2440,6 @@ uint64_t userproc_dispatch(uint64_t syscall,
         return userproc_errno(-1);
     }
 
-    /* Preserve old phase-20 teaching probes:
-     * syscall(1, 1/2/3, 0, 0) prints known demo channels.
-     */
-    if (syscall == MINIOS_LINUX_SYSCALL_WRITE && arg2 == 0 && arg3 == 0 && arg1 > 0 && arg1 < 16) {
-        userproc_legacy_print(arg1);
-        return 0;
-    }
-
     switch (syscall) {
         case MINIOS_LINUX_SYSCALL_READ:
             return userproc_linux_read(arg1, arg2, arg3);
@@ -2569,6 +2536,10 @@ uint64_t userproc_dispatch(uint64_t syscall,
         case MINIOS_LINUX_SYSCALL_STATX:
             return userproc_linux_statx(arg1, arg2, arg3, arg4, arg5);
         case MINIOS_LINUX_SYSCALL_EXECVE: {
+            if (g_userproc_execve_in_progress) {
+                return userproc_errno(-16); /* EBUSY: shared execve scratch/kernel stack already in use. */
+            }
+            g_userproc_execve_in_progress = 1;
             mvos_userimg_report_t report;
             mvos_user_stack_layout_t layout;
             int64_t exec_rc = userproc_linux_execve(arg1, arg2, arg3, &report, &layout);
@@ -2576,6 +2547,7 @@ uint64_t userproc_dispatch(uint64_t syscall,
                 console_write_string("userapp execve scaffold failed errno=");
                 console_write_u64((uint64_t)exec_rc);
                 console_write_string("\n");
+                g_userproc_execve_in_progress = 0;
                 return userproc_errno(exec_rc);
             }
 
@@ -2593,6 +2565,7 @@ uint64_t userproc_dispatch(uint64_t syscall,
                                                                layout.argv_user,
                                                                layout.envp_user);
             console_write_string("userapp execve returned\n");
+            g_userproc_execve_in_progress = 0;
             return enter_rc;
         }
         case MINIOS_LINUX_SYSCALL_EXIT:

@@ -104,6 +104,14 @@ int main(void) {
         fprintf(stderr, "[test_vmm_basic] over-limit user range unexpectedly passed\n");
         return 1;
     }
+    if (vmm_copy_to_user(0x500000ULL, "x", 1) == 0) {
+        fprintf(stderr, "[test_vmm_basic] copy_to_user unexpectedly succeeded for unmapped range\n");
+        return 1;
+    }
+    if (vmm_copy_to_user(0x400000ULL, "ok", 2) != 0) {
+        fprintf(stderr, "[test_vmm_basic] copy_to_user unexpectedly failed for mapped user range\n");
+        return 1;
+    }
 
     uint32_t before_split = vmm_region_count();
     uint64_t split_base = 0x600000ULL;

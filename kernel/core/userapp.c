@@ -88,7 +88,7 @@ static int userapp_1a2b_read_char(void) {
         if (c >= 0) {
             return c;
         }
-        __asm__ volatile("pause");
+        mvos_idle_wait();
     }
 }
 
@@ -448,6 +448,9 @@ int userapp_run(const char *name) {
                         if (app->kernel_entry == NULL) {
                             return -3;
                         }
+                        klog("[userapp] warning: running ");
+                        klog(app->name);
+                        klogln(" via kernel-mode fallback; ring-3 isolation is disabled");
                         app->kernel_entry();
                         return 0;
                     }

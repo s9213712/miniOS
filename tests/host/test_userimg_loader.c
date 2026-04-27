@@ -18,6 +18,20 @@ static uint64_t g_enter_execve_argc;
 static uint64_t g_enter_execve_argv;
 static uint64_t g_enter_execve_envp;
 static uint32_t g_enter_execve_count;
+static int g_run_strict_userptr_probe;
+static int g_run_execve_reentry_probe;
+static int64_t g_strict_write_probe_rc;
+static int64_t g_strict_uname_probe_rc;
+static int64_t g_reentry_execve_rc;
+static uint64_t g_probe_exec_path;
+static uint64_t g_probe_exec_argv;
+static uint64_t g_probe_exec_envp;
+
+enum {
+    HOST_TEST_SYSCALL_WRITE = 1,
+    HOST_TEST_SYSCALL_EXECVE = 59,
+    HOST_TEST_SYSCALL_UNAME = 63,
+};
 
 /* Host test stubs for elf.c diagnostic symbols. */
 void console_write_string(const char *str) {
@@ -89,6 +103,33 @@ uint64_t userproc_execve_trampoline_asm(uint64_t entry,
     g_enter_execve_argv = argv_user;
     g_enter_execve_envp = envp_user;
     g_enter_execve_count++;
+    if (g_run_strict_userptr_probe) {
+        g_run_strict_userptr_probe = 0;
+        g_strict_write_probe_rc = (int64_t)userproc_dispatch(HOST_TEST_SYSCALL_WRITE,
+                                                             1,
+                                                             0xdeadbeefULL,
+                                                             16,
+                                                             0,
+                                                             0,
+                                                             0);
+        g_strict_uname_probe_rc = (int64_t)userproc_dispatch(HOST_TEST_SYSCALL_UNAME,
+                                                             0xdeadbeefULL,
+                                                             0,
+                                                             0,
+                                                             0,
+                                                             0,
+                                                             0);
+    }
+    if (g_run_execve_reentry_probe) {
+        g_run_execve_reentry_probe = 0;
+        g_reentry_execve_rc = (int64_t)userproc_dispatch(HOST_TEST_SYSCALL_EXECVE,
+                                                         g_probe_exec_path,
+                                                         g_probe_exec_argv,
+                                                         g_probe_exec_envp,
+                                                         0,
+                                                         0,
+                                                         0);
+    }
     return 1;
 }
 
@@ -114,6 +155,7 @@ enum {
     TEST_LINUX_SYSCALL_MADVISE = 28,
     TEST_LINUX_SYSCALL_DUP = 32,
     TEST_LINUX_SYSCALL_DUP2 = 33,
+    TEST_LINUX_SYSCALL_UNAME = 63,
     TEST_LINUX_SYSCALL_GETCWD = 79,
     TEST_LINUX_SYSCALL_FCNTL = 72,
     TEST_LINUX_SYSCALL_EXECVE = 59,
@@ -623,6 +665,14 @@ int main(void) {
         return 1;
     }
     uint32_t enter_count_before_execve = g_enter_execve_count;
+    g_run_strict_userptr_probe = 1;
+    g_run_execve_reentry_probe = 1;
+    g_strict_write_probe_rc = 0;
+    g_strict_uname_probe_rc = 0;
+    g_reentry_execve_rc = 0;
+    g_probe_exec_path = (uint64_t)(uintptr_t)exec_path;
+    g_probe_exec_argv = (uint64_t)(uintptr_t)exec_argv;
+    g_probe_exec_envp = (uint64_t)(uintptr_t)exec_envp;
     exec_rc = userproc_dispatch(
         TEST_LINUX_SYSCALL_EXECVE,
         (uint64_t)(uintptr_t)exec_path,
@@ -646,6 +696,20 @@ int main(void) {
     }
     if (g_enter_execve_count != enter_count_before_execve + 1) {
         fprintf(stderr, "[test_userimg_loader] expected execve to enter userspace handoff\n");
+        free(stack_mem);
+        return 1;
+    }
+    if (g_strict_write_probe_rc != -14 || g_strict_uname_probe_rc != -14) {
+        fprintf(stderr,
+                "[test_userimg_loader] expected strict user pointer probes to fail with EFAULT, write=%lld uname=%lld\n",
+                (long long)g_strict_write_probe_rc,
+                (long long)g_strict_uname_probe_rc);
+        free(stack_mem);
+        return 1;
+    }
+    if (g_reentry_execve_rc != -16) {
+        fprintf(stderr, "[test_userimg_loader] expected nested execve to fail with EBUSY (-16), got %lld\n",
+                (long long)g_reentry_execve_rc);
         free(stack_mem);
         return 1;
     }
