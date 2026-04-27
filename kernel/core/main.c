@@ -137,7 +137,6 @@ void kmain(void) {
      */
     serial_init();
     console_init();
-    userapp_init();
     klogln("MiniOS Phase 3 bootstrap");
     klogln("boot banner: kernel entering C");
     klogln("hello from kernel");
@@ -153,6 +152,7 @@ void kmain(void) {
     idt_init();
     userproc_syscall_init();
     timer_init(100);
+    userapp_init();
     klogln("gdt/idt initialized");
     klog("[phase3] timer ticks=");
     klog_u64(timer_ticks());

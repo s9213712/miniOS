@@ -30,6 +30,7 @@ extern uint64_t kernel_stack_top;
 static struct gdt_descriptor gdtr;
 static uint64_t gdt[7];
 static struct tss gdt_tss;
+static uint8_t g_kernel_transition_stack[16384] __attribute__((aligned(16)));
 
 static void gdt_set_entry(size_t index, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags) {
     uint64_t descriptor = 0;
@@ -59,7 +60,8 @@ void gdt_init(void) {
     gdt_set_entry(4, 0, 0xFFFFF, 0xF2, 0xC); /* user data */
 
     gdt_tss = (struct tss){0};
-    gdt_tss.rsp0 = (uint64_t)&kernel_stack_top;
+    /* Keep ring-3 to ring-0 transitions off the bootstrap stack used by kmain(). */
+    gdt_tss.rsp0 = (uint64_t)(uintptr_t)(g_kernel_transition_stack + sizeof(g_kernel_transition_stack));
     gdt_tss.io_map_base = (uint16_t)sizeof(struct tss);
 
     uint64_t tss_base = (uint64_t)&gdt_tss;

@@ -19,10 +19,17 @@ struct idt_pointer {
 
 struct interrupt_frame;
 extern void isr_divide_by_zero(struct interrupt_frame *frame);
+extern void isr_bounds_range_exceeded(struct interrupt_frame *frame);
 extern void isr_invalid_opcode(struct interrupt_frame *frame);
+extern void isr_double_fault(struct interrupt_frame *frame, uint64_t error_code);
+extern void isr_invalid_tss(struct interrupt_frame *frame, uint64_t error_code);
+extern void isr_segment_not_present(struct interrupt_frame *frame, uint64_t error_code);
+extern void isr_stack_segment_fault(struct interrupt_frame *frame, uint64_t error_code);
 extern void isr_general_protection(struct interrupt_frame *frame, uint64_t error_code);
 extern void isr_page_fault(struct interrupt_frame *frame, uint64_t error_code);
+extern void isr_alignment_check(struct interrupt_frame *frame, uint64_t error_code);
 extern void isr_timer(struct interrupt_frame *frame);
+extern void isr_keyboard(struct interrupt_frame *frame);
 extern void isr_user_syscall(void);
 
 static struct idt_entry idt[256];
@@ -55,10 +62,17 @@ void idt_init(void) {
     idt_clear();
 
     idt_set_gate(0, isr_divide_by_zero, 0x8E);
+    idt_set_gate(5, isr_bounds_range_exceeded, 0x8E);
     idt_set_gate(6, isr_invalid_opcode, 0x8E);
+    idt_set_gate(8, isr_double_fault, 0x8E);
+    idt_set_gate(10, isr_invalid_tss, 0x8E);
+    idt_set_gate(11, isr_segment_not_present, 0x8E);
+    idt_set_gate(12, isr_stack_segment_fault, 0x8E);
     idt_set_gate(13, isr_general_protection, 0x8E);
     idt_set_gate(14, isr_page_fault, 0x8E);
+    idt_set_gate(17, isr_alignment_check, 0x8E);
     idt_set_gate(32, isr_timer, 0x8E);
+    idt_set_gate(33, isr_keyboard, 0x8E);
     idt_set_gate(0x80, isr_user_syscall, 0xEF);
 
     idt_ptr.limit = (uint16_t)(sizeof(idt) - 1);

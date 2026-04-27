@@ -82,7 +82,7 @@ static void shell_print_app_info(const char *app_name) {
 }
 
 static inline void shell_io_wait(void) {
-    __asm__ volatile("pause");
+    mvos_idle_wait();
 }
 
 static void shell_history_push(const char *line) {

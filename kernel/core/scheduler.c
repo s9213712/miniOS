@@ -6,7 +6,7 @@
 /* Tiny teaching scheduler:
  * no preemption or context save, only cooperative hooks driven by timer cadence.
  */
-#define MAX_TASKS 4
+#define MAX_TASKS 8
 #define TASK_SWITCH_INTERVAL 100
 
 struct task {
@@ -75,7 +75,18 @@ int scheduler_add_task(const char *name, mvos_task_fn entry) {
     /* Guard compile-time test paths from undefined behavior:
      * cannot register null entry, nameless tasks, or overflow past MAX_TASKS.
      */
-    if (entry == NULL || name == NULL || g_task_count >= MAX_TASKS) {
+    if (entry == NULL) {
+        klogln("[scheduler] rejected task with null entry");
+        return -1;
+    }
+    if (name == NULL || name[0] == '\0') {
+        klogln("[scheduler] rejected task with empty name");
+        return -1;
+    }
+    if (g_task_count >= MAX_TASKS) {
+        klog("[scheduler] MAX_TASKS reached, dropping task: ");
+        klog(name);
+        klogln("");
         return -1;
     }
     g_tasks[g_task_count] = (struct task){

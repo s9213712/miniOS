@@ -4,6 +4,19 @@
 
 static uint64_t g_task_a_calls;
 static uint64_t g_task_b_calls;
+static uint64_t g_task_extra_calls;
+
+void klog(const char *message) {
+    (void)message;
+}
+
+void klogln(const char *message) {
+    (void)message;
+}
+
+void klog_u64(uint64_t value) {
+    (void)value;
+}
 
 static void task_a(uint64_t tick) {
     (void)tick;
@@ -13,6 +26,11 @@ static void task_a(uint64_t tick) {
 static void task_b(uint64_t tick) {
     (void)tick;
     g_task_b_calls++;
+}
+
+static void task_extra(uint64_t tick) {
+    (void)tick;
+    g_task_extra_calls++;
 }
 
 static void run_ticks(uint32_t ticks) {
@@ -31,28 +49,49 @@ int main(void) {
         return 1;
     }
 
+    for (int i = 2; i < 8; ++i) {
+        char name[] = "task-x";
+        name[5] = (char)('0' + i);
+        int idx = scheduler_add_task(name, task_extra);
+        if (idx != i) {
+            fprintf(stderr, "[test_scheduler_ctl] expected extra task index=%d got=%d\n", i, idx);
+            return 1;
+        }
+    }
+    if (scheduler_add_task("task-overflow", task_extra) != -1) {
+        fprintf(stderr, "[test_scheduler_ctl] expected overflow add to fail once MAX_TASKS is reached\n");
+        return 1;
+    }
+    if (scheduler_task_count() != 8) {
+        fprintf(stderr, "[test_scheduler_ctl] expected 8 tasks after capacity fill, got=%u\n",
+                scheduler_task_count());
+        return 1;
+    }
+
     run_ticks(260);
-    if (g_task_a_calls == 0 || g_task_b_calls == 0) {
-        fprintf(stderr, "[test_scheduler_ctl] expected both tasks to run: a=%llu b=%llu\n",
+    if (g_task_a_calls == 0 || g_task_b_calls == 0 || g_task_extra_calls == 0) {
+        fprintf(stderr, "[test_scheduler_ctl] expected all registered tasks to run: a=%llu b=%llu extra=%llu\n",
                 (unsigned long long)g_task_a_calls,
-                (unsigned long long)g_task_b_calls);
+                (unsigned long long)g_task_b_calls,
+                (unsigned long long)g_task_extra_calls);
         return 1;
     }
 
     uint64_t a_before = g_task_a_calls;
     uint64_t b_before = g_task_b_calls;
+    uint64_t extra_before = g_task_extra_calls;
     if (scheduler_set_task_active((uint32_t)b_idx, 0) != 0) {
         fprintf(stderr, "[test_scheduler_ctl] failed to stop task-b\n");
         return 1;
     }
-    run_ticks(160);
+    run_ticks(900);
     if (g_task_b_calls != b_before) {
         fprintf(stderr, "[test_scheduler_ctl] stopped task-b still ran: before=%llu after=%llu\n",
                 (unsigned long long)b_before, (unsigned long long)g_task_b_calls);
         return 1;
     }
-    if (g_task_a_calls == a_before) {
-        fprintf(stderr, "[test_scheduler_ctl] task-a did not continue after stopping task-b\n");
+    if (g_task_a_calls == a_before && g_task_extra_calls == extra_before) {
+        fprintf(stderr, "[test_scheduler_ctl] no active task progressed after stopping task-b\n");
         return 1;
     }
 
@@ -75,7 +114,7 @@ int main(void) {
         fprintf(stderr, "[test_scheduler_ctl] failed to restart task-b\n");
         return 1;
     }
-    run_ticks(120);
+    run_ticks(900);
     if (g_task_b_calls == b_before) {
         fprintf(stderr, "[test_scheduler_ctl] restarted task-b did not run\n");
         return 1;

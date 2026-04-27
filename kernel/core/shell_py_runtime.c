@@ -2,6 +2,7 @@
 #include <mvos/console.h>
 #include <mvos/vfs.h>
 #include <mvos/keyboard.h>
+#include <mvos/interrupt.h>
 #include <mvos/serial.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -97,7 +98,9 @@ static int shell_py_read_char(void) {
     int c = -1;
     while (c < 0) {
         c = shell_py_read_char_nonblocking();
-        __asm__ volatile("pause");
+        if (c < 0) {
+            mvos_idle_wait();
+        }
     }
     return c;
 }

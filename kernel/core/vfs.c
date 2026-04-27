@@ -64,6 +64,7 @@ enum {
 
 static vfs_open_state_t g_open_files[MAX_OPEN_FILES];
 static vfs_dynamic_node_t g_dynamic_nodes[MAX_DYNAMIC_FILES];
+static int g_static_checksums_initialized;
 
 static uint32_t fnv1a_hash32(const void *ptr, uint64_t len) {
     /* Simple 32-bit FNV-1a checksum, no security claims, only integrity smoke checks. */
@@ -87,15 +88,17 @@ static uint64_t static_node_size(const vfs_node_t *node) {
 }
 
 static void init_file_checksums(void) {
-    /* Lazy checksum initialization keeps startup code small and avoids extra init path.
-     * If checksums are already present (non-zero), this function is a no-op.
+    /* Compute static initfs checksums exactly once.
+     * A legitimate FNV-1a result may be zero, so checksum==0 cannot be the sentinel.
      */
+    if (g_static_checksums_initialized) {
+        return;
+    }
     for (uint64_t i = 0; i < sizeof(g_nodes) / sizeof(g_nodes[0]); ++i) {
         vfs_node_t *node = &g_nodes[i];
-        if (node->checksum == 0) {
-            node->checksum = fnv1a_hash32(node->data, static_node_size(node));
-        }
+        node->checksum = fnv1a_hash32(node->data, static_node_size(node));
     }
+    g_static_checksums_initialized = 1;
 }
 
 static int path_eq(const char *a, const char *b) {

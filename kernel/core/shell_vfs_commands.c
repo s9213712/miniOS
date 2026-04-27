@@ -2,6 +2,7 @@
 #include <mvos/console.h>
 #include <mvos/vfs.h>
 #include <mvos/keyboard.h>
+#include <mvos/interrupt.h>
 #include <mvos/serial.h>
 #include <mvos/shell_py_runtime.h>
 #include <stdint.h>
@@ -240,7 +241,7 @@ static int shell_nano_read_key(void) {
         if (c >= 0) {
             return c;
         }
-        __asm__ volatile("pause");
+        mvos_idle_wait();
     }
 }
 

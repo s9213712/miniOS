@@ -5,6 +5,7 @@
 #include <mvos/panic.h>
 #include <mvos/serial.h>
 #include <mvos/interrupt.h>
+#include <mvos/keyboard.h>
 #include <mvos/scheduler.h>
 #include <stdint.h>
 
@@ -26,8 +27,10 @@ static inline uint8_t inb(uint16_t port) {
     return value;
 }
 
-static inline void io_wait(void) {
-    __asm__ volatile("outb %%al, $0x80" : : "a"((uint8_t)0));
+static inline uint64_t read_cr2(void) {
+    uint64_t value;
+    __asm__ volatile("mov %%cr2, %0" : "=r"(value));
+    return value;
 }
 
 #define PIT_CHANNEL0_DATA 0x40
@@ -47,16 +50,16 @@ static inline void io_wait(void) {
 #define PIC1_ICW1_ICW4 0x01
 #define PIC1_ICW4_8086 0x01
 
-static volatile uint64_t timer_tick_count;
+static uint64_t timer_tick_count;
 
 static void timer_tick_bump(void) {
-    /* Timer heartbeat is monotonic and lock-free; used by scheduler diagnostics. */
-    ++timer_tick_count;
+    /* ISR-side bump uses an atomic RMW so normal kernel reads never observe a torn update. */
+    __atomic_add_fetch(&timer_tick_count, 1, __ATOMIC_RELAXED);
 }
 
 uint64_t timer_ticks(void) {
     /* Exposed as a read-only debug counter for task and test output. */
-    return timer_tick_count;
+    return __atomic_load_n(&timer_tick_count, __ATOMIC_RELAXED);
 }
 
 void __attribute__((interrupt)) isr_timer(struct interrupt_frame *frame) {
@@ -70,36 +73,44 @@ void __attribute__((interrupt)) isr_timer(struct interrupt_frame *frame) {
     outb(PIC1_COMMAND, PIC_EOI);
 }
 
+void __attribute__((interrupt)) isr_keyboard(struct interrupt_frame *frame) {
+    (void)frame;
+    keyboard_handle_irq();
+    outb(PIC1_COMMAND, PIC_EOI);
+}
+
 static void remap_pic(void) {
     /* Re-map PIC IRQs to avoid clashing with CPU exception vectors 0x00-0x1f. */
     uint8_t a1 = inb(PIC1_DATA);
     uint8_t a2 = inb(PIC2_DATA);
 
     outb(PIC1_COMMAND, PIC1_ICW1_INIT | PIC1_ICW1_ICW4);
-    io_wait();
+    mvos_io_wait();
     outb(PIC2_COMMAND, PIC1_ICW1_INIT | PIC1_ICW1_ICW4);
-    io_wait();
+    mvos_io_wait();
     outb(PIC1_DATA, PIC1_OFFSET);
-    io_wait();
+    mvos_io_wait();
     outb(PIC2_DATA, PIC2_OFFSET);
-    io_wait();
+    mvos_io_wait();
     outb(PIC1_DATA, 4);
-    io_wait();
+    mvos_io_wait();
     outb(PIC2_DATA, 2);
-    io_wait();
+    mvos_io_wait();
     outb(PIC1_DATA, PIC1_ICW4_8086);
-    io_wait();
+    mvos_io_wait();
     outb(PIC2_DATA, PIC1_ICW4_8086);
-    io_wait();
+    mvos_io_wait();
 
     outb(PIC1_DATA, a1);
     outb(PIC2_DATA, a2);
 }
 
-static void pic_unmask_timer_irq(void) {
-    /* Keep only timer IRQ enabled for now; this is sufficient for smoke/scheduler demonstration. */
+static void pic_unmask_irq(uint8_t irq_line) {
+    if (irq_line >= 8u) {
+        return;
+    }
     uint8_t mask = inb(PIC1_DATA);
-    outb(PIC1_DATA, (uint8_t)(mask & ~(1u << 0)));
+    outb(PIC1_DATA, (uint8_t)(mask & (uint8_t)~(1u << irq_line)));
 }
 
 void timer_init(uint16_t hz) {
@@ -119,34 +130,36 @@ void timer_init(uint16_t hz) {
     }
 
     outb(PIT_COMMAND, 0x36);
-    io_wait();
+    mvos_io_wait();
     outb(PIT_CHANNEL0_DATA, (uint8_t)(divisor & 0xff));
-    io_wait();
+    mvos_io_wait();
     outb(PIT_CHANNEL0_DATA, (uint8_t)(divisor >> 8));
 
-    pic_unmask_timer_irq();
+    pic_unmask_irq(0);
+    pic_unmask_irq(1);
     __asm__ volatile("sti");
 }
 
 static void fault_log_and_panic(const char *name, uint64_t vector, uint64_t error_code, const struct interrupt_frame *frame) {
-    /* Shared fault formatter: consistent serial prefix + vector/info then full halt.
-     * Keeps diagnostics deterministic for smoke checks.
-     */
-    serial_init();
-    klogln("[fault]");
-    klog(name);
-    klog(" vector=");
-    serial_write_u64(vector);
+    mvos_panic_context_t context = {
+        .valid_mask = MVOS_PANIC_CTX_HAS_VECTOR,
+        .vector = vector,
+    };
     if (error_code != UINT64_MAX) {
-        klog(" error=");
-        serial_write_u64(error_code);
+        context.valid_mask |= MVOS_PANIC_CTX_HAS_ERROR;
+        context.error_code = error_code;
     }
     if (frame) {
-        klog(" rip=");
-        serial_write_u64(frame->rip);
+        context.valid_mask |= MVOS_PANIC_CTX_HAS_FRAME;
+        context.frame = (mvos_panic_frame_t){
+            .rip = frame->rip,
+            .cs = frame->cs,
+            .rflags = frame->rflags,
+            .rsp = frame->rsp,
+            .ss = frame->ss,
+        };
     }
-    klogln("");
-    panic("kernel exception");
+    panic_with_context(name, &context);
 }
 
 void __attribute__((interrupt)) isr_divide_by_zero(struct interrupt_frame *frame) {
@@ -157,10 +170,52 @@ void __attribute__((interrupt)) isr_invalid_opcode(struct interrupt_frame *frame
     fault_log_and_panic("Invalid Opcode", 6, UINT64_MAX, frame);
 }
 
+void __attribute__((interrupt)) isr_bounds_range_exceeded(struct interrupt_frame *frame) {
+    fault_log_and_panic("Bounds Range Exceeded", 5, UINT64_MAX, frame);
+}
+
+void __attribute__((interrupt)) isr_double_fault(struct interrupt_frame *frame, uint64_t error_code) {
+    fault_log_and_panic("Double Fault", 8, error_code, frame);
+}
+
+void __attribute__((interrupt)) isr_invalid_tss(struct interrupt_frame *frame, uint64_t error_code) {
+    fault_log_and_panic("Invalid TSS", 10, error_code, frame);
+}
+
+void __attribute__((interrupt)) isr_segment_not_present(struct interrupt_frame *frame, uint64_t error_code) {
+    fault_log_and_panic("Segment Not Present", 11, error_code, frame);
+}
+
+void __attribute__((interrupt)) isr_stack_segment_fault(struct interrupt_frame *frame, uint64_t error_code) {
+    fault_log_and_panic("Stack Segment Fault", 12, error_code, frame);
+}
+
 void __attribute__((interrupt)) isr_general_protection(struct interrupt_frame *frame, uint64_t error_code) {
     fault_log_and_panic("General Protection Fault", 13, error_code, frame);
 }
 
 void __attribute__((interrupt)) isr_page_fault(struct interrupt_frame *frame, uint64_t error_code) {
-    fault_log_and_panic("Page Fault", 14, error_code, frame);
+    /* Page Fault diagnostics need both RIP and CR2; CR2 identifies the faulting address. */
+    uint64_t fault_addr = read_cr2();
+    mvos_panic_context_t context = {
+        .valid_mask = MVOS_PANIC_CTX_HAS_VECTOR | MVOS_PANIC_CTX_HAS_ERROR | MVOS_PANIC_CTX_HAS_CR2,
+        .vector = 14,
+        .error_code = error_code,
+        .cr2 = fault_addr,
+    };
+    if (frame) {
+        context.valid_mask |= MVOS_PANIC_CTX_HAS_FRAME;
+        context.frame = (mvos_panic_frame_t){
+            .rip = frame->rip,
+            .cs = frame->cs,
+            .rflags = frame->rflags,
+            .rsp = frame->rsp,
+            .ss = frame->ss,
+        };
+    }
+    panic_with_context("Page Fault", &context);
+}
+
+void __attribute__((interrupt)) isr_alignment_check(struct interrupt_frame *frame, uint64_t error_code) {
+    fault_log_and_panic("Alignment Check", 17, error_code, frame);
 }

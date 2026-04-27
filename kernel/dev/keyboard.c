@@ -1,14 +1,11 @@
 #include <mvos/keyboard.h>
+#include <mvos/interrupt.h>
 #include <stdint.h>
 
 static inline uint8_t inb(uint16_t port) {
     uint8_t value;
     __asm__ volatile("inb %1, %0" : "=a"(value) : "Nd"(port));
     return value;
-}
-
-static inline void io_wait(void) {
-    __asm__ volatile("pause");
 }
 
 static const char scancode_to_ascii[128] = {
@@ -19,26 +16,45 @@ static const char scancode_to_ascii[128] = {
     'n', 'm', ',', '.', '/', 0, '*', 0, ' ', 0
 };
 
-void keyboard_init(void) {
-    /* No additional setup is required for a simple polling-based driver. */
-    (void)0;
+#define KEYBOARD_BUFFER_SIZE 32
+
+static volatile uint8_t g_keyboard_head;
+static volatile uint8_t g_keyboard_tail;
+static uint16_t g_keyboard_buffer[KEYBOARD_BUFFER_SIZE];
+static uint8_t g_keyboard_extended;
+
+static int keyboard_buffer_push(uint16_t key) {
+    uint8_t head = g_keyboard_head;
+    uint8_t next = (uint8_t)((head + 1u) % KEYBOARD_BUFFER_SIZE);
+    if (next == g_keyboard_tail) {
+        return -1;
+    }
+    g_keyboard_buffer[head] = key;
+    g_keyboard_head = next;
+    return 0;
 }
 
-int keyboard_read_char_nonblocking(void) {
-    static int extended = 0;
-
-    if (!(inb(0x64) & 0x01)) {
+static int keyboard_buffer_pop(void) {
+    uint8_t tail = g_keyboard_tail;
+    if (tail == g_keyboard_head) {
         return -1;
     }
+    uint16_t key = g_keyboard_buffer[tail];
+    g_keyboard_tail = (uint8_t)((tail + 1u) % KEYBOARD_BUFFER_SIZE);
+    return (int)key;
+}
 
-    uint8_t scancode = inb(0x60);
+static int keyboard_decode_scancode(uint8_t scancode) {
     if (scancode == 0xe0) {
-        extended = 1;
+        g_keyboard_extended = 1;
         return -1;
     }
 
-    if (extended) {
-        extended = 0;
+    if (g_keyboard_extended) {
+        g_keyboard_extended = 0;
+        if (scancode & 0x80u) {
+            return -1;
+        }
         switch (scancode) {
             case 0x48:
                 return KEY_UP;
@@ -49,12 +65,11 @@ int keyboard_read_char_nonblocking(void) {
             case 0x4d:
                 return KEY_RIGHT;
             default:
-                break;
+                return -1;
         }
-        return -1;
     }
 
-    if (scancode & 0x80) {
+    if (scancode & 0x80u) {
         return -1;
     }
     if (scancode >= sizeof(scancode_to_ascii)) {
@@ -64,13 +79,32 @@ int keyboard_read_char_nonblocking(void) {
     return (int)scancode_to_ascii[scancode];
 }
 
+void keyboard_init(void) {
+    g_keyboard_head = 0;
+    g_keyboard_tail = 0;
+    g_keyboard_extended = 0;
+}
+
+void keyboard_handle_irq(void) {
+    while ((inb(0x64) & 0x01u) != 0u) {
+        int decoded = keyboard_decode_scancode(inb(0x60));
+        if (decoded >= 0) {
+            (void)keyboard_buffer_push((uint16_t)decoded);
+        }
+    }
+}
+
+int keyboard_read_char_nonblocking(void) {
+    return keyboard_buffer_pop();
+}
+
 int keyboard_read_char_timeout(uint64_t max_polls) {
     for (uint64_t i = 0; i < max_polls; ++i) {
         int c = keyboard_read_char_nonblocking();
         if (c >= 0) {
             return c;
         }
-        io_wait();
+        mvos_idle_wait();
     }
     return -1;
 }
@@ -79,7 +113,9 @@ int keyboard_read_char(void) {
     int c;
     do {
         c = keyboard_read_char_nonblocking();
-        io_wait();
+        if (c < 0) {
+            mvos_idle_wait();
+        }
     } while (c < 0);
     return c;
 }
