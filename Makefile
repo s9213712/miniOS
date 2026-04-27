@@ -25,6 +25,8 @@ CFLAGS := -std=c11 -ffreestanding -fno-pic -fno-pie -fno-stack-protector -fno-bu
 CXXFLAGS := -std=c++17 -ffreestanding -fno-pic -fno-pie -fno-exceptions -fno-rtti -fno-stack-protector \
             -fno-builtin -fno-asynchronous-unwind-tables -m64 -mno-red-zone -mcmodel=large -O2 -g \
             -mgeneral-regs-only -Wall -Wextra -Wno-unused-parameter $(INCLUDES)
+CFLAGS := $(filter-out -fno-stack-protector,$(CFLAGS)) -fstack-protector-strong
+CXXFLAGS := $(filter-out -fno-stack-protector,$(CXXFLAGS)) -fstack-protector-strong
 LDFLAGS := -T linker/x86_64.ld -z max-page-size=0x1000 -nostdlib
 PYTHON := $(shell command -v python3 2>/dev/null || echo python3)
 
@@ -73,7 +75,7 @@ OBJS := $(C_OBJS) $(CXX_OBJS) $(ASM_OBJS)
 
 FLAGS_MARK := $(OUTPUT_DIR)/.build-flags
 
-.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline smoke-offline-basic smoke-execve-demo prefetch-limine host-programs build-host-programs clean-host-programs test-host-programs host-regressions refresh-elf-sample test-elf-sample test-vfs-rw test-scheduler-ctl test-vmm-basic test-userimg-loader test-shell-parser test-shell-python pre-push FORCE
+.PHONY: all run debug iso clean test-smoke smoke smoke-full smoke-build smoke-offline smoke-offline-basic smoke-execve-demo prefetch-limine host-programs build-host-programs clean-host-programs test-host-programs host-regressions refresh-elf-sample test-elf-sample test-vfs-rw test-scheduler-ctl test-vmm-basic test-userimg-loader test-shell-parser test-shell-python test-printf-min test-heap-free pre-push FORCE
 
 HOST_PROGRAMS_SRC_DIR := samples/user-programs
 HOST_PROGRAMS_OUT_DIR := $(OUTPUT_DIR)/host-programs
@@ -168,7 +170,7 @@ build-host-programs: host-programs
 test-host-programs:
 	@bash scripts/test_host_programs.sh
 
-host-regressions: test-elf-sample test-vfs-rw test-scheduler-ctl test-vmm-basic test-userimg-loader test-host-programs test-shell-parser test-shell-python
+host-regressions: test-elf-sample test-vfs-rw test-scheduler-ctl test-vmm-basic test-userimg-loader test-host-programs test-shell-parser test-shell-python test-printf-min test-heap-free
 
 pre-push:
 	@bash scripts/pre_push_check.sh
@@ -196,6 +198,12 @@ test-shell-parser:
 
 test-shell-python:
 	@bash scripts/test_shell_python.sh
+
+test-printf-min:
+	@bash scripts/test_printf_min.sh
+
+test-heap-free:
+	@bash scripts/test_heap_free.sh
 
 clean-host-programs:
 	rm -rf "$(HOST_PROGRAMS_OUT_DIR)"

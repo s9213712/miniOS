@@ -149,10 +149,11 @@ uint64_t pmm_free_pages(void) {
     if (!g_initialized || g_cursor < g_region_base) {
         return 0;
     }
-    if (g_limit <= g_cursor) {
-        return 0;
+    uint64_t linear_free = 0;
+    if (g_limit > g_cursor) {
+        linear_free = (g_limit - g_cursor) / MVOS_PAGE_SIZE;
     }
-    return (g_limit - g_cursor) / MVOS_PAGE_SIZE;
+    return linear_free + g_released_page_count;
 }
 
 uint64_t pmm_total_pages(void) {
